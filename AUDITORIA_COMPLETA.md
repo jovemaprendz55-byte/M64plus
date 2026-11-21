@@ -406,18 +406,18 @@ A auditoria ainda deve continuar por:
 - Implementadas as cargas packed LPV (subopcode 6) e LUV (subopcode 7). Cada instrução lê oito bytes consecutivos de DMEM com offset escalado por 8 e grava um byte por lane nos oito elementos de 16 bits.
 - LPV posiciona o byte em bits 15..8 (`byte << 8`); LUV posiciona em bits 14..7 (`byte << 7`). Os bits não usados são zerados.
 - O elemento legal documentado é zero. A implementação segue esse formato arquitetural; stores SPV/SUV e demais formatos packed ainda não foram incluídos.
-- Testes cobrem os oito lanes, deslocamento e limpeza dos bits não usados. CI pendente.
+- Testes cobrem os oito lanes, deslocamento e limpeza dos bits não usados. Workflow `44902731964` concluiu `native-host-tests` com sucesso; `assemble-debug` permanece em andamento.
 
 
 ### Continuação do RSP — SPV/SUV (2026-11-21)
 - Implementados SPV e SUV (subopcodes 6 e 7 de SWC2) para o formato legal documentado com element=0: oito bytes consecutivos são armazenados a partir das oito lanes do vetor.
 - SPV extrai bits 15..8; SUV extrai bits 14..7. Testes verificam os oito bytes de cada formato e offset escalado por 8.
 - O tratamento de elemento não zero permanece fora da implementação validada; o guia oficial indica element=0 para esses formatos packed. Ainda faltam LHV/SHV, LFV/SFV e LTV/STV.
-- CI pendente para esta nova implementação.
+- Workflow `44902752588` concluiu `native-host-tests` com sucesso; `assemble-debug` permanece em andamento.
 
 
 ### Continuação do RSP — LHV/SHV (2026-11-21)
 - Implementados LHV e SHV (subopcode 8): oito bytes espaçados por dois bytes em DMEM, com offset escalado por 16.
 - LHV coloca cada byte em bits 14..7 do elemento vetorial e zera os demais bits; SHV extrai os mesmos bits para gravar na memória.
-- Testes verificam os oito elementos, stride de dois bytes, escalonamento do offset e transformação dos valores.
-- A seleção por alinhamento e valores de elemento fora do padrão documentado ainda exige comparação mais ampla com testes de hardware/referência. CI pendente.
+- Testes verificam os oito elementos, stride de dois bytes, escalonamento do offset e transformação dos valores. Workflow `44902784631` concluiu `native-host-tests` com sucesso; `assemble-debug` permanece em andamento.
+- A seleção por alinhamento e valores de elemento fora do padrão documentado ainda exige comparação mais ampla com testes de hardware/referência.
