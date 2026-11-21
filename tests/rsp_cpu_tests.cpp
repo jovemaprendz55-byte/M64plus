@@ -419,6 +419,31 @@ void testVectorClipReverse() {
     require(rsp.vectorClipFlags() == 0U, "VCR clears VCE");
 }
 
+void testVectorClipLow() {
+    Bus bus; RspCpu rsp;
+    // VCH prepares lane 2/3 as same-sign equal upper halves and lane 4 as VCE edge.
+    rsp.setVectorLane(1, 2, 5U); rsp.setVectorLane(2, 2, 5U);
+    rsp.setVectorLane(1, 3, 6U); rsp.setVectorLane(2, 3, 6U);
+    rsp.setVectorLane(1, 4, 0xFFFAU); rsp.setVectorLane(2, 4, 5U);
+    put(bus, 0, vType(0, 2, 1, 3, 0x25)); // VCH
+    put(bus, 4, vType(0, 2, 1, 4, 0x24)); // VCL
+    require(rsp.step(bus), "execute VCH before VCL");
+    require((rsp.vectorCarryFlags() & (1U << 4U)) != 0U &&
+            (rsp.vectorCarryFlags() & (1U << 12U)) == 0U,
+            "VCH prepares VCL VCE case");
+    // Replace upper halves with lower halves for the second stage of the compare.
+    rsp.setVectorLane(1, 2, 2U); rsp.setVectorLane(2, 2, 3U);
+    rsp.setVectorLane(1, 3, 4U); rsp.setVectorLane(2, 3, 3U);
+    rsp.setVectorLane(1, 4, 0xFFFEU); rsp.setVectorLane(2, 4, 1U);
+    require(rsp.step(bus), "execute VCL using VCH flags");
+    require(rsp.vectorLane(4, 2) == 2U,
+            "VCL keeps VS when same-sign lower half is below VT");
+    require(rsp.vectorLane(4, 3) == 3U,
+            "VCL selects VT when same-sign lower half is above VT");
+    require(rsp.vectorLane(4, 4) == 0xFFFFU,
+            "VCL uses VCE to resolve opposite-sign lower-half boundary");
+}
+
 void testVectorAccumulatorLowAndVsar() {
     Bus bus;
     RspCpu rsp;
@@ -568,6 +593,7 @@ int main() {
     testVectorComparisonsAndMerge();
     testVectorClipHigh();
     testVectorClipReverse();
+    testVectorClipLow();
     testVectorPairBroadcastSelectors();
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
