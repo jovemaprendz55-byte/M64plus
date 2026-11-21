@@ -139,6 +139,25 @@ void testVectorArithmetic() {
     require(rsp.vectorLane(4, 0) == 20000U, "VSUB positive difference");
     require(rsp.vectorLane(4, 1) == static_cast<std::uint16_t>(-20000), "VSUB negative difference");
 }
+void testVectorAccumulatorLowAndVsar() {
+    Bus bus;
+    RspCpu rsp;
+    rsp.setVectorLane(1, 0, 0xFFFFU);
+    rsp.setVectorLane(2, 0, 1U);
+    put(bus, 0, vType(0, 2, 1, 3, 0x14)); // VADDC
+    put(bus, 4, vType(0, 0, 0, 4, 0x1D)); // VSAR ACC_LO
+    put(bus, 8, vType(1, 0, 0, 5, 0x1D)); // VSAR ACC_MD
+    put(bus, 12, vType(2, 0, 0, 6, 0x1D)); // VSAR ACC_HI
+    require(rsp.step(bus), "execute VADDC before accumulator read");
+    require(rsp.step(bus), "read ACC_LO through VSAR");
+    require(rsp.vectorLane(4, 0) == 0U,
+            "VSAR ACC_LO reads low 16-bit sum, not carry bit");
+    require(rsp.step(bus), "read ACC_MD through VSAR");
+    require(rsp.vectorLane(5, 0) == 0U, "ACC_MD starts independently at zero");
+    require(rsp.step(bus), "read ACC_HI through VSAR");
+    require(rsp.vectorLane(6, 0) == 0U, "ACC_HI starts independently at zero");
+}
+
 void testVectorCarryAndLogic() {
     Bus bus;
     RspCpu rsp;
@@ -259,6 +278,7 @@ int main() {
     testRegimmBranches();
     testVectorArithmetic();
     testVectorCarryAndLogic();
+    testVectorAccumulatorLowAndVsar();
     testVectorPairBroadcastSelectors();
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
