@@ -445,3 +445,16 @@ A auditoria ainda deve continuar por:
 - Implementação SFV: workflow `44903225151` — `native-host-tests` aprovado; `assemble-debug` ainda em execução na última verificação.
 - Testes SFV: workflow `44903235082` — `native-host-tests` aprovado; `assemble-debug` ainda em execução na última verificação.
 - Portanto, LFV/SFV ainda não estão marcadas como integralmente validadas até a conclusão dos builds Android.
+
+### Continuação do RSP — LTV/STV (2026-11-21)
+- Implementados LTV (LWC2) e STV (SWC2), subopcode `0x0B`, com offset de 7 bits com sinal escalado por 16 bytes.
+- A transferência movimenta oito halfwords de uma palavra DMEM alinhada de 128 bits. `vt & 0x18` seleciona o grupo de oito registradores; cada slice usa o registrador `(slice + (element >> 1)) & 7` dentro do grupo e a lane correspondente ao slice.
+- Loads espalham os oito halfwords na diagonal do grupo; stores reúnem a mesma diagonal na palavra de memória. O bit menos significativo de element não participa do índice, conforme a fórmula do manual oficial.
+- Teste de integração cobre os quatro grupos de registradores, as oito diagonais, ida e volta LTV/STV, offset escalado e a última palavra alinhada do DMEM.
+- Implementação: commit `25a87d1`; testes: `3d46396`; correção do escalonamento do offset: `fecdc75`.
+- CI dos commits LTV/STV: workflows `44903672783` (testes) e `44903680009` (escala do offset), aguardando conclusão na última verificação.
+- Limitação atual: o RSP ainda não modela os três slots de atraso de loads vetoriais nem o interlock de pipeline descritos no manual; isso afeta o timing de todas as cargas vetoriais, não apenas LTV. O comportamento para endereços base não alinhados e elementos ilegais ainda precisa de validação específica.
+- Referência normativa: SGI Nintendo 64 RSP Programmer's Guide, seção Transpose (p. 54) e entrada LTV (p. 192); a codificação `0x0B` também é corroborada pelo código do Mupen64Plus. A tabela `0x08` encontrada em uma referência secundária foi tratada como erro documental.
+
+### Atualização de CI — LFV/SFV (2026-11-21)
+- A verificação final confirmou que os quatro workflows `44903198432`, `44903212457`, `44903225151` e `44903235082` concluíram com sucesso nos dois jobs: `native-host-tests` e `assemble-debug`. O status pendente descrito na seção anterior foi superado.
