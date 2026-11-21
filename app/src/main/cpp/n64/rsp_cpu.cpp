@@ -521,10 +521,15 @@ bool RspCpu::step(Bus& bus) noexcept {
                 halted_ = true; faulted_ = true;
                 return false;
             }
+            // LFV first views a 16-byte DMEM quadword. The lower and upper
+            // 64-bit halves use different repeated byte-selection patterns.
+            constexpr unsigned lowerPattern[4] = {0U,  4U,  8U, 12U};
+            constexpr unsigned upperPattern[4] = {8U, 12U,  0U,  4U};
+            const unsigned* pattern = element == 0U ? lowerPattern : upperPattern;
             for (unsigned i = 0; i < 4U; ++i) {
                 std::uint8_t value = 0;
                 const std::uint32_t dmemAddress = Bus::kSpDmemBase +
-                    ((address + i * 4U) & 0x0FFFU);
+                    ((address + pattern[i]) & 0x0FFFU);
                 if (!bus.read8(dmemAddress, value)) {
                     halted_ = true; faulted_ = true;
                     return false;
