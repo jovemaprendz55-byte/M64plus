@@ -7,6 +7,18 @@ namespace m64plus::n64 {
 
 enum class TlbResult : std::uint8_t { Success, Miss, Invalid, Modified };
 
+struct TlbEntryData {
+    std::uint32_t virtualPairBase = 0;
+    std::uint8_t asid = 0;
+    std::uint32_t evenPfn = 0;
+    std::uint32_t oddPfn = 0;
+    bool evenValid = false;
+    bool oddValid = false;
+    bool evenDirty = false;
+    bool oddDirty = false;
+    bool global = false;
+};
+
 class Tlb final {
 public:
     static constexpr std::size_t kEntryCount = 32;
@@ -20,6 +32,8 @@ public:
                     std::uint8_t asid, std::uint32_t evenPfn,
                     std::uint32_t oddPfn, bool evenValid, bool oddValid,
                     bool evenDirty, bool oddDirty, bool global) noexcept;
+    bool readEntry(std::size_t index, TlbEntryData& entry) const noexcept;
+    int probe(std::uint64_t virtualAddress, std::uint8_t asid) const noexcept;
     TlbResult translate(std::uint64_t virtualAddress, std::uint8_t asid,
                         bool store, std::uint32_t& physicalAddress) const noexcept;
     std::size_t size() const noexcept;

@@ -143,6 +143,18 @@ Java_com_jsr_m64plus_MainActivity_nativeCp0SelfTest(JNIEnv*, jclass) {
     if (!cp0.write(Cp0::kStatus, Cp0::kStatusBev)) return JNI_FALSE;
     if (cp0.raiseException(ExceptionCode::Syscall, 0xFFFFFFFF80003000ULL) !=
         0xFFFFFFFFBFC00380ULL) return JNI_FALSE;
+    // TLB-related CP0 register masks and read-only Random behavior.
+    if (!cp0.write(Cp0::kIndex, 0xFFFFFFFFULL) || cp0.read(Cp0::kIndex) != 0x8000001FULL)
+        return JNI_FALSE;
+    if (!cp0.write(Cp0::kEntryLo0, 0xFFFFFFFFULL) ||
+        cp0.read(Cp0::kEntryLo0) != 0x03FFFFFFULL) return JNI_FALSE;
+    if (!cp0.write(Cp0::kEntryHi, 0xFFFFFFFFULL) ||
+        cp0.read(Cp0::kEntryHi) != 0xFFFFE0FFULL) return JNI_FALSE;
+    if (!cp0.write(Cp0::kWired, 4) || cp0.read(Cp0::kWired) != 4 ||
+        cp0.read(Cp0::kRandom) != 31) return JNI_FALSE;
+    if (cp0.write(Cp0::kRandom, 2)) return JNI_FALSE;
+    if (!cp0.write(Cp0::kPageMask, 0x01FFE000ULL) || cp0.read(Cp0::kPageMask) != 0)
+        return JNI_FALSE;
     return JNI_TRUE;
 }
 
@@ -243,6 +255,17 @@ Java_com_jsr_m64plus_MainActivity_nativeTlbSelfTest(JNIEnv*, jclass) {
                         true, true, true, true, true)) return JNI_FALSE;
     if (tlb.translate(0x00800200ULL, 99, false, physical) != TlbResult::Success ||
         physical != 0x0009A200U) return JNI_FALSE;
+    // TLBP matches VPN2 and ASID/global, independent of V/D bits.
+    if (tlb.probe(0x00401123ULL, 7) != 3 ||
+        tlb.probe(0x00400123ULL, 8) != -1 ||
+        tlb.probe(0x00800200ULL, 99) != 5) return JNI_FALSE;
+    // TLBR-style readback returns the exact EntryLo state.
+    m64plus::n64::TlbEntryData entry{};
+    if (!tlb.readEntry(3, entry) || entry.virtualPairBase != 0x00400000U ||
+        entry.asid != 7 || entry.evenPfn != 0x12U || entry.oddPfn != 0x34U ||
+        !entry.evenValid || !entry.oddValid || !entry.evenDirty || entry.oddDirty ||
+        entry.global) return JNI_FALSE;
+    if (tlb.readEntry(31, entry)) return JNI_FALSE;
     tlb.reset();
     if (tlb.translate(0x00400123ULL, 7, false, physical) != TlbResult::Miss)
         return JNI_FALSE;

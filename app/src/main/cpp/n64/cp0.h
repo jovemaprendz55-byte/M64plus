@@ -13,12 +13,21 @@ enum class ExceptionCode : std::uint8_t {
 
 class Cp0 final {
 public:
+    static constexpr unsigned kIndex = 0;
+    static constexpr unsigned kRandom = 1;
+    static constexpr unsigned kEntryLo0 = 2;
+    static constexpr unsigned kEntryLo1 = 3;
+    static constexpr unsigned kContext = 4;
+    static constexpr unsigned kPageMask = 5;
+    static constexpr unsigned kWired = 6;
     static constexpr unsigned kBadVAddr = 8;
     static constexpr unsigned kCount = 9;
+    static constexpr unsigned kEntryHi = 10;
     static constexpr unsigned kCompare = 11;
     static constexpr unsigned kStatus = 12;
     static constexpr unsigned kCause = 13;
     static constexpr unsigned kEpc = 14;
+    static constexpr unsigned kXContext = 20;
     static constexpr std::uint64_t kStatusExl = 1ULL << 1U;
     static constexpr std::uint64_t kStatusBev = 1ULL << 22U;
 

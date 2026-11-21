@@ -27,3 +27,12 @@ GitHub Actions compila o APK debug com Android SDK 36, NDK 27.2.12479018 e CMake
 5. Implementar RSP, RDP, áudio, controles e carregamento de ROMs.
 
 Referência técnica principal: manual do NEC VR4300 (arquitetura MIPS III).
+
+
+### CP0 TLB register and entry inspection foundation
+- Added CP0 register slots and write masks for Index, Random, EntryLo0/1, Context, PageMask, Wired, EntryHi and XContext.
+- Random is read-only in this initial model; writing Wired resets Random to 31.
+- PageMask is deliberately fixed to zero because the current TLB supports only 4 KiB pages.
+- Added TLB entry readback and associative probe helpers, covering the behavior needed by future TLBR/TLBP instructions.
+- JNI self-tests cover register masks, read-only Random, probe ASID/global matching, and entry readback.
+- Not yet implemented: TLBP/TLBR/TLBWI/TLBWR instruction decoding or virtual-memory integration into CPU fetch/load/store.
