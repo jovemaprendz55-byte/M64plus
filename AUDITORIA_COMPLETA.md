@@ -3,7 +3,7 @@
 **Repositório:** `jovemaprendz55-byte/M64plus`  
 **Branch de registro:** `main`  
 **Escopo:** auditoria estática e revisão das implementações já examinadas.  
-**Modo:** somente documentação; nenhuma correção de código foi aplicada.  
+**Modo:** auditoria contínua com correções registradas diretamente na `main`.  
 **Status:** auditoria em andamento — este documento consolida os resultados conhecidos até 2026-11-21.
 
 > Importante: “ausente” significa que não foi encontrada implementação nos arquivos examinados; não equivale a teste em hardware. “Defeito confirmado” refere-se a comportamento identificado no código e confrontado com a arquitetura/documentação. Pontos não resolvidos ficam marcados como investigação pendente.
@@ -119,7 +119,7 @@ A codificação e os elementos usados para acessar as fatias do acumulador ainda
 
 ### 6.4 BREAK e fluxo de execução
 - BREAK do RSP integrado à máquina sinaliza SP_HALT/SP_BROKE e pode gerar interrupção MI conforme INTR_BREAK; não classificar isso como defeito confirmado.
-- Instrução RSP não suportada pode deixar o processador parado. Em chamadas posteriores, `N64Machine::stepRsp()` pode limpar o estado de halt ao sincronizar PC e tentar novamente a mesma instrução, causando repetição do erro. Revisar o contrato de erro/parada.
+- **Falha de instrução RSP — CORRIGIDA em 2026-11-21:** `RspCpu` agora expõe estado de falha latched; instruções não suportadas e erros de execução não são repetidos automaticamente. `N64Machine::stepRsp()` mantém a falha enquanto o SP_PC não mudar; uma alteração explícita de SP_PC permite iniciar nova tarefa. BREAK normal permanece distinto de falha. Testes adicionados em `tests/rsp_cpu_tests.cpp` e `tests/machine_tests.cpp`. Commits: `2b40c00`, `185aeb3`, `44857a0`, `c627de9`, `c9b20c2`, `7ab4bee`, `209f004`.
 
 ### 6.5 Multiplicação vetorial pendente
 Ainda precisam ser implementados e testados VMULF/U, VMACF/U, VMUDL/M/N/H e VMADL/M/N/H, com semântica de produto, acumulação, saturação e fatias do acumulador conforme documentação oficial.
@@ -141,7 +141,7 @@ Ainda precisam ser implementados e testados VMULF/U, VMACF/U, VMUDL/M/N/H e VMAD
 ### 7.3 Defeitos identificados
 1. **MI_VERSION:** constante atual `0x01010101`; valor esperado para o N64 é `0x02020102`.
 2. **MI_MODE:** implementação faz atribuição simples com máscara, sem interpretar corretamente os bits de comando para limpar/definir modos e limpar DP interrupt.
-3. **SP_STATUS:** comandos de escrita estão associados a bits incorretos para SINGLE STEP e INTERRUPT ON BREAK; comandos para SIG0..SIG7 também não foram implementados integralmente.
+3. **SP_STATUS — CORRIGIDO em 2026-11-21:** comandos SINGLE STEP e INTERRUPT ON BREAK foram separados conforme os bits de comando; comandos de clear/set SIG0..SIG7 foram adicionados. Testes em `tests/bus_tests.cpp` cobrem set/clear e geração de interrupção SP. Commit de implementação/teste: `5dd8fbc`, `645c841`, `b8922b8`, `797cd92`. CI nativo e Android concluído com sucesso no run `44900046288`.
 
 ### 7.4 Periféricos ausentes
 - PI e interface/cartucho.
@@ -186,7 +186,7 @@ Não foi encontrado arquivo LICENSE na árvore/branch examinada durante a audito
 
 ### P0 — Correção de base
 1. Corrigir tradução direta KSEG0/KSEG1 quando TLB está desabilitado.
-2. Corrigir comandos e bits de MI_MODE, MI_VERSION e SP_STATUS.
+2. Corrigir comandos e bits de MI_MODE e MI_VERSION. SP_STATUS foi corrigido.
 3. Corrigir ordem de exceções de alinhamento e fluxo de JALR.
 4. Corrigir o modelo de acumulador RSP de 48 bits e preservar ACC_HI/MD nas operações.
 5. Evitar repetição infinita de instrução RSP não suportada.
@@ -245,3 +245,25 @@ A auditoria ainda deve continuar por:
 ---
 
 **Nota de manutenção:** atualizar este documento após cada nova etapa da auditoria. Não marcar uma funcionalidade como concluída apenas por compilar; exigir teste direcionado e evidência de comportamento.
+
+## 14. Registro de desenvolvimento — 2026-11-21
+
+### Correções concluídas
+- SP_STATUS: comandos SSTEP, INTR_BREAK e SIG0..SIG7 corrigidos; testes nativos e build Android passaram no workflow `44900046288`.
+- RSP: estado de falha separado do BREAK normal; repetição automática de opcode não suportado bloqueada. A mudança inicial passou no workflow `44900266157`; revisão posterior corrigiu a distinção BREAK/falha e adicionou assertivas.
+- Acumulador RSP: representação mudou de oito inteiros de 64 bits para oito conjuntos de três fatias de 16 bits; operações já suportadas atualizam ACC_LO; VSAR (função 0x1D) lê ACC_LO/MD/HI; testes adicionados.
+
+### Commits do acumulador e revisão BREAK
+- `0371153` — estrutura de fatias 48-bit.
+- `978bd60` — preservação das fatias e implementação VSAR.
+- `af99767` — testes ACC_LO/VSAR.
+- `1183bab` — reset explícito das três fatias.
+- `6b07cd2` — teste para garantir que BREAK normal não é marcado como falha.
+- `209f004` — BREAK normal separado do estado de falha.
+
+**Validação pendente:** executar workflow atualizado para os commits mais recentes do acumulador e confirmar native-host-tests e assemble-debug antes de marcar esta etapa como aprovada.
+
+### Pendências técnicas do acumulador
+- Testar preservação não-zero de ACC_HI e ACC_MD por meio de instruções que escrevam essas fatias.
+- Implementar VMULF/U, VMACF/U, VMUDL/M/N/H e VMADL/M/N/H com semântica de 48 bits e saturação.
+- Confirmar seletores VSAR contra a documentação de referência e testes direcionados.
