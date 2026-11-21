@@ -10,6 +10,7 @@ enum class BusRegion : std::uint8_t {
     Rdram,
     SpDmem,
     SpImem,
+    MiRegisters,
     Unmapped
 };
 
@@ -19,6 +20,12 @@ public:
     static constexpr std::uint32_t kSpDmemBase = 0x04000000U;
     static constexpr std::uint32_t kSpImemBase = 0x04001000U;
     static constexpr std::size_t kSpMemorySize = 4096U;
+    static constexpr std::uint32_t kMiBase = 0x04300000U;
+    static constexpr std::uint32_t kMiMode = kMiBase + 0x00U;
+    static constexpr std::uint32_t kMiVersion = kMiBase + 0x04U;
+    static constexpr std::uint32_t kMiInterrupt = kMiBase + 0x08U;
+    static constexpr std::uint32_t kMiInterruptMask = kMiBase + 0x0CU;
+    static constexpr std::uint32_t kMiVersionValue = 0x01010101U;
 
     Bus();
     void reset() noexcept;
@@ -35,6 +42,8 @@ public:
 
     Rdram& rdram() noexcept;
     const Rdram& rdram() const noexcept;
+    void setMiInterrupt(unsigned source, bool asserted) noexcept;
+    std::uint32_t miInterruptMask() const noexcept;
 
 private:
     bool rangeFits(std::uint32_t address, std::size_t width,
@@ -44,11 +53,16 @@ private:
     bool writeBytes(std::uint32_t address, const std::uint8_t* input,
                     std::size_t width) noexcept;
     bool readByte(std::uint32_t address, std::uint8_t& value) const noexcept;
+    bool readMiRegister(std::uint32_t address, std::uint32_t& value) const noexcept;
+    bool writeMiRegister(std::uint32_t address, std::uint32_t value) noexcept;
     bool writeByte(std::uint32_t address, std::uint8_t value) noexcept;
 
     Rdram rdram_{};
     std::array<std::uint8_t, kSpMemorySize> spDmem_{};
     std::array<std::uint8_t, kSpMemorySize> spImem_{};
+    std::uint32_t miMode_ = 0;
+    std::uint32_t miInterrupt_ = 0;
+    std::uint32_t miInterruptMask_ = 0;
 };
 
 } // namespace m64plus::n64

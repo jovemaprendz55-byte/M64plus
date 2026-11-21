@@ -469,9 +469,29 @@ Java_com_jsr_m64plus_MainActivity_nativeBusSelfTest(JNIEnv*, jclass) {
 
     // Adjacent SP memories must remain independent.
     if (!bus.read32(dmemAddress, dmem) || dmem == imem) return JNI_FALSE;
-    // Accesses crossing a region boundary and unmapped MMIO must fail safely.
+    // MI MMIO: mode, fixed version, interrupt status and write-one mask pairs.
+    std::uint32_t mi = 0;
+    if (bus.region(Bus::kMiBase) != BusRegion::MiRegisters ||
+        !bus.read32(Bus::kMiVersion, mi) || mi != Bus::kMiVersionValue ||
+        !bus.write32(Bus::kMiMode, 0xFFFFFFFFU) ||
+        !bus.read32(Bus::kMiMode, mi) || mi != 0x7FU)
+        return JNI_FALSE;
+    bus.setMiInterrupt(0, true); // SP interrupt
+    bus.setMiInterrupt(4, true); // PI interrupt
+    if (!bus.read32(Bus::kMiInterrupt, mi) || mi != 0x11U) return JNI_FALSE;
+    if (!bus.write32(Bus::kMiInterruptMask, (1U << 1U) | (1U << 9U)) ||
+        bus.miInterruptMask() != 0x11U)
+        return JNI_FALSE;
+    if (!bus.write32(Bus::kMiInterruptMask, (1U << 0U) | (1U << 8U)) ||
+        bus.miInterruptMask() != 0U)
+        return JNI_FALSE;
+    if (!bus.write32(Bus::kMiInterruptMask, 0xFFFFFFFFU) ||
+        bus.miInterruptMask() != 0x3FU)
+        return JNI_FALSE;
+    // Accesses crossing a region boundary and unsupported MMIO widths fail safely.
     if (bus.read32(Bus::kSpDmemBase + 0x0FFFU, dmem) ||
-        bus.write32(0x04300000U, 0xFFFFFFFFU))
+        bus.write32(Bus::kMiVersion, 0xFFFFFFFFU) == false ||
+        bus.write8(Bus::kMiMode, 0xFFU))
         return JNI_FALSE;
     bus.reset();
     if (!bus.read64(rdramAddress, actual) || actual != 0 ||

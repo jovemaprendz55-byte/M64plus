@@ -10,6 +10,9 @@ void Bus::reset() noexcept {
     rdram_.reset();
     spDmem_.fill(0);
     spImem_.fill(0);
+    miMode_ = 0;
+    miInterrupt_ = 0;
+    miInterruptMask_ = 0;
 }
 
 BusRegion Bus::region(std::uint32_t address) const noexcept {
@@ -18,6 +21,8 @@ BusRegion Bus::region(std::uint32_t address) const noexcept {
         return BusRegion::SpDmem;
     if (address >= kSpImemBase && address < kSpImemBase + kSpMemorySize)
         return BusRegion::SpImem;
+    if (address >= kMiBase && address < kMiBase + 0x10U)
+        return BusRegion::MiRegisters;
     return BusRegion::Unmapped;
 }
 
@@ -69,6 +74,16 @@ bool Bus::readBytes(std::uint32_t address, std::uint8_t* output,
                     std::size_t width) const noexcept {
     BusRegion selected = BusRegion::Unmapped;
     if (output == nullptr || !rangeFits(address, width, selected)) return false;
+    if (selected == BusRegion::MiRegisters) {
+        if (width != 4U || (address & 3U) != 0) return false;
+        std::uint32_t value = 0;
+        if (!readMiRegister(address, value)) return false;
+        output[0] = static_cast<std::uint8_t>(value >> 24U);
+        output[1] = static_cast<std::uint8_t>(value >> 16U);
+        output[2] = static_cast<std::uint8_t>(value >> 8U);
+        output[3] = static_cast<std::uint8_t>(value);
+        return true;
+    }
     for (std::size_t i = 0; i < width; ++i) {
         if (!readByte(address + static_cast<std::uint32_t>(i), output[i]))
             return false;
@@ -80,6 +95,13 @@ bool Bus::writeBytes(std::uint32_t address, const std::uint8_t* input,
                      std::size_t width) noexcept {
     BusRegion selected = BusRegion::Unmapped;
     if (input == nullptr || !rangeFits(address, width, selected)) return false;
+    if (selected == BusRegion::MiRegisters) {
+        if (width != 4U || (address & 3U) != 0) return false;
+        const std::uint32_t value = (static_cast<std::uint32_t>(input[0]) << 24U) |
+            (static_cast<std::uint32_t>(input[1]) << 16U) |
+            (static_cast<std::uint32_t>(input[2]) << 8U) | input[3];
+        return writeMiRegister(address, value);
+    }
     for (std::size_t i = 0; i < width; ++i) {
         if (!writeByte(address + static_cast<std::uint32_t>(i), input[i]))
             return false;
@@ -145,6 +167,47 @@ bool Bus::write64(std::uint32_t address, std::uint64_t value) noexcept {
         bytes[i] = static_cast<std::uint8_t>(value >> ((7U - i) * 8U));
     return writeBytes(address, bytes, sizeof(bytes));
 }
+
+
+bool Bus::readMiRegister(std::uint32_t address, std::uint32_t& value) const noexcept {
+    switch (address) {
+    case kMiMode: value = miMode_; return true;
+    case kMiVersion: value = kMiVersionValue; return true;
+    case kMiInterrupt: value = miInterrupt_; return true;
+    case kMiInterruptMask: value = miInterruptMask_; return true;
+    default: return false;
+    }
+}
+
+bool Bus::writeMiRegister(std::uint32_t address, std::uint32_t value) noexcept {
+    switch (address) {
+    case kMiMode:
+        miMode_ = value & 0x7FU;
+        return true;
+    case kMiVersion:
+    case kMiInterrupt:
+        return true; // Hardware-visible read-only registers.
+    case kMiInterruptMask:
+        for (unsigned source = 0; source < 6U; ++source) {
+            const std::uint32_t clearBit = 1U << (source * 2U);
+            const std::uint32_t setBit = 1U << (source * 2U + 1U);
+            if ((value & clearBit) != 0) miInterruptMask_ &= ~(1U << source);
+            if ((value & setBit) != 0) miInterruptMask_ |= 1U << source;
+        }
+        return true;
+    default:
+        return false;
+    }
+}
+
+void Bus::setMiInterrupt(unsigned source, bool asserted) noexcept {
+    if (source >= 6U) return;
+    const std::uint32_t bit = 1U << source;
+    if (asserted) miInterrupt_ |= bit;
+    else miInterrupt_ &= ~bit;
+}
+
+std::uint32_t Bus::miInterruptMask() const noexcept { return miInterruptMask_; }
 
 Rdram& Bus::rdram() noexcept { return rdram_; }
 const Rdram& Bus::rdram() const noexcept { return rdram_; }
