@@ -497,7 +497,30 @@ bool RspCpu::step(Bus& bus) noexcept {
         // RSP vector memory transfers. Subopcodes 0-5 are LBV..LRV / SBV..SRV.
         const unsigned subOpcode = (instruction >> 11U) & 31U;
         const bool load = opcode == 0x32U;
-        if (subOpcode > 9U) {
+        if (subOpcode == 0x0BU) { // LTV / STV: transpose eight halfwords across an 8-register group.
+            const unsigned groupBase = rt & 0x18U;
+            const unsigned diagonal = (element >> 1U) & 0x07U;
+            const std::uint32_t alignedAddress = address & ~0x0FU;
+            for (unsigned slice = 0; slice < 8U; ++slice) {
+                const unsigned vectorRegister = groupBase | ((slice + diagonal) & 0x07U);
+                const std::uint32_t dmemAddress = Bus::kSpDmemBase +
+                    ((alignedAddress + slice * 2U) & 0x0FFFU);
+                if (load) {
+                    std::uint16_t value = 0;
+                    if (!bus.read16(dmemAddress, value)) {
+                        halted_ = true; faulted_ = true;
+                        return false;
+                    }
+                    vr_[vectorRegister][slice] = value;
+                } else {
+                    if (!bus.write16(dmemAddress, vr_[vectorRegister][slice])) {
+                        halted_ = true; faulted_ = true;
+                        return false;
+                    }
+                }
+            }
+            byteCount = 0U;
+        } else if (subOpcode > 9U) {
             halted_ = true; faulted_ = true;
             return false;
         }
