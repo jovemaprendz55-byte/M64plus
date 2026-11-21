@@ -430,3 +430,11 @@ A auditoria ainda deve continuar por:
 - A primeira versão tinha seleção incorreta para element=8; corrigida após comparação com a descrição detalhada de LFV. Testes agora cobrem os dois padrões.
 - Commits iniciais: `a30566a` e `b7cb188`; correção: `d59858e`; testes corrigidos: `15480dd`. CI da correção pendente.
 - SFV ainda não implementada.
+
+
+### Continuação do RSP — SFV (2026-11-21)
+- Implementado SFV (SWC2 subopcode 9), com offset escalado por 16.
+- A operação monta a tabela temporária de bytes a partir das lanes `0,6,1,7,2,4,3,5`, deixando posições intermediárias zeradas; aplica o ajuste de element para valores 8..15 e grava quatro bytes espaçados por quatro posições, com wrap na janela de 16 bytes.
+- Testes cobrem o exemplo element=5 (lanes 7,4,5,6), endereço desalinhado com wrap e um elemento que seleciona posições zeradas.
+- Implementação: `961390a`; testes: `f03d589`. CI pendente.
+- Observação: LFV foi corrigida no commit `d59858e` para usar os padrões distintos `0,4,8,12` e `8,12,0,4`; testes corrigidos em `15480dd`. A validação de CI dessa correção também precisa ser acompanhada.
