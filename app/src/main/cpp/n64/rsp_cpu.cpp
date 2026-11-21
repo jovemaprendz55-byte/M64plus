@@ -105,14 +105,16 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
     const bool compareEqual = function == 0x21U;
     const bool compareNotEqual = function == 0x22U;
     const bool compareGreaterEqual = function == 0x23U;
+    const bool clipHigh = function == 0x25U;
     const bool merge = function == 0x27U;
     const bool comparison = compareLess || compareEqual || compareNotEqual ||
         compareGreaterEqual;
     const bool logical = function >= 0x28U && function <= 0x2DU;
     if (!multiplyFamily && !add && !sub && !addCarry && !subCarry &&
-        !comparison && !merge && !logical) return false;
+        !comparison && !clipHigh && !merge && !logical) return false;
     std::uint16_t nextVco = 0;
     std::uint16_t nextVcc = 0;
+    std::uint8_t nextVce = 0;
     for (unsigned lane = 0; lane < 8U; ++lane) {
         const std::uint16_t left = vr_[vs][lane];
         const std::uint16_t right = vr_[vt][kElementMap[element][lane]];
@@ -206,6 +208,25 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
             if (selected) nextVcc |= static_cast<std::uint16_t>(1U << lane);
             value = selected ? left : right;
             accumulator_[lane].lo = value;
+        } else if (clipHigh) {
+            const bool oppositeSigns = ((left ^ right) & 0x8000U) != 0U;
+            const std::uint16_t negatedRight = static_cast<std::uint16_t>(0U - right);
+            const std::uint16_t clipBound = oppositeSigns ? negatedRight : right;
+            const bool extensionEqual = oppositeSigns &&
+                left == static_cast<std::uint16_t>(negatedRight - 1U);
+            const bool notEqual = !extensionEqual && left != clipBound;
+            const bool lessEqualNegative = static_cast<std::int16_t>(left) <=
+                static_cast<std::int16_t>(negatedRight);
+            const bool greaterEqualPositive = static_cast<std::int16_t>(left) >=
+                static_cast<std::int16_t>(right);
+            if (oppositeSigns) nextVco |= static_cast<std::uint16_t>(1U << lane);
+            if (notEqual) nextVco |= static_cast<std::uint16_t>(1U << (lane + 8U));
+            if (extensionEqual) nextVce |= static_cast<std::uint8_t>(1U << lane);
+            if (lessEqualNegative) nextVcc |= static_cast<std::uint16_t>(1U << lane);
+            if (greaterEqualPositive) nextVcc |= static_cast<std::uint16_t>(1U << (lane + 8U));
+            const bool selected = oppositeSigns ? lessEqualNegative : greaterEqualPositive;
+            value = selected ? clipBound : left;
+            accumulator_[lane].lo = value;
         } else if (merge) {
             const bool selected = (vcc_ & (1U << lane)) != 0U;
             value = selected ? left : right;
@@ -242,8 +263,9 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
         }
         vr_[vd][lane] = value;
     }
-    if (add || sub || addCarry || subCarry || comparison) vco_ = nextVco;
-    if (comparison) vcc_ = nextVcc;
+    if (add || sub || addCarry || subCarry || comparison || clipHigh) vco_ = nextVco;
+    if (comparison || clipHigh) vcc_ = nextVcc;
+    if (clipHigh) vce_ = nextVce;
     return true;
 }
 
