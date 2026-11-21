@@ -557,6 +557,41 @@ void testVectorMoveAndNoop() {
     require(!rsp.faulted(), "VNOP is a supported instruction");
 }
 
+void testVectorAbsolute() {
+    Bus bus;
+    RspCpu rsp;
+    rsp.setVectorLane(1, 0, 1U);
+    rsp.setVectorLane(1, 1, 0xFFFFU);
+    rsp.setVectorLane(1, 2, 0xFFFFU);
+    rsp.setVectorLane(1, 3, 0U);
+    rsp.setVectorLane(1, 4, 1U);
+    rsp.setVectorLane(2, 0, 0x8000U);
+    rsp.setVectorLane(2, 1, 0x8000U);
+    rsp.setVectorLane(2, 2, 0x1234U);
+    rsp.setVectorLane(2, 3, 0x5555U);
+    rsp.setVectorLane(2, 4, 0xFFFFU);
+    rsp.setVectorLane(3, 0, 0xFFFFU);
+    rsp.setVectorLane(4, 0, 1U);
+    put(bus, 0, vType(0, 4, 3, 5, 0x14)); // VADDC sets VCO_LO bit 0
+    put(bus, 4, vType(0, 2, 1, 6, 0x13)); // VABS
+    put(bus, 8, vType(0, 0, 0, 7, 0x1D)); // VSAR ACC_LO
+    require(rsp.step(bus), "prepare VCO before VABS");
+    require(rsp.vectorCarryFlags() == 1U, "VADDC sets carry flag for VABS preservation test");
+    require(rsp.step(bus), "execute VABS");
+    require(rsp.vectorLane(6, 0) == 0x8000U, "VABS preserves positive VT value 0x8000");
+    require(rsp.vectorLane(6, 1) == 0x7FFFU, "VABS saturates negation of -32768");
+    require(rsp.vectorLane(6, 2) == 0xEDCCU, "VABS negates signed VT for negative VS");
+    require(rsp.vectorLane(6, 3) == 0U, "VABS returns zero when VS is zero");
+    require(rsp.vectorLane(6, 4) == 0xFFFFU, "VABS copies VT for positive VS");
+    require(rsp.vectorCarryFlags() == 1U, "VABS leaves VCO unchanged");
+    require(rsp.step(bus), "read VABS accumulator through VSAR");
+    require(rsp.vectorLane(7, 0) == 0x8000U, "VABS ACC_LO retains unsaturated -32768");
+    require(rsp.vectorLane(7, 1) == 0x8000U, "VABS ACC_LO records unsaturated negative extreme");
+    require(rsp.vectorLane(7, 2) == 0xEDCCU, "VABS ACC_LO records negated lane");
+    require(rsp.vectorLane(7, 3) == 0U, "VABS ACC_LO is zero for zero sign lane");
+    require(!rsp.faulted(), "VABS is a supported instruction");
+}
+
 void testVectorReciprocalAndDivideLatch() {
     Bus bus;
     RspCpu rsp;
@@ -643,6 +678,7 @@ int main() {
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
     testVectorMoveAndNoop();
+    testVectorAbsolute();
     testVectorReciprocalAndDivideLatch();
     testCop2VectorAndControlMoves();
     std::cout << "All scalar and vector RSP host tests passed.\n";
