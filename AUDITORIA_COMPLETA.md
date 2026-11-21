@@ -107,15 +107,13 @@ A conclusão deve ser revalidada contra a árvore completa do repositório antes
 - VCO, VCC e VCE parcialmente representados.
 - MFC2/MTC2 e CFC2/CTC2 parciais.
 - Operações vetoriais encontradas: VADD, VSUB, VADDC, VSUBC, VAND, VNAND, VOR, VNOR, VXOR e VNXOR.
-- VMULF e VMULU foram implementadas nesta etapa; VMACF/U, VMUDL/M/N/H, VMADL/M/N/H e demais instruções COP2 continuam ausentes.
+- VMULF/U e VMACF/U foram implementadas e receberam testes direcionados; VMUDL/M/N/H, VMADL/M/N/H e demais instruções COP2 continuam ausentes.
 
 ### 6.2 Acumulador
-O RSP precisa de oito acumuladores de 48 bits, divididos em ACC_HI, ACC_MD e ACC_LO. A implementação atual usa valores de 64 bits, mas as operações examinadas substituem o acumulador inteiro em casos nos quais deveriam atualizar apenas ACC_LO e preservar as demais fatias. VADDC também não deve guardar o carry como parte do valor de ACC_LO.
-
-Consequência: VADD/VSUB, VADDC/VSUBC e operações lógicas podem corromper partes do acumulador.
+O RSP possui oito acumuladores de 48 bits, cada um representado por ACC_HI, ACC_MD e ACC_LO de 16 bits. A representação em três fatias já foi implementada. As operações vetoriais básicas examinadas atualizam ACC_LO sem substituir ACC_MD/HI; VADDC guarda carry em VCO, não como parte do valor de ACC_LO. VMULF/U substituem o acumulador com produto arredondado; VMACF/U somam o produto não arredondado ao acumulador existente, com wrap de 48 bits.
 
 ### 6.3 VSAR/VSAW
-A codificação e os elementos usados para acessar as fatias do acumulador ainda precisam de confirmação. As referências consultadas apresentam convenções conflitantes para a seleção HI/MD/LO. Não implementar com base em uma única interpretação sem validação adicional.
+VSAR (função 0x1D) está implementada: elemento 0 lê ACC_LO, elemento 1 lê ACC_MD e elemento 2 lê ACC_HI. Foram adicionados testes para as fatias e para os resultados de VMULF/VMACF. A cobertura de valores não-zero em ACC_HI e propagação de carry entre as três fatias ainda deve ser ampliada.
 
 ### 6.4 BREAK e fluxo de execução
 - BREAK do RSP integrado à máquina sinaliza SP_HALT/SP_BROKE e pode gerar interrupção MI conforme INTR_BREAK; não classificar isso como defeito confirmado.
@@ -188,7 +186,7 @@ Não foi encontrado arquivo LICENSE na árvore/branch examinada durante a audito
 1. Corrigir tradução direta KSEG0/KSEG1 quando TLB está desabilitado.
 2. Corrigir comandos e bits de MI_MODE e MI_VERSION. SP_STATUS foi corrigido.
 3. Corrigir ordem de exceções de alinhamento e fluxo de JALR.
-4. Corrigir o modelo de acumulador RSP de 48 bits e preservar ACC_HI/MD nas operações.
+4. Ampliar a validação do acumulador RSP de 48 bits e preservar ACC_HI/MD nas operações.
 5. Evitar repetição infinita de instrução RSP não suportada.
 
 ### P1 — CPU e RSP
@@ -273,3 +271,13 @@ A auditoria ainda deve continuar por:
 - `VMULF` (função 0x00): produto fracionário assinado, arredondamento por 0x8000, acumulador de 48 bits e saturação assinada.
 - `VMULU` (função 0x01): mesmo produto/accumulator, com saturação de saída sem sinal (negativo para zero e overflow positivo para 0xFFFF).
 - Testes de regressão adicionados para produto positivo/negativo, caso extremo 0x8000 × 0x8000, saturação e leitura das fatias via VSAR.
+
+
+### Continuação do RSP — VMACF/VMACU
+- Implementadas as funções 0x08 (VMACF) e 0x09 (VMACU).
+- Ambas multiplicam operandos assinados, dobram o produto e acumulam no valor anterior de 48 bits, com wrap de 48 bits.
+- Diferente de VMULF/VMULU, VMACF/VMACU não adicionam o arredondamento 0x8000.
+- VMACF retorna a janela ACC[31:16] com saturação assinada; VMACU retorna a mesma janela com saturação sem sinal (negativo para zero e overflow positivo para 0xFFFF).
+- Testes adicionados para acumulação positiva/negativa, saturação, preservação de precisão baixa e leitura de ACC_MD via VSAR.
+- Commits: `ea8b44b` (implementação) e `51d89d0` (testes).
+- CI dos commits `ea8b44b` e `51d89d0` está em execução/na fila; aguardar os dois jobs antes de marcar como validado.
