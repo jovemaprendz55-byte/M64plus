@@ -145,13 +145,14 @@ void testVectorElementBroadcast() {
     Bus bus;
     RspCpu rsp;
     for (unsigned lane = 0; lane < 8U; ++lane) {
-        rsp.setVectorLane(1, lane, static_cast<std::uint16_t>(lane + 1U));
-        rsp.setVectorLane(2, lane, 10U);
+        rsp.setVectorLane(1, lane, 1U);
+        rsp.setVectorLane(2, lane, 0U);
     }
+    rsp.setVectorLane(2, 7, 16U);
     put(bus, 0, vType(15, 2, 1, 3, 0x2A));
     require(rsp.step(bus), "execute broadcast-element VOR");
     for (unsigned lane = 0; lane < 8U; ++lane)
-        require(rsp.vectorLane(3, lane) == 18U, "element 15 broadcasts lane 7");
+        require(rsp.vectorLane(3, lane) == 17U, "element 15 broadcasts lane 7");
 }
 } // namespace
 
