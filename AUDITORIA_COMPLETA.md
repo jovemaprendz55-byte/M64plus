@@ -107,10 +107,10 @@ A conclusão deve ser revalidada contra a árvore completa do repositório antes
 - VCO, VCC e VCE parcialmente representados.
 - MFC2/MTC2 e CFC2/CTC2 parciais.
 - Operações vetoriais encontradas: VADD, VSUB, VADDC, VSUBC, VAND, VNAND, VOR, VNOR, VXOR e VNXOR.
-- VMULF/U, VMACF/U e VMUDL/M/N/H foram implementadas e receberam testes direcionados; VMADL/M/N/H e demais instruções COP2 continuam ausentes.
+- VMULF/U, VMACF/U, VMUDL/M/N/H e VMADL/M/N/H foram implementadas e receberam testes direcionados; demais instruções COP2 continuam ausentes.
 
 ### 6.2 Acumulador
-O RSP possui oito acumuladores de 48 bits, cada um representado por ACC_HI, ACC_MD e ACC_LO de 16 bits. A representação em três fatias já foi implementada. As operações vetoriais básicas examinadas atualizam ACC_LO sem substituir ACC_MD/HI; VADDC guarda carry em VCO, não como parte do valor de ACC_LO. VMULF/U substituem o acumulador com produto arredondado; VMACF/U somam o produto não arredondado ao acumulador existente, com wrap de 48 bits. VMUDL/M/N/H também foram adicionadas: VMUDL grava o produto unsigned >> 16 em ACC_LO; VMUDM grava produto signed×unsigned com extensão de sinal; VMUDN grava unsigned×signed com extensão de sinal; VMUDH grava signed×signed deslocado 16 bits.
+O RSP possui oito acumuladores de 48 bits, cada um representado por ACC_HI, ACC_MD e ACC_LO de 16 bits. A representação em três fatias já foi implementada. As operações vetoriais básicas examinadas atualizam ACC_LO sem substituir ACC_MD/HI; VADDC guarda carry em VCO, não como parte do valor de ACC_LO. VMULF/U substituem o acumulador com produto arredondado; VMACF/U somam o produto não arredondado ao acumulador existente, com wrap de 48 bits. VMUDL/M/N/H também foram adicionadas: VMUDL grava o produto unsigned >> 16 em ACC_LO; VMUDM grava produto signed×unsigned com extensão de sinal; VMUDN grava unsigned×signed com extensão de sinal; VMUDH grava signed×signed deslocado 16 bits. VMADL/M/N/H acumulam os respectivos produtos no acumulador de 48 bits; VMADL e VMADN usam saturação unsigned, VMADM e VMADH saturação signed.
 
 ### 6.3 VSAR/VSAW
 VSAR (função 0x1D) está implementada: elemento 0 lê ACC_LO, elemento 1 lê ACC_MD e elemento 2 lê ACC_HI. Foram adicionados testes para as fatias e para os resultados de VMULF/VMACF. A cobertura de valores não-zero em ACC_HI e propagação de carry entre as três fatias ainda deve ser ampliada.
@@ -120,7 +120,7 @@ VSAR (função 0x1D) está implementada: elemento 0 lê ACC_LO, elemento 1 lê A
 - **Falha de instrução RSP — CORRIGIDA em 2026-11-21:** `RspCpu` agora expõe estado de falha latched; instruções não suportadas e erros de execução não são repetidos automaticamente. `N64Machine::stepRsp()` mantém a falha enquanto o SP_PC não mudar; uma alteração explícita de SP_PC permite iniciar nova tarefa. BREAK normal permanece distinto de falha. Testes adicionados em `tests/rsp_cpu_tests.cpp` e `tests/machine_tests.cpp`. Commits: `2b40c00`, `185aeb3`, `44857a0`, `c627de9`, `c9b20c2`, `7ab4bee`, `209f004`.
 
 ### 6.5 Multiplicação vetorial pendente
-VMULF/U, VMACF/U e VMUDL/M/N/H foram implementadas. Permanecem pendentes VMADL/M/N/H e a ampliação de testes de limites/saturação para todos os formatos, com semântica de produto, acumulação e fatias do acumulador conforme documentação oficial.
+VMULF/U, VMACF/U, VMUDL/M/N/H e VMADL/M/N/H foram implementadas. Permanecem pendentes a ampliação de testes de limites/saturação para todos os formatos e a validação CI da etapa VMAD, com semântica de produto, acumulação e fatias do acumulador conforme documentação oficial.
 
 ## 7. Barramento, memória e periféricos
 
@@ -292,3 +292,15 @@ A auditoria ainda deve continuar por:
 - Adicionados testes dirigidos para produto, resultado, extensão de sinal e fatias VSAR.
 - Commits: `f97028e` (implementação) e `0c9047e` (testes).
 - Validação CI em andamento: workflow `44900883349`; não marcar como aprovado até ambos os jobs concluírem.
+
+
+### Continuação do RSP — VMADL/VMADM/VMADN/VMADH
+- Implementadas as funções 0x0C–0x0F para acumular os produtos parciais no acumulador de 48 bits.
+- VMADL acumula produto unsigned >> 16 e aplica saturação unsigned na saída.
+- VMADM acumula signed(VS) × unsigned(VT) e aplica saturação signed.
+- VMADN acumula unsigned(VS) × signed(VT) e aplica saturação unsigned.
+- VMADH acumula signed(VS) × signed(VT) deslocado 16 bits e aplica saturação signed.
+- Corrigido o writeback de VMADL para saturar ACC[31:0], diferentemente do VMUDL que retorna ACC_LO.
+- Testes adicionados com sequências VMUD→VMAD para os quatro formatos.
+- Commits: `e759b8c` (implementação), `8434b6c` (correção VMADL) e `51f1c36` (testes).
+- Validação do workflow `44900942783` pendente no momento deste registro.
