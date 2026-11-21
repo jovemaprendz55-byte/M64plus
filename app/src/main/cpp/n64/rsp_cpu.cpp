@@ -49,6 +49,12 @@ std::uint32_t RspCpu::reg(unsigned index) const noexcept {
 }
 
 std::uint32_t RspCpu::pc() const noexcept { return pc_; }
+void RspCpu::setPc(std::uint32_t pc) noexcept {
+    pc_ = pc & kPcMask;
+    pendingBranch_ = false;
+    pendingBranchTarget_ = 0U;
+    halted_ = false;
+}
 bool RspCpu::halted() const noexcept { return halted_; }
 std::uint64_t RspCpu::instructionsExecuted() const noexcept { return executed_; }
 std::uint16_t RspCpu::vectorLane(unsigned r, unsigned lane) const noexcept {

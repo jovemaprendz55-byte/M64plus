@@ -28,6 +28,7 @@ public:
     static constexpr std::uint32_t kMiInterruptMask = kMiBase + 0x0CU;
     static constexpr std::uint32_t kMiVersionValue = 0x01010101U;
     static constexpr std::uint32_t kSpRegBase = 0x04040000U;
+    static constexpr std::uint32_t kSpPc = 0x04080000U;
     static constexpr std::uint32_t kSpMemAddr = kSpRegBase + 0x00U;
     static constexpr std::uint32_t kSpDramAddr = kSpRegBase + 0x04U;
     static constexpr std::uint32_t kSpReadLength = kSpRegBase + 0x08U;
@@ -60,6 +61,8 @@ public:
     bool miInterruptPending() const noexcept;
     bool spHalted() const noexcept { return (spStatus_ & kSpHalt) != 0U; }
     bool spBroke() const noexcept { return (spStatus_ & kSpBroke) != 0U; }
+    std::uint32_t spProgramCounter() const noexcept { return spProgramCounter_; }
+    void setSpProgramCounter(std::uint32_t pc) noexcept { spProgramCounter_ = pc & 0x0FFCU; }
     void signalSpBreak() noexcept {
         spStatus_ |= kSpHalt | kSpBroke;
         if ((spStatus_ & kSpInterruptOnBreak) != 0U) setMiInterrupt(0U, true);
@@ -91,6 +94,7 @@ private:
     std::uint32_t spReadLength_ = 0;
     std::uint32_t spWriteLength_ = 0;
     std::uint32_t spStatus_ = kSpHalt;
+    std::uint32_t spProgramCounter_ = 0;
     mutable std::uint32_t spSemaphore_ = 0;
     bool spDmaBusy_ = false;
 };

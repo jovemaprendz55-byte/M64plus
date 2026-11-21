@@ -15,6 +15,7 @@ public:
     bool step(Bus& bus) noexcept;
     std::uint32_t reg(unsigned index) const noexcept;
     std::uint32_t pc() const noexcept;
+    void setPc(std::uint32_t pc) noexcept;
     bool halted() const noexcept;
     std::uint64_t instructionsExecuted() const noexcept;
     std::uint16_t vectorLane(unsigned reg, unsigned lane) const noexcept;

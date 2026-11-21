@@ -17,13 +17,14 @@ Java_com_jsr_m64plus_MainActivity_nativeRspMachineSelfTest(JNIEnv*, jclass) {
         0x0000000DU  // BREAK
     };
     for (std::uint32_t i = 0; i < 3U; ++i) {
-        if (!bus.write32(Bus::kSpImemBase + i * 4U, rspProgram[i]))
+        if (!bus.write32(Bus::kSpImemBase + 0x20U + i * 4U, rspProgram[i]))
             return JNI_FALSE;
     }
-    if (!bus.write32(Bus::kMiInterruptMask, 1U << 1U) ||
+    if (!bus.write32(Bus::kSpPc, 0x20U) ||
+        !bus.write32(Bus::kMiInterruptMask, 1U << 1U) ||
         !bus.write32(Bus::kSpStatus, Bus::kSpInterruptOnBreak | 1U))
         return JNI_FALSE;
-    if (machine.runRsp(8U) != 3U) return JNI_FALSE;
+    if (machine.runRsp(8U) != 3U || bus.spProgramCounter() != 0x2CU) return JNI_FALSE;
     if (machine.rsp().reg(1) != 0x1234U ||
         !bus.spHalted() || !bus.spBroke() || !bus.miInterruptPending())
         return JNI_FALSE;

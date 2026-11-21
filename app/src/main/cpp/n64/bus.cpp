@@ -18,6 +18,7 @@ void Bus::reset() noexcept {
     spReadLength_ = 0;
     spWriteLength_ = 0;
     spStatus_ = kSpHalt;
+    spProgramCounter_ = 0;
     spSemaphore_ = 0;
     spDmaBusy_ = false;
 }
@@ -30,7 +31,8 @@ BusRegion Bus::region(std::uint32_t address) const noexcept {
         return BusRegion::SpImem;
     if (address >= kMiBase && address < kMiBase + 0x10U)
         return BusRegion::MiRegisters;
-    if (address >= kSpRegBase && address < kSpRegBase + 0x20U)
+    if ((address >= kSpRegBase && address < kSpRegBase + 0x20U) ||
+        (address >= kSpPc && address < kSpPc + 4U))
         return BusRegion::SpRegisters;
     return BusRegion::Unmapped;
 }
@@ -221,6 +223,7 @@ bool Bus::writeMiRegister(std::uint32_t address, std::uint32_t value) noexcept {
 
 bool Bus::readSpRegister(std::uint32_t address, std::uint32_t& value) const noexcept {
     switch (address) {
+    case kSpPc: value = spProgramCounter_; return true;
     case kSpMemAddr: value = spMemAddr_; return true;
     case kSpDramAddr: value = spDramAddr_; return true;
     case kSpReadLength: value = spReadLength_; return true;
@@ -238,6 +241,7 @@ bool Bus::readSpRegister(std::uint32_t address, std::uint32_t& value) const noex
 
 bool Bus::writeSpRegister(std::uint32_t address, std::uint32_t value) noexcept {
     switch (address) {
+    case kSpPc: spProgramCounter_ = value & 0x0FFCU; return true;
     case kSpMemAddr: spMemAddr_ = value & 0x1FFFU; return true;
     case kSpDramAddr: spDramAddr_ = value & 0x00FFFFFFU; return true;
     case kSpReadLength:

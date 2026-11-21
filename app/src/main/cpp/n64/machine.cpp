@@ -15,12 +15,16 @@ bool N64Machine::stepCpu() noexcept {
 }
 
 bool N64Machine::stepRsp() noexcept {
-    if (bus_.spHalted() || rsp_.halted()) return false;
+    if (bus_.spHalted()) return false;
+    if (rsp_.halted() || rsp_.pc() != bus_.spProgramCounter()) {
+        rsp_.setPc(bus_.spProgramCounter());
+    }
 
     std::uint32_t instruction = 0;
     if (!bus_.read32(Bus::kSpImemBase + rsp_.pc(), instruction)) return false;
 
     const bool executed = rsp_.step(bus_);
+    if (executed) bus_.setSpProgramCounter(rsp_.pc());
     if (executed && rsp_.halted() &&
         (instruction >> 26U) == 0U && (instruction & 0x3FU) == 0x0DU) {
         bus_.signalSpBreak();

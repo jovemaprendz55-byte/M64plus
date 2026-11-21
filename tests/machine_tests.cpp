@@ -29,11 +29,13 @@ void testSharedCpuRspBusAndSpBreak() {
         0x0000000DU  // BREAK
     };
     for (std::uint32_t i = 0; i < 3U; ++i) {
-        require(bus.write32(Bus::kSpImemBase + i * 4U, rspProgram[i]),
+        require(bus.write32(Bus::kSpImemBase + 0x20U + i * 4U, rspProgram[i]),
                 "load RSP program into IMEM");
     }
 
     // Enable the SP interrupt mask and request an interrupt on RSP BREAK.
+    require(bus.write32(Bus::kSpPc, 0x20U), "set RSP start PC through SP_PC");
+    require(bus.spProgramCounter() == 0x20U, "SP_PC register stores aligned PC");
     require(bus.write32(Bus::kMiInterruptMask, 1U << 1U),
             "enable MI SP interrupt");
     require(bus.write32(Bus::kSpStatus, Bus::kSpInterruptOnBreak | 1U),
@@ -41,6 +43,7 @@ void testSharedCpuRspBusAndSpBreak() {
     require(!bus.spHalted(), "SP HALT clears through MMIO command");
 
     require(machine.runRsp(8U) == 3U, "RSP executes task within instruction budget");
+    require(bus.spProgramCounter() == 0x2CU, "SP_PC tracks RSP instruction progress");
     require(machine.rsp().reg(1) == 0x1234U, "RSP scalar result");
     require(bus.spHalted() && bus.spBroke(), "BREAK sets SP HALT and BROKE");
     require(bus.miInterruptPending(), "BREAK asserts masked MI SP interrupt");
@@ -52,6 +55,14 @@ void testSharedCpuRspBusAndSpBreak() {
     require(machine.stepCpu(), "main CPU reads SP DMEM");
     require(machine.cpu().reg(9) == 0x1234U,
             "main CPU sees the RSP result in shared SP DMEM");
+
+    // A later task can restart the halted RSP at a CPU-programmed SP_PC.
+    require(bus.write32(Bus::kSpImemBase + 0x40U, 0x24020077U), "load second task");
+    require(bus.write32(Bus::kSpImemBase + 0x44U, 0x0000000DU), "load second task BREAK");
+    require(bus.write32(Bus::kSpPc, 0x40U), "program second task PC");
+    require(bus.write32(Bus::kSpStatus, 1U | (1U << 2U)), "clear HALT and BROKE for next task");
+    require(machine.runRsp(4U) == 2U, "RSP restarts from the programmed PC");
+    require(machine.rsp().reg(2) == 0x77U, "second RSP task executes");
 }
 } // namespace
 
