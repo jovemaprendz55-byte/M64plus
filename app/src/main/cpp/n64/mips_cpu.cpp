@@ -59,7 +59,7 @@ bool MipsCpu::step(const Rdram& memory) {
             scheduleBranch = true; branchTarget = a; break;
         case 0x09:
             if (inDelaySlot || (a & 3U) != 0) return false;
-            destination = rd == 0 ? 31U : rd;
+            destination = rd;
             result = sequentialPc + 4U; writeRegister = true;
             scheduleBranch = true; branchTarget = a; break;
         case 0x21: result = signExtend32(static_cast<std::uint32_t>(a) + static_cast<std::uint32_t>(b)); break;
