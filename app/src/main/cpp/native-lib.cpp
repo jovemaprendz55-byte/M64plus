@@ -509,6 +509,51 @@ Java_com_jsr_m64plus_MainActivity_nativeBusSelfTest(JNIEnv*, jclass) {
     if (!bus.write32(Bus::kSpReadLength, 0xFFFFFFFFU) ||
         !bus.read32(Bus::kSpReadLength, sp) || sp != 0x00FFFFFFU ||
         !bus.read32(Bus::kSpDmaBusy, sp) || sp != 0U) return JNI_FALSE;
+
+    // SP DMA: two 8-byte rows from RDRAM into DMEM/IMEM across the bank bit.
+    for (std::uint32_t i = 0; i < 8U; ++i) {
+        if (!bus.write8(0x300U + i, static_cast<std::uint8_t>(0x10U + i)) ||
+            !bus.write8(0x310U + i, static_cast<std::uint8_t>(0x80U + i)))
+            return JNI_FALSE;
+    }
+    if (!bus.write32(Bus::kSpMemAddr, 0x0FF8U) ||
+        !bus.write32(Bus::kSpDramAddr, 0x300U) ||
+        !bus.write32(Bus::kSpReadLength, 0x001007U))
+        return JNI_FALSE; // 8-byte rows, count=2, skip=8
+    for (std::uint32_t i = 0; i < 8U; ++i) {
+        std::uint8_t byte = 0;
+        if (!bus.read8(Bus::kSpDmemBase + 0xFF8U + i, byte) ||
+            byte != static_cast<std::uint8_t>(0x10U + i))
+            return JNI_FALSE;
+        if (!bus.read8(Bus::kSpImemBase + i, byte) ||
+            byte != static_cast<std::uint8_t>(0x80U + i))
+            return JNI_FALSE;
+    }
+    if (!bus.read32(Bus::kSpMemAddr, sp) || sp != 0x1008U ||
+        !bus.read32(Bus::kSpDramAddr, sp) || sp != 0x320U ||
+        !bus.read32(Bus::kSpDmaBusy, sp) || sp != 0U)
+        return JNI_FALSE;
+
+    // Reverse DMA copies the same SP rows back into a separate RDRAM range.
+    if (!bus.write32(Bus::kSpMemAddr, 0x0FF8U) ||
+        !bus.write32(Bus::kSpDramAddr, 0x400U) ||
+        !bus.write32(Bus::kSpWriteLength, 0x001007U))
+        return JNI_FALSE;
+    for (std::uint32_t i = 0; i < 8U; ++i) {
+        std::uint8_t byte = 0;
+        if (!bus.read8(0x400U + i, byte) ||
+            byte != static_cast<std::uint8_t>(0x10U + i))
+            return JNI_FALSE;
+        if (!bus.read8(0x410U + i, byte) ||
+            byte != static_cast<std::uint8_t>(0x80U + i))
+            return JNI_FALSE;
+    }
+    // An out-of-range DMA is rejected before changing either memory.
+    if (!bus.write32(Bus::kSpMemAddr, 0U) ||
+        !bus.write32(Bus::kSpDramAddr, 0x007FFFFCU) ||
+        bus.write32(Bus::kSpReadLength, 7U))
+        return JNI_FALSE;
+
     // Accesses crossing a region boundary and unsupported MMIO widths fail safely.
     if (bus.read32(Bus::kSpDmemBase + 0x0FFFU, dmem) ||
         bus.write32(Bus::kMiVersion, 0xFFFFFFFFU) == false ||

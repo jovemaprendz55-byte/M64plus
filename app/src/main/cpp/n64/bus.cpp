@@ -19,6 +19,7 @@ void Bus::reset() noexcept {
     spWriteLength_ = 0;
     spStatus_ = kSpHalt;
     spSemaphore_ = 0;
+    spDmaBusy_ = false;
 }
 
 BusRegion Bus::region(std::uint32_t address) const noexcept {
@@ -226,7 +227,7 @@ bool Bus::readSpRegister(std::uint32_t address, std::uint32_t& value) const noex
     case kSpWriteLength: value = spWriteLength_; return true;
     case kSpStatus: value = spStatus_; return true;
     case kSpDmaFull: value = 0; return true;
-    case kSpDmaBusy: value = 0; return true;
+    case kSpDmaBusy: value = spDmaBusy_ ? 1U : 0U; return true;
     case kSpSemaphore:
         value = spSemaphore_;
         spSemaphore_ = 1U;
@@ -239,8 +240,12 @@ bool Bus::writeSpRegister(std::uint32_t address, std::uint32_t value) noexcept {
     switch (address) {
     case kSpMemAddr: spMemAddr_ = value & 0x1FFFU; return true;
     case kSpDramAddr: spDramAddr_ = value & 0x00FFFFFFU; return true;
-    case kSpReadLength: spReadLength_ = value & 0x00FFFFFFU; return true;
-    case kSpWriteLength: spWriteLength_ = value & 0x00FFFFFFU; return true;
+    case kSpReadLength:
+        spReadLength_ = value & 0x00FFFFFFU;
+        return performSpDma(spReadLength_, true);
+    case kSpWriteLength:
+        spWriteLength_ = value & 0x00FFFFFFU;
+        return performSpDma(spWriteLength_, false);
     case kSpStatus:
         if ((value & (1U << 0U)) != 0) spStatus_ &= ~kSpHalt;
         if ((value & (1U << 1U)) != 0) spStatus_ |= kSpHalt;
@@ -250,11 +255,59 @@ bool Bus::writeSpRegister(std::uint32_t address, std::uint32_t value) noexcept {
         if ((value & (1U << 5U)) != 0) spStatus_ &= ~kSpInterruptOnBreak;
         if ((value & (1U << 6U)) != 0) spStatus_ |= kSpInterruptOnBreak;
         return true;
-    case kSpDmaFull:
-    case kSpDmaBusy: return true;
+    case kSpDmaFull: return true;
+    case kSpDmaBusy: return false;
     case kSpSemaphore: spSemaphore_ = 0; return true;
     default: return false;
     }
+}
+
+
+bool Bus::performSpDma(std::uint32_t lengthRegister, bool dramToSp) noexcept {
+    // SP DMA length is encoded as (length - 1), (count - 1), and row skip.
+    // Transfers are rounded up to an 8-byte boundary.
+    const std::uint32_t rowLength = ((lengthRegister & 0x0FFFU) + 8U) & ~7U;
+    const std::uint32_t rowCount = ((lengthRegister >> 12U) & 0xFFU) + 1U;
+    const std::uint32_t rowSkip = (lengthRegister >> 20U) & 0x0FFFU;
+    if (rowLength == 0U || spDmaBusy_) return false;
+
+    const std::uint64_t rowStride =
+        static_cast<std::uint64_t>(rowLength) + rowSkip;
+    for (std::uint32_t row = 0; row < rowCount; ++row) {
+        const std::uint64_t dramStart =
+            static_cast<std::uint64_t>(spDramAddr_) + row * rowStride;
+        if (dramStart + rowLength > Rdram::kSize) return false;
+    }
+
+    spDmaBusy_ = true;
+    std::uint32_t spAddress = spMemAddr_ & 0x1FFFU;
+    for (std::uint32_t row = 0; row < rowCount; ++row) {
+        const std::uint32_t dramStart = static_cast<std::uint32_t>(
+            static_cast<std::uint64_t>(spDramAddr_) + row * rowStride);
+        for (std::uint32_t byte = 0; byte < rowLength; ++byte) {
+            const std::uint32_t spOffset = spAddress & 0x0FFFU;
+            auto& spMemory = (spAddress & 0x1000U) != 0U ? spImem_ : spDmem_;
+            if (dramToSp) {
+                std::uint8_t value = 0;
+                if (!rdram_.read8(dramStart + byte, value)) {
+                    spDmaBusy_ = false;
+                    return false;
+                }
+                spMemory[spOffset] = value;
+            } else {
+                if (!rdram_.write8(dramStart + byte, spMemory[spOffset])) {
+                    spDmaBusy_ = false;
+                    return false;
+                }
+            }
+            spAddress = (spAddress + 1U) & 0x1FFFU;
+        }
+    }
+    spMemAddr_ = spAddress;
+    spDramAddr_ = static_cast<std::uint32_t>(
+        static_cast<std::uint64_t>(spDramAddr_) + rowCount * rowStride) & 0x00FFFFFFU;
+    spDmaBusy_ = false;
+    return true;
 }
 
 void Bus::setMiInterrupt(unsigned source, bool asserted) noexcept {

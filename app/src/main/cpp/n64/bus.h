@@ -71,6 +71,7 @@ private:
     bool writeMiRegister(std::uint32_t address, std::uint32_t value) noexcept;
     bool readSpRegister(std::uint32_t address, std::uint32_t& value) const noexcept;
     bool writeSpRegister(std::uint32_t address, std::uint32_t value) noexcept;
+    bool performSpDma(std::uint32_t lengthRegister, bool dramToSp) noexcept;
     bool writeByte(std::uint32_t address, std::uint8_t value) noexcept;
 
     Rdram rdram_{};
@@ -85,6 +86,7 @@ private:
     std::uint32_t spWriteLength_ = 0;
     std::uint32_t spStatus_ = kSpHalt;
     mutable std::uint32_t spSemaphore_ = 0;
+    bool spDmaBusy_ = false;
 };
 
 } // namespace m64plus::n64
