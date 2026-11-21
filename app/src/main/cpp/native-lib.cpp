@@ -506,8 +506,9 @@ Java_com_jsr_m64plus_MainActivity_nativeBusSelfTest(JNIEnv*, jclass) {
         !bus.read32(Bus::kSpSemaphore, sp) || sp != 1U ||
         !bus.write32(Bus::kSpSemaphore, 0U) ||
         !bus.read32(Bus::kSpSemaphore, sp) || sp != 0U) return JNI_FALSE;
-    if (!bus.write32(Bus::kSpReadLength, 0xFFFFFFFFU) ||
-        !bus.read32(Bus::kSpReadLength, sp) || sp != 0x00FFFFFFU ||
+    if (!bus.write32(Bus::kSpDramAddr, 0U) ||
+        !bus.write32(Bus::kSpReadLength, 7U) ||
+        !bus.read32(Bus::kSpReadLength, sp) || sp != 7U ||
         !bus.read32(Bus::kSpDmaBusy, sp) || sp != 0U) return JNI_FALSE;
 
     // SP DMA: two 8-byte rows from RDRAM into DMEM/IMEM across the bank bit.
@@ -518,7 +519,7 @@ Java_com_jsr_m64plus_MainActivity_nativeBusSelfTest(JNIEnv*, jclass) {
     }
     if (!bus.write32(Bus::kSpMemAddr, 0x0FF8U) ||
         !bus.write32(Bus::kSpDramAddr, 0x300U) ||
-        !bus.write32(Bus::kSpReadLength, 0x001007U))
+        !bus.write32(Bus::kSpReadLength, 0x00801007U))
         return JNI_FALSE; // 8-byte rows, count=2, skip=8
     for (std::uint32_t i = 0; i < 8U; ++i) {
         std::uint8_t byte = 0;
