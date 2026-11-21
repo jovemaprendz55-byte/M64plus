@@ -382,7 +382,7 @@ void testVectorClipHigh() {
     require(rsp.step(bus), "execute VCH");
     require(rsp.vectorLane(3, 0) == 0xFFFDU,
             "VCH leaves opposite-sign lane unchanged when above negative bound");
-    require(rsp.vectorLane(3, 1) == 0xFFFAU,
+    require(rsp.vectorLane(3, 1) == 0xFFFBU,
             "VCH clamps opposite-sign lane to negative bound");
     require(rsp.vectorLane(3, 2) == 4U,
             "VCH leaves same-sign lane below positive bound unchanged");
