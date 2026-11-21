@@ -3,6 +3,7 @@
 #include "n64/cp0.h"
 #include "n64/rdram.h"
 #include "n64/tlb.h"
+#include "n64/bus.h"
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeRdramSelfTest(JNIEnv*, jclass) {
     m64plus::n64::Rdram memory;
