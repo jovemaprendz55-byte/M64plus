@@ -51,7 +51,11 @@ bool MipsCpu::stepMemory(Memory& memory) {
         pc_ != static_cast<std::uint64_t>(static_cast<std::int64_t>(
             static_cast<std::int32_t>(instructionAddress))))
         return takeException(ExceptionCode::BusInstruction, pc_);
-    if (tlbEnabled_) {
+    const std::uint32_t pc32 = static_cast<std::uint32_t>(pc_);
+    const bool pcInDirectSegment = pc32 >= 0x80000000U && pc32 < 0xC0000000U;
+    // KSEG0/KSEG1 are unmapped segments: their direct mapping applies even
+    // while the software-managed TLB is disabled.
+    if (tlbEnabled_ || pcInDirectSegment) {
         std::uint32_t translated = 0;
         const auto result = tlb_.translate(pc_, static_cast<std::uint8_t>(
             cp0_.read(Cp0::kEntryHi) & 0xFFU), false, translated);
@@ -223,15 +227,16 @@ bool MipsCpu::stepMemory(Memory& memory) {
             effective != static_cast<std::uint64_t>(static_cast<std::int64_t>(
                 static_cast<std::int32_t>(address))))
             return takeException(ExceptionCode::AddressLoad, effective);
-        if (tlbEnabled_) {
+        const bool inDirectSegment = address >= 0x80000000U && address < 0xC0000000U;
+        if (tlbEnabled_ || inDirectSegment) {
             std::uint32_t translated = 0;
-            const auto result = tlb_.translate(effective, static_cast<std::uint8_t>(
+            const auto translation = tlb_.translate(effective, static_cast<std::uint8_t>(
                 cp0_.read(Cp0::kEntryHi) & 0xFFU), false, translated);
-            if (result == TlbResult::Miss)
+            if (translation == TlbResult::Miss)
                 return takeException(ExceptionCode::TlbLoad, effective, true);
-            if (result == TlbResult::Invalid)
+            if (translation == TlbResult::Invalid)
                 return takeException(ExceptionCode::TlbLoad, effective);
-            if (result == TlbResult::Modified)
+            if (translation == TlbResult::Modified)
                 return takeException(ExceptionCode::TlbModification, effective);
             address = translated;
         }
@@ -267,15 +272,16 @@ bool MipsCpu::stepMemory(Memory& memory) {
             effective != static_cast<std::uint64_t>(static_cast<std::int64_t>(
                 static_cast<std::int32_t>(address))))
             return takeException(ExceptionCode::AddressStore, effective);
-        if (tlbEnabled_) {
+        const bool inDirectSegment = address >= 0x80000000U && address < 0xC0000000U;
+        if (tlbEnabled_ || inDirectSegment) {
             std::uint32_t translated = 0;
-            const auto result = tlb_.translate(effective, static_cast<std::uint8_t>(
+            const auto translation = tlb_.translate(effective, static_cast<std::uint8_t>(
                 cp0_.read(Cp0::kEntryHi) & 0xFFU), true, translated);
-            if (result == TlbResult::Miss)
+            if (translation == TlbResult::Miss)
                 return takeException(ExceptionCode::TlbStore, effective, true);
-            if (result == TlbResult::Invalid)
+            if (translation == TlbResult::Invalid)
                 return takeException(ExceptionCode::TlbStore, effective);
-            if (result == TlbResult::Modified)
+            if (translation == TlbResult::Modified)
                 return takeException(ExceptionCode::TlbModification, effective);
             address = translated;
         }
