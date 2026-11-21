@@ -425,8 +425,8 @@ A auditoria ainda deve continuar por:
 
 ### Continuação do RSP — LFV (2026-11-21)
 - Implementado LFV (subopcode 9 de LWC2), com offset escalado por 16 bytes.
-- A instrução lê quatro bytes espaçados por quatro posições em DMEM e os posiciona em bits 14..7 de quatro lanes do vetor.
-- O campo element é tratado como índice em bytes e seleciona o grupo inferior (element=0) ou superior (element=8) de quatro lanes; valores intermediários/fora desses dois grupos são rejeitados como codificação não suportada pela implementação atual.
-- Testes verificam as quatro amostras espaçadas, os dois grupos de destino e a preservação das lanes não afetadas.
-- SFV ainda não foi implementada: seu mapeamento de lanes e bytes precisa de validação independente antes de habilitar SWC2 subopcode 9.
-- Commits: `a30566a` (implementação) e `b7cb188` (testes). Aguardando CI dos dois commits; não marcar LFV como validado até ambos os jobs terminarem.
+- A instrução seleciona quatro bytes de uma janela DMEM de 16 bytes: element=0 usa posições 0,4,8,12; element=8 usa 8,12,0,4. Os bytes são convertidos para bits 14..7 de quatro lanes, preservando as lanes fora da metade selecionada.
+- Somente element 0 e 8 são aceitos como valores documentados.
+- A primeira versão tinha seleção incorreta para element=8; corrigida após comparação com a descrição detalhada de LFV. Testes agora cobrem os dois padrões.
+- Commits iniciais: `a30566a` e `b7cb188`; correção: `d59858e`; testes corrigidos: `15480dd`. CI da correção pendente.
+- SFV ainda não implementada.
