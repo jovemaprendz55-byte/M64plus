@@ -563,13 +563,14 @@ void testVectorReciprocalAndDivideLatch() {
     rsp.setVectorLane(2, 0, 0U);
     rsp.setVectorLane(2, 1, 0U);
     rsp.setVectorLane(2, 2, 0U);
+    rsp.setVectorLane(2, 3, 1U); // element 0 selects the destination-corresponding source lane
     put(bus, 0, vType(0, 2, 3, 4, 0x30)); // VRCP zero -> 0x7fffffff
     put(bus, 4, vType(0, 2, 5, 4, 0x32)); // VRCPH reads prior DIV_OUT
     put(bus, 8, vType(0, 2, 6, 4, 0x31)); // VRCPL combines staged high + low
     put(bus, 12, vType(0, 2, 7, 4, 0x31)); // no pending high: sign-extended low
     put(bus, 16, vType(0, 2, 1, 4, 0x34)); // VRSQ zero
     require(rsp.step(bus), "execute VRCP");
-    require(rsp.vectorLane(4, 3) == 0xFFFFU, "VRCP zero low result is all ones");
+    require(rsp.vectorLane(4, 3) == 0xC000U, "VRCP element zero uses destination-corresponding VT lane");
     require(rsp.step(bus), "execute VRCPH");
     require(rsp.vectorLane(4, 5) == 0x7FFFU, "VRCPH returns prior result high half");
     require(rsp.step(bus), "execute VRCPL with staged high half");
