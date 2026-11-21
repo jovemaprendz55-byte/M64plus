@@ -81,6 +81,9 @@ void Cp0::tick() noexcept {
     registers_[kCount] = next;
     if (next == static_cast<std::uint32_t>(registers_[kCompare]))
         registers_[kCause] |= kCauseTimerInterrupt;
+    const std::uint64_t wired = registers_[kWired] & 0x1FULL;
+    const std::uint64_t random = registers_[kRandom] & 0x1FULL;
+    registers_[kRandom] = random <= wired ? 31ULL : random - 1ULL;
 }
 
 std::uint64_t Cp0::raiseException(ExceptionCode code, std::uint64_t instructionPc,

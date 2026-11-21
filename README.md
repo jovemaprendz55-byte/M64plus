@@ -12,7 +12,7 @@ Emulador Nintendo 64 para Android. Alvo inicial: Android 16 ARM64 e testes no Po
 
 **CP0 inicial:** registradores BadVAddr, Count, Compare, Status, Cause e EPC; captura de exceção, bit EXL, indicação de delay slot (BD), vetor normal/BEV, retorno ERET e temporizador Count/Compare. O CP0 agora está conectado ao passo da CPU para exceções de instrução reservada, busca inválida, endereços de dados desalinhados e falhas de acesso à RDRAM. A CPU registra EPC/Cause/BadVAddr e desvia para o vetor de exceção. TLB, modos de privilégio completos e arbitragem real de interrupções ainda faltam.
 
-**TLB inicial:** tabela associativa de 32 entradas, páginas de 4 KiB em pares de 8 KiB, ASID, páginas globais, bits válido/dirty, falha de tradução, página inválida e proteção de escrita. KSEG0/KSEG1 usam mapeamento direto. Nesta etapa, a TLB tem testes isolados; ainda não está conectada ao fetch e aos loads/stores da CPU nem aos registradores TLB do CP0.\n\n**Limitações:** ainda não há exceções completas para todos os casos, integração da TLB com a CPU, FPU, caches, barramento completo, RSP, RDP, áudio ou carregador de ROM. Ainda não executa jogos comerciais. Instruções de branch-likely e algumas variantes não estão implementadas.
+**TLB inicial:** tabela associativa de 32 entradas, páginas de 4 KiB em pares de 8 KiB, ASID, páginas globais, bits válido/dirty, falha de tradução, página inválida e proteção de escrita. KSEG0/KSEG1 usam mapeamento direto. As instruções COP0 TLBP, TLBR, TLBWI e TLBWR agora usam os registradores CP0 e a tabela TLB; Random percorre os índices não fixados por Wired. A tradução ainda não está conectada ao fetch e aos loads/stores da CPU.\n\n**Limitações:** ainda não há exceções completas para todos os casos, integração da TLB com a CPU, FPU, caches, barramento completo, RSP, RDP, áudio ou carregador de ROM. Ainda não executa jogos comerciais. Instruções de branch-likely e algumas variantes não estão implementadas.
 
 ## Build e testes
 
@@ -36,3 +36,10 @@ Referência técnica principal: manual do NEC VR4300 (arquitetura MIPS III).
 - Added TLB entry readback and associative probe helpers, covering the behavior needed by future TLBR/TLBP instructions.
 - JNI self-tests cover register masks, read-only Random, probe ASID/global matching, and entry readback.
 - Not yet implemented: TLBP/TLBR/TLBWI/TLBWR instruction decoding or virtual-memory integration into CPU fetch/load/store.
+
+### COP0 TLB instructions
+- Implemented TLBP, TLBR, TLBWI and TLBWR in the CPU COP0 decoder.
+- Connected Index, Random, EntryHi, EntryLo0/1 and Wired to the TLB operations.
+- Random cycles downward through non-wired entries after each CPU instruction.
+- Added an end-to-end native CPU test for TLBP hit/miss, TLBR readback, TLBWI and deterministic TLBWR.
+- TLB translation is not yet connected to instruction fetch or data loads/stores; privilege checks and full MIPS III MMU behavior remain future work.

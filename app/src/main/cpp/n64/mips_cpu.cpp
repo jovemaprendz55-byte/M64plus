@@ -1,6 +1,7 @@
 #include "n64/mips_cpu.h"
 #include "n64/rdram.h"
 #include "n64/cp0.h"
+#include "n64/tlb.h"
 #include <cstdint>
 namespace m64plus::n64 {
 namespace {
@@ -19,6 +20,7 @@ void MipsCpu::reset(std::uint64_t pc) {
     pendingBranch_ = false;
     pendingBranchTarget_ = 0;
     cp0_.reset();
+    tlb_.reset();
 }
 std::uint64_t MipsCpu::reg(unsigned index) const noexcept {
     return index < gpr_.size() ? (index == 0 ? 0 : gpr_[index]) : 0;
@@ -136,11 +138,41 @@ bool MipsCpu::step(Rdram& memory) {
         } else if (rs == 0x04) { // MTC0
             if (!cp0_.write(rd, gpr_[rt]))
                 return takeException(ExceptionCode::ReservedInstruction);
-        } else if (rs == 0x10 && function == 0x18) { // ERET
-            doExceptionReturn = true;
-        } else {
-            return takeException(ExceptionCode::ReservedInstruction);
-        }
+        } else if (rs == 0x10) { // COP0 privileged operations
+            if (function == 0x18) { // ERET
+                doExceptionReturn = true;
+            } else if (function == 0x08) { // TLBP
+                const int found = tlb_.probe(cp0_.read(Cp0::kEntryHi),
+                    static_cast<std::uint8_t>(cp0_.read(Cp0::kEntryHi) & 0xFFU));
+                cp0_.write(Cp0::kIndex, found < 0 ? 0x80000000ULL : static_cast<std::uint64_t>(found));
+            } else if (function == 0x01) { // TLBR
+                TlbEntryData entry{};
+                const auto index = static_cast<std::size_t>(cp0_.read(Cp0::kIndex) & 0x1FU);
+                if (!tlb_.readEntry(index, entry)) return takeException(ExceptionCode::ReservedInstruction);
+                const std::uint64_t globalBit = entry.global ? 1ULL : 0ULL;
+                const std::uint64_t evenLo = (static_cast<std::uint64_t>(entry.evenPfn) << 6U) |
+                    (entry.evenDirty ? 4ULL : 0ULL) | (entry.evenValid ? 2ULL : 0ULL) | globalBit;
+                const std::uint64_t oddLo = (static_cast<std::uint64_t>(entry.oddPfn) << 6U) |
+                    (entry.oddDirty ? 4ULL : 0ULL) | (entry.oddValid ? 2ULL : 0ULL) | globalBit;
+                cp0_.write(Cp0::kEntryHi, static_cast<std::uint64_t>(entry.virtualPairBase) | entry.asid);
+                cp0_.write(Cp0::kEntryLo0, evenLo);
+                cp0_.write(Cp0::kEntryLo1, oddLo);
+            } else if (function == 0x02 || function == 0x06) { // TLBWI / TLBWR
+                const std::uint64_t entryHi = cp0_.read(Cp0::kEntryHi);
+                const std::uint64_t evenLo = cp0_.read(Cp0::kEntryLo0);
+                const std::uint64_t oddLo = cp0_.read(Cp0::kEntryLo1);
+                const std::size_t index = static_cast<std::size_t>(
+                    (function == 0x02 ? cp0_.read(Cp0::kIndex) : cp0_.read(Cp0::kRandom)) & 0x1FU);
+                const bool global = (evenLo & 1ULL) != 0 && (oddLo & 1ULL) != 0;
+                if (!tlb_.writeEntry(index, static_cast<std::uint32_t>(entryHi) & 0xFFFFE000U,
+                    static_cast<std::uint8_t>(entryHi & 0xFFU),
+                    static_cast<std::uint32_t>((evenLo >> 6U) & 0xFFFFFU),
+                    static_cast<std::uint32_t>((oddLo >> 6U) & 0xFFFFFU),
+                    (evenLo & 2ULL) != 0, (oddLo & 2ULL) != 0,
+                    (evenLo & 4ULL) != 0, (oddLo & 4ULL) != 0, global))
+                    return takeException(ExceptionCode::ReservedInstruction);
+            } else return takeException(ExceptionCode::ReservedInstruction);
+        } else return takeException(ExceptionCode::ReservedInstruction);
         break;
     case 0x09:
         destination = rt;

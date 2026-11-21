@@ -2,6 +2,7 @@
 #include <array>
 #include <cstdint>
 #include "n64/cp0.h"
+#include "n64/tlb.h"
 namespace m64plus::n64 {
 class Rdram;
 class MipsCpu final {
@@ -20,5 +21,6 @@ private:
     bool pendingBranch_ = false;
     std::uint64_t pendingBranchTarget_ = 0;
     Cp0 cp0_{};
+    Tlb tlb_{};
 };
 }

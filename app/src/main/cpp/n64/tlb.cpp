@@ -28,7 +28,7 @@ bool Tlb::writeEntry(std::size_t index, std::uint32_t virtualPairBase,
 }
 
 bool Tlb::readEntry(std::size_t index, TlbEntryData& output) const noexcept {
-    if (index >= entries_.size() || !entries_[index].occupied) return false;
+    if (index >= entries_.size()) return false;
     const Entry& entry = entries_[index];
     output.virtualPairBase = entry.vpn2 << 13U;
     output.asid = entry.asid;

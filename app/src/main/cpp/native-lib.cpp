@@ -271,3 +271,40 @@ Java_com_jsr_m64plus_MainActivity_nativeTlbSelfTest(JNIEnv*, jclass) {
         return JNI_FALSE;
     return JNI_TRUE;
 }
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeCpuTlbInstructionSelfTest(JNIEnv*, jclass) {
+    using m64plus::n64::MipsCpu; using m64plus::n64::Rdram; using m64plus::n64::Cp0;
+    Rdram memory;
+    const std::uint32_t program[] = {
+        0x3C090040U, 0x35290007U, 0x40895000U,
+        0x240A0487U, 0x408A1000U, 0x240B0D03U, 0x408B1800U,
+        0x240C0003U, 0x408C0000U, 0x42000002U,
+        0x3C0D0060U, 0x35AD0009U, 0x408D5000U, 0x42000008U,
+        0x3C0D0040U, 0x35AD0007U, 0x408D5000U, 0x42000008U,
+        0x42000001U, 0x400E5000U, 0x400F1000U
+    };
+    for (std::uint32_t i=0;i<sizeof(program)/sizeof(program[0]);++i)
+        if (!memory.write32(i*4U, program[i])) return JNI_FALSE;
+    MipsCpu cpu;
+    for (unsigned i=0;i<sizeof(program)/sizeof(program[0]);++i)
+        if (!cpu.step(memory)) return JNI_FALSE;
+    if (cpu.reg(14) != 0x00400007ULL || cpu.reg(15) != 0x00000487ULL ||
+        cpu.cp0().read(Cp0::kIndex) != 3ULL) return JNI_FALSE;
+
+    Rdram randomMemory;
+    const std::uint32_t randomProgram[] = {
+        0x2408001FU, 0x40883000U, 0x24090002U,
+        0x3C0A0080U, 0x354A0002U, 0x408A5000U,
+        0x240B0003U, 0x408B1000U, 0x408B1800U,
+        0x42000006U, 0x42000008U, 0x400C0000U
+    };
+    for (std::uint32_t i=0;i<sizeof(randomProgram)/sizeof(randomProgram[0]);++i)
+        if (!randomMemory.write32(i*4U, randomProgram[i])) return JNI_FALSE;
+    MipsCpu randomCpu;
+    for (unsigned i=0;i<sizeof(randomProgram)/sizeof(randomProgram[0]);++i)
+        if (!randomCpu.step(randomMemory)) return JNI_FALSE;
+    if (randomCpu.reg(12) != 31ULL || randomCpu.cp0().read(Cp0::kIndex) != 31ULL)
+        return JNI_FALSE;
+    return JNI_TRUE;
+}
