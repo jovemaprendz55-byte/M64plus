@@ -76,7 +76,8 @@ bool Bus::writeByte(std::uint32_t address, std::uint8_t value) noexcept {
         spImem_[address - kSpImemBase] = value;
         return true;
     case BusRegion::MiRegisters:
-        return false; // MI registers require aligned 32-bit accesses.
+    case BusRegion::SpRegisters:
+        return false; // Device registers require aligned 32-bit accesses.
     case BusRegion::Unmapped:
         return false;
     }
@@ -217,7 +218,7 @@ bool Bus::writeMiRegister(std::uint32_t address, std::uint32_t value) noexcept {
 }
 
 
-bool Bus::readSpRegister(std::uint32_t address, std::uint32_t& value) noexcept {
+bool Bus::readSpRegister(std::uint32_t address, std::uint32_t& value) const noexcept {
     switch (address) {
     case kSpMemAddr: value = spMemAddr_; return true;
     case kSpDramAddr: value = spDramAddr_; return true;

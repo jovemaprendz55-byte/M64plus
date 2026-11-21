@@ -69,7 +69,7 @@ private:
     bool readByte(std::uint32_t address, std::uint8_t& value) const noexcept;
     bool readMiRegister(std::uint32_t address, std::uint32_t& value) const noexcept;
     bool writeMiRegister(std::uint32_t address, std::uint32_t value) noexcept;
-    bool readSpRegister(std::uint32_t address, std::uint32_t& value) noexcept;
+    bool readSpRegister(std::uint32_t address, std::uint32_t& value) const noexcept;
     bool writeSpRegister(std::uint32_t address, std::uint32_t value) noexcept;
     bool writeByte(std::uint32_t address, std::uint8_t value) noexcept;
 
@@ -84,7 +84,7 @@ private:
     std::uint32_t spReadLength_ = 0;
     std::uint32_t spWriteLength_ = 0;
     std::uint32_t spStatus_ = kSpHalt;
-    std::uint32_t spSemaphore_ = 0;
+    mutable std::uint32_t spSemaphore_ = 0;
 };
 
 } // namespace m64plus::n64
