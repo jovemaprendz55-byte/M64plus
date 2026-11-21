@@ -375,7 +375,7 @@ A auditoria ainda deve continuar por:
 - Workflow `44901838371` concluído com sucesso nos dois jobs: `native-host-tests` e `assemble-debug`. A compilação Android debug está aprovada para o commit validado por esse workflow.
 - Revisão adicional da seleção de lane identificou que VRCP/VRCPL/VRSQL/VRSQ usavam apenas `element & 7`, o que falhava quando o campo de elemento está entre 0 e 7: nesses casos a lane de origem também depende da lane de destino. Corrigido para usar o mapa de seleção escalar `kElementMap[element][destinationLane]`, alinhando a origem à regra de single-lane do RSP.
 - Teste de regressão atualizado: com `element=0`, destino na lane 3 e valor 1 na lane 3 de VT, VRCP agora retorna `0xC000` (resultado baixo da ROM RCP) em vez de ler incorretamente a lane 0.
-- Commits dessa correção e teste registrados diretamente em `main`; CI deverá validar ambos antes de considerar esta revisão concluída.
+- Commits dessa correção e teste registrados diretamente em `main`; workflow `44902293430` concluiu com sucesso em `native-host-tests` e `assemble-debug`, validando a correção e o teste.
 - Ainda falta ampliar os vetores numéricos de VRCP/RSQ para entradas negativas, limites, valores de 32 bits e reset dos latches. O suporte permanece parcial até essa cobertura adicional e comparação independente bit a bit.
 
 
