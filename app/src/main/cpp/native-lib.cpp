@@ -2,6 +2,7 @@
 #include "n64/mips_cpu.h"
 #include "n64/cp0.h"
 #include "n64/rdram.h"
+#include "n64/tlb.h"
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeRdramSelfTest(JNIEnv*, jclass) {
     m64plus::n64::Rdram memory;
@@ -207,5 +208,43 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuCp0InstructionSelfTest(JNIEnv*, jclas
     MipsCpu delayCpu;
     if (!delayCpu.step(delayMemory) || !delayCpu.step(delayMemory)) return JNI_FALSE;
     if (((delayCpu.cp0().read(Cp0::kCause)>>2U)&0x1FULL) != 10U) return JNI_FALSE;
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeTlbSelfTest(JNIEnv*, jclass) {
+    using m64plus::n64::Tlb;
+    using m64plus::n64::TlbResult;
+    Tlb tlb;
+    if (tlb.size() != 32U) return JNI_FALSE;
+    std::uint32_t physical = 0;
+    // Unmapped kernel segments bypass the TLB.
+    if (tlb.translate(0x80001234ULL, 0, false, physical) != TlbResult::Success ||
+        physical != 0x00001234U) return JNI_FALSE;
+    if (tlb.translate(0xA0005678ULL, 0, true, physical) != TlbResult::Success ||
+        physical != 0x00005678U) return JNI_FALSE;
+    // Two 4 KiB pages form one 8 KiB TLB pair.
+    if (!tlb.writeEntry(3, 0x00400000U, 7, 0x00012U, 0x00034U,
+                        true, true, true, false, false)) return JNI_FALSE;
+    if (tlb.translate(0x00400123ULL, 7, false, physical) != TlbResult::Success ||
+        physical != 0x00012123U) return JNI_FALSE;
+    if (tlb.translate(0x00401123ULL, 7, false, physical) != TlbResult::Success ||
+        physical != 0x00034123U) return JNI_FALSE;
+    if (tlb.translate(0x00400123ULL, 8, false, physical) != TlbResult::Miss)
+        return JNI_FALSE;
+    if (tlb.translate(0x00401123ULL, 7, true, physical) != TlbResult::Modified)
+        return JNI_FALSE;
+    if (!tlb.writeEntry(4, 0x00600000U, 9, 0x00056U, 0x00078U,
+                        true, false, true, false, false)) return JNI_FALSE;
+    if (tlb.translate(0x00601000ULL, 9, false, physical) != TlbResult::Invalid)
+        return JNI_FALSE;
+    // Global entries ignore ASID.
+    if (!tlb.writeEntry(5, 0x00800000U, 1, 0x0009AU, 0x0009BU,
+                        true, true, true, true, true)) return JNI_FALSE;
+    if (tlb.translate(0x00800200ULL, 99, false, physical) != TlbResult::Success ||
+        physical != 0x0009A200U) return JNI_FALSE;
+    tlb.reset();
+    if (tlb.translate(0x00400123ULL, 7, false, physical) != TlbResult::Miss)
+        return JNI_FALSE;
     return JNI_TRUE;
 }
