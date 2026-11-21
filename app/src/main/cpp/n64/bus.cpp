@@ -48,6 +48,8 @@ bool Bus::readByte(std::uint32_t address, std::uint8_t& value) const noexcept {
     case BusRegion::SpImem:
         value = spImem_[address - kSpImemBase];
         return true;
+    case BusRegion::MiRegisters:
+        return false; // MI registers require aligned 32-bit accesses.
     case BusRegion::Unmapped:
         return false;
     }
@@ -64,6 +66,8 @@ bool Bus::writeByte(std::uint32_t address, std::uint8_t value) noexcept {
     case BusRegion::SpImem:
         spImem_[address - kSpImemBase] = value;
         return true;
+    case BusRegion::MiRegisters:
+        return false; // MI registers require aligned 32-bit accesses.
     case BusRegion::Unmapped:
         return false;
     }
