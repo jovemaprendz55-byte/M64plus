@@ -21,12 +21,14 @@ void MipsCpu::reset(std::uint64_t pc) {
     pendingBranchTarget_ = 0;
     cp0_.reset();
     tlb_.reset();
+    tlbEnabled_ = false;
 }
 std::uint64_t MipsCpu::reg(unsigned index) const noexcept {
     return index < gpr_.size() ? (index == 0 ? 0 : gpr_[index]) : 0;
 }
 std::uint64_t MipsCpu::pc() const noexcept { return pc_; }
 std::uint64_t MipsCpu::instructionsExecuted() const noexcept { return executed_; }
+void MipsCpu::setTlbEnabled(bool enabled) noexcept { tlbEnabled_ = enabled; }
 const Cp0& MipsCpu::cp0() const noexcept { return cp0_; }
 bool MipsCpu::step(Rdram& memory) {
     const bool inDelaySlot = pendingBranch_;
@@ -38,9 +40,23 @@ bool MipsCpu::step(Rdram& memory) {
         return true;
     };
     if ((pc_ & 3U) != 0) return takeException(ExceptionCode::AddressLoad, pc_);
-    if (pc_ > 0xFFFFFFFFULL) return takeException(ExceptionCode::BusInstruction, pc_);
+    std::uint32_t instructionAddress = static_cast<std::uint32_t>(pc_);
+    if (pc_ > 0xFFFFFFFFULL &&
+        pc_ != static_cast<std::uint64_t>(static_cast<std::int64_t>(
+            static_cast<std::int32_t>(instructionAddress))))
+        return takeException(ExceptionCode::BusInstruction, pc_);
+    if (tlbEnabled_) {
+        std::uint32_t translated = 0;
+        const auto result = tlb_.translate(pc_, static_cast<std::uint8_t>(
+            cp0_.read(Cp0::kEntryHi) & 0xFFU), false, translated);
+        if (result == TlbResult::Miss || result == TlbResult::Invalid)
+            return takeException(ExceptionCode::TlbLoad, pc_);
+        if (result == TlbResult::Modified)
+            return takeException(ExceptionCode::TlbModification, pc_);
+        instructionAddress = translated;
+    }
     std::uint32_t instruction = 0;
-    if (!memory.read32(static_cast<std::uint32_t>(pc_), instruction))
+    if (!memory.read32(instructionAddress, instruction))
         return takeException(ExceptionCode::BusInstruction, pc_);
     const std::uint64_t oldBranchTarget = pendingBranchTarget_;
     const unsigned opcode = instruction >> 26U;
@@ -194,8 +210,21 @@ bool MipsCpu::step(Rdram& memory) {
     // virtual-to-physical translation and exception delivery come later.
     case 0x20: case 0x21: case 0x23: case 0x24: case 0x25: case 0x27: case 0x37: {
         const std::uint64_t effective = a + signExtend16(immediate);
-        if (effective > 0xFFFFFFFFULL) return takeException(ExceptionCode::AddressLoad, effective);
-        const auto address = static_cast<std::uint32_t>(effective);
+        std::uint32_t address = static_cast<std::uint32_t>(effective);
+        if (effective > 0xFFFFFFFFULL &&
+            effective != static_cast<std::uint64_t>(static_cast<std::int64_t>(
+                static_cast<std::int32_t>(address))))
+            return takeException(ExceptionCode::AddressLoad, effective);
+        if (tlbEnabled_) {
+            std::uint32_t translated = 0;
+            const auto result = tlb_.translate(effective, static_cast<std::uint8_t>(
+                cp0_.read(Cp0::kEntryHi) & 0xFFU), false, translated);
+            if (result == TlbResult::Miss || result == TlbResult::Invalid)
+                return takeException(ExceptionCode::TlbLoad, effective);
+            if (result == TlbResult::Modified)
+                return takeException(ExceptionCode::TlbModification, effective);
+            address = translated;
+        }
         if ((opcode == 0x21 || opcode == 0x25) && (address & 1U)) return takeException(ExceptionCode::AddressLoad, effective);
         if ((opcode == 0x23 || opcode == 0x27) && (address & 3U)) return takeException(ExceptionCode::AddressLoad, effective);
         if (opcode == 0x37 && (address & 7U)) return takeException(ExceptionCode::AddressLoad, effective);
@@ -223,8 +252,21 @@ bool MipsCpu::step(Rdram& memory) {
     // Integer stores.
     case 0x28: case 0x29: case 0x2B: case 0x3F: {
         const std::uint64_t effective = a + signExtend16(immediate);
-        if (effective > 0xFFFFFFFFULL) return takeException(ExceptionCode::AddressStore, effective);
-        const auto address = static_cast<std::uint32_t>(effective);
+        std::uint32_t address = static_cast<std::uint32_t>(effective);
+        if (effective > 0xFFFFFFFFULL &&
+            effective != static_cast<std::uint64_t>(static_cast<std::int64_t>(
+                static_cast<std::int32_t>(address))))
+            return takeException(ExceptionCode::AddressStore, effective);
+        if (tlbEnabled_) {
+            std::uint32_t translated = 0;
+            const auto result = tlb_.translate(effective, static_cast<std::uint8_t>(
+                cp0_.read(Cp0::kEntryHi) & 0xFFU), true, translated);
+            if (result == TlbResult::Miss || result == TlbResult::Invalid)
+                return takeException(ExceptionCode::TlbStore, effective);
+            if (result == TlbResult::Modified)
+                return takeException(ExceptionCode::TlbModification, effective);
+            address = translated;
+        }
         if (opcode == 0x29 && (address & 1U)) return takeException(ExceptionCode::AddressStore, effective);
         if (opcode == 0x2B && (address & 3U)) return takeException(ExceptionCode::AddressStore, effective);
         if (opcode == 0x3F && (address & 7U)) return takeException(ExceptionCode::AddressStore, effective);

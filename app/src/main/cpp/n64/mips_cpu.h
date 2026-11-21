@@ -10,6 +10,7 @@ public:
     MipsCpu();
     void reset(std::uint64_t pc = 0);
     bool step(Rdram& memory);
+    void setTlbEnabled(bool enabled) noexcept;
     std::uint64_t reg(unsigned index) const noexcept;
     std::uint64_t pc() const noexcept;
     std::uint64_t instructionsExecuted() const noexcept;
@@ -22,5 +23,6 @@ private:
     std::uint64_t pendingBranchTarget_ = 0;
     Cp0 cp0_{};
     Tlb tlb_{};
+    bool tlbEnabled_ = false;
 };
 }

@@ -43,3 +43,10 @@ Referência técnica principal: manual do NEC VR4300 (arquitetura MIPS III).
 - Random cycles downward through non-wired entries after each CPU instruction.
 - Added an end-to-end native CPU test for TLBP hit/miss, TLBR readback, TLBWI and deterministic TLBWR.
 - TLB translation is not yet connected to instruction fetch or data loads/stores; privilege checks and full MIPS III MMU behavior remain future work.
+
+### Virtual address translation in the CPU
+- Added an opt-in TLB translation mode for instruction fetches, integer loads and stores.
+- KSEG0/KSEG1 direct mapping and mapped 4 KiB pages are resolved through the TLB.
+- TLB miss, invalid-page and modified-page outcomes are routed to the corresponding CP0 exception codes.
+- Sign-extended 32-bit virtual addresses are accepted for MIPS64 execution.
+- Translation mode remains disabled by default to preserve the existing physical-RDRAM bootstrap and legacy self-tests. A later boot/MMU initialization step must explicitly enable it.
