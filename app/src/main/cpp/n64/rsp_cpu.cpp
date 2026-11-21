@@ -494,25 +494,49 @@ bool RspCpu::step(Bus& bus) noexcept {
             }
         }
     } else if (opcode == 0x32U || opcode == 0x3AU) {
-        // Initial RSP vector memory transfers: byte, short, word, and doubleword.
+        // RSP vector memory transfers. Subopcodes 0-5 are LBV..LRV / SBV..SRV.
         const unsigned subOpcode = (instruction >> 11U) & 31U;
-        if (subOpcode > 3U) {
+        if (subOpcode > 5U) {
             halted_ = true; faulted_ = true;
             return false;
         }
         const unsigned element = (instruction >> 7U) & 0x0FU;
-        const unsigned byteCount = 1U << subOpcode;
+        const bool load = opcode == 0x32U;
         std::int32_t offset = static_cast<std::int32_t>(instruction & 0x7FU);
         if ((offset & 0x40) != 0) offset -= 0x80;
+        const unsigned scale = subOpcode <= 3U ? (1U << subOpcode) : 16U;
         const std::uint32_t address = static_cast<std::uint32_t>(
             static_cast<std::int64_t>(gpr_[rs]) +
-            static_cast<std::int64_t>(offset) * byteCount) & 0x0FFFU;
-        const bool load = opcode == 0x32U;
+            static_cast<std::int64_t>(offset) * scale) & 0x0FFFU;
+        unsigned byteCount = 0;
+        unsigned vectorStart = element;
+        std::uint32_t memoryStart = address;
+        bool wrapVector = !load;
+
+        if (subOpcode <= 3U) {
+            byteCount = 1U << subOpcode;
+        } else if (subOpcode == 4U) { // LQV / SQV
+            byteCount = 16U - (address & 0x0FU);
+            if (load && byteCount > 16U - element)
+                byteCount = 16U - element;
+        } else { // LRV / SRV
+            const unsigned length = address & 0x0FU;
+            memoryStart = (address - length) & 0x0FFFU;
+            if (load) {
+                vectorStart = element + 16U - length;
+                byteCount = vectorStart < 16U ? 16U - vectorStart : 0U;
+            } else {
+                vectorStart = (element + 16U - length) & 0x0FU;
+                byteCount = length;
+            }
+        }
+
         for (unsigned byte = 0; byte < byteCount; ++byte) {
-            const unsigned vectorByte = load ? element + byte : (element + byte) & 0x0FU;
-            if (load && vectorByte >= 16U) break;
+            const unsigned vectorByte = wrapVector
+                ? (vectorStart + byte) & 0x0FU
+                : vectorStart + byte;
             const std::uint32_t dmemAddress = Bus::kSpDmemBase +
-                ((address + byte) & 0x0FFFU);
+                ((memoryStart + byte) & 0x0FFFU);
             if (load) {
                 std::uint8_t value = 0;
                 if (!bus.read8(dmemAddress, value)) {
