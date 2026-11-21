@@ -319,8 +319,8 @@ void testVectorMultiplyDoubleAccumulate() {
 
 void testVectorComparisonsAndMerge() {
     Bus bus; RspCpu rsp;
-    // VCO: lane 2 has both bits set (VLT equal tie); lanes 4 and 5 have VCO_LO.
-    put(bus, 0, iType(0x09, 0, 1, 0x0434));
+    // VCO: lane 2 has both bits set (VLT equal tie); lanes 4 and 5 have VCO_HI.
+    put(bus, 0, iType(0x09, 0, 1, 0x3404));
     put(bus, 4, cop2Move(0x06, 1, 0, 0)); // CTC2 VCO
     for (unsigned lane = 0; lane < 8U; ++lane) {
         rsp.setVectorLane(1, lane, static_cast<std::uint16_t>(10U + lane));
@@ -331,7 +331,7 @@ void testVectorComparisonsAndMerge() {
     rsp.setVectorLane(1, 2, 12U); rsp.setVectorLane(2, 2, 12U); // VLT tie + VCO both
     rsp.setVectorLane(1, 3, 13U); rsp.setVectorLane(2, 3, 13U); // VEQ true
     rsp.setVectorLane(1, 4, 14U); rsp.setVectorLane(2, 4, 14U); // VEQ suppressed by VCO_LO
-    rsp.setVectorLane(1, 5, 15U); rsp.setVectorLane(2, 5, 15U); // VNE true via VCO_LO
+    rsp.setVectorLane(1, 5, 15U); rsp.setVectorLane(2, 5, 15U); // VNE true via VCO_HI
     rsp.setVectorLane(1, 6, 17U); rsp.setVectorLane(2, 6, 16U); // VNE true
     rsp.setVectorLane(1, 7, 18U); rsp.setVectorLane(2, 7, 18U); // VGE equal, no VCO pair
     put(bus, 8, vType(0, 2, 1, 3, 0x20));  // VLT
@@ -342,7 +342,7 @@ void testVectorComparisonsAndMerge() {
     put(bus, 28, vType(0, 2, 1, 6, 0x23)); // VGE
     put(bus, 32, vType(0, 2, 1, 7, 0x27)); // VMRG uses VCC from VGE
     require(rsp.step(bus) && rsp.step(bus), "load VCO comparison tie flags");
-    require(rsp.vectorCarryFlags() == 0x0434U, "CTC2 prepares VCO flags");
+    require(rsp.vectorCarryFlags() == 0x3404U, "CTC2 prepares VCO flags");
     require(rsp.step(bus), "execute VLT");
     require(rsp.vectorLane(3, 0) == 5U && rsp.vectorLane(3, 1) == 8U &&
             rsp.vectorLane(3, 2) == 12U, "VLT compares signed lanes and handles equal tie");
