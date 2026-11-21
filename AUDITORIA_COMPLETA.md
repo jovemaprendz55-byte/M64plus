@@ -106,8 +106,8 @@ A conclusão deve ser revalidada contra a árvore completa do repositório antes
 - 32 registradores vetoriais, cada um com 8 lanes de 16 bits.
 - VCO, VCC e VCE parcialmente representados.
 - MFC2/MTC2 e CFC2/CTC2 parciais.
-- Operações vetoriais encontradas: VADD, VSUB, VADDC, VSUBC, VAND, VNAND, VOR, VNOR, VXOR e VNXOR.
-- VMULF/U, VMACF/U, VMUDL/M/N/H e VMADL/M/N/H foram implementadas e receberam testes direcionados; demais instruções COP2 continuam ausentes.
+- Operações vetoriais encontradas: VADD, VSUB, VADDC, VSUBC, VLT, VEQ, VNE, VGE, VMRG, VAND, VNAND, VOR, VNOR, VXOR e VNXOR.
+- VMULF/U, VMACF/U, VMUDL/M/N/H, VMADL/M/N/H e as comparações VLT/VEQ/VNE/VGE com VMRG foram implementadas e receberam testes direcionados; demais instruções COP2 continuam ausentes.
 
 ### 6.2 Acumulador
 O RSP possui oito acumuladores de 48 bits, cada um representado por ACC_HI, ACC_MD e ACC_LO de 16 bits. A representação em três fatias já foi implementada. As operações vetoriais básicas examinadas atualizam ACC_LO sem substituir ACC_MD/HI; VADDC guarda carry em VCO, não como parte do valor de ACC_LO. VMULF/U substituem o acumulador com produto arredondado; VMACF/U somam o produto não arredondado ao acumulador existente, com wrap de 48 bits. VMUDL/M/N/H também foram adicionadas: VMUDL grava o produto unsigned >> 16 em ACC_LO; VMUDM grava produto signed×unsigned com extensão de sinal; VMUDN grava unsigned×signed com extensão de sinal; VMUDH grava signed×signed deslocado 16 bits. VMADL/M/N/H acumulam os respectivos produtos no acumulador de 48 bits; VMADL e VMADN usam saturação unsigned, VMADM e VMADH saturação signed.
@@ -304,3 +304,12 @@ A auditoria ainda deve continuar por:
 - Testes adicionados com sequências VMUD→VMAD para os quatro formatos.
 - Commits: `e759b8c` (implementação), `8434b6c` (correção VMADL) e `51f1c36` (testes).
 - Validação do workflow `44900942783` pendente no momento deste registro.
+
+
+### Continuação do RSP — comparações e seleção vetorial
+- Implementadas VLT (0x20), VEQ (0x21), VNE (0x22), VGE (0x23) e VMRG (0x27).
+- VLT trata empate usando VCO_LO e VCO_HI; VEQ/VNE consideram VCO_LO para os casos de empate; VGE aplica a regra complementar de VLT.
+- As comparações escrevem as seleções em VCC_LO e limpam VCO; VMRG seleciona VS ou VT conforme VCC_LO.
+- Adicionados testes para comparação signed, empates com flags VCO, VCC e seleção VMRG.
+- Commits: `86d7d6a` (implementação), `9f8eda1` e `4325988` (testes/ajustes).
+- CI do commit de testes `4325988` ainda deve concluir antes de marcar a etapa como aprovada.
