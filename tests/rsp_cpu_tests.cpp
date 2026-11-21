@@ -537,6 +537,27 @@ void testVectorElementBroadcast() {
     for (unsigned lane = 0; lane < 8U; ++lane)
         require(rsp.vectorLane(3, lane) == 17U, "element 15 broadcasts lane 7");
 }
+void testVectorMoveAndNoop() {
+    Bus bus;
+    RspCpu rsp;
+    for (unsigned lane = 0; lane < 8U; ++lane)
+        rsp.setVectorLane(2, lane, static_cast<std::uint16_t>(0x1100U + lane));
+    // VMOV uses the encoded scalar source element (byte selector / 2)
+    // and the VS field as the destination lane.
+    put(bus, 0, vType(10, 2, 5, 3, 0x33)); // VT lane 5 -> VD3 lane 5
+    put(bus, 4, vType(0, 2, 0, 4, 0x37));  // VNOP
+    put(bus, 8, vType(0, 0, 0, 0, 0x1D));  // VSAR ACC_LO
+    require(rsp.step(bus), "execute VMOV");
+    require(rsp.vectorLane(3, 5) == 0x1105U, "VMOV copies selected scalar lane");
+    require(rsp.vectorLane(3, 4) == 0U, "VMOV leaves other destination lanes unchanged");
+    require(rsp.step(bus), "execute VNOP");
+    require(rsp.step(bus), "read ACC_LO after VMOV");
+    for (unsigned lane = 0; lane < 8U; ++lane)
+        require(rsp.vectorLane(0, lane) == static_cast<std::uint16_t>(0x1100U + lane),
+                "VMOV loads ACC_LO from all VT lanes");
+    require(!rsp.faulted(), "VNOP is a supported instruction");
+}
+
 void testCop2VectorAndControlMoves() {
     Bus bus;
     RspCpu rsp;
@@ -597,6 +618,7 @@ int main() {
     testVectorPairBroadcastSelectors();
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
+    testVectorMoveAndNoop();
     testCop2VectorAndControlMoves();
     std::cout << "All scalar and vector RSP host tests passed.\n";
     return 0;
