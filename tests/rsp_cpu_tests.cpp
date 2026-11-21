@@ -335,10 +335,12 @@ void testVectorComparisonsAndMerge() {
     rsp.setVectorLane(1, 6, 17U); rsp.setVectorLane(2, 6, 16U); // VNE true
     rsp.setVectorLane(1, 7, 18U); rsp.setVectorLane(2, 7, 18U); // VGE equal, no VCO pair
     put(bus, 8, vType(0, 2, 1, 3, 0x20));  // VLT
-    put(bus, 12, vType(0, 2, 1, 4, 0x21)); // VEQ
-    put(bus, 16, vType(0, 2, 1, 5, 0x22)); // VNE
-    put(bus, 20, vType(0, 2, 1, 6, 0x23)); // VGE
-    put(bus, 24, vType(0, 2, 1, 7, 0x27)); // VMRG uses VCC from VGE
+    put(bus, 12, cop2Move(0x06, 1, 0, 0)); // restore VCO for VEQ tie
+    put(bus, 16, vType(0, 2, 1, 4, 0x21)); // VEQ
+    put(bus, 20, cop2Move(0x06, 1, 0, 0)); // restore VCO for VNE tie
+    put(bus, 24, vType(0, 2, 1, 5, 0x22)); // VNE
+    put(bus, 28, vType(0, 2, 1, 6, 0x23)); // VGE
+    put(bus, 32, vType(0, 2, 1, 7, 0x27)); // VMRG uses VCC from VGE
     require(rsp.step(bus) && rsp.step(bus), "load VCO comparison tie flags");
     require(rsp.vectorCarryFlags() == 0x0434U, "CTC2 prepares VCO flags");
     require(rsp.step(bus), "execute VLT");
@@ -347,12 +349,14 @@ void testVectorComparisonsAndMerge() {
     require((rsp.vectorCompareFlags() & 0x0005U) == 0x0005U,
             "VLT writes VCC_LO selection flags");
     require(rsp.vectorCarryFlags() == 0U, "VLT clears VCO");
+    require(rsp.step(bus), "restore VCO before VEQ");
     require(rsp.step(bus), "execute VEQ");
     require(rsp.vectorLane(4, 3) == 13U && rsp.vectorLane(4, 4) == 14U,
             "VEQ selects equal lanes except VCO_LO-set lanes");
     require((rsp.vectorCompareFlags() & (1U << 3U)) != 0U &&
             (rsp.vectorCompareFlags() & (1U << 4U)) == 0U,
             "VEQ records equality selection in VCC");
+    require(rsp.step(bus), "restore VCO before VNE");
     require(rsp.step(bus), "execute VNE");
     require(rsp.vectorLane(5, 5) == 15U && rsp.vectorLane(5, 6) == 17U,
             "VNE selects unequal lanes or VCO_LO-set equal lanes");
