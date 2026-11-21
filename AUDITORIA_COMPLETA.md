@@ -353,3 +353,19 @@ A auditoria ainda deve continuar por:
 - A implementação deve incluir estado explícito DIV_IN/DIV_OUT e indicador de entrada alta pendente, além do efeito colateral de carregar ACC_LO com VT quando especificado.
 - A tabela de aproximação ROM do RSP precisa ser bit-exata; não substituir por divisão ou raiz quadrada de ponto flutuante. Implementar e testar a decodificação escalar/VMOV/VNOP primeiro, depois o cálculo da tabela e os pares H/L.
 - Referências técnicas consultadas: SGI Nintendo 64 RSP Programmer's Guide, seção “VU Divide Instructions”, páginas 75–78; documentação técnica RSP de Dillonb e implementação de referência Project64.
+
+
+### Continuação do RSP — VMOV/VNOP e unidade de divisão (2026-11-21)
+- VMOV e VNOP implementados; os workflows `44901529621` e `44901532325` concluíram com sucesso em testes nativos e Android.
+- Corrigido o mapeamento escalar do VMOV: origem e ACC_LO seguem o mapa de broadcast de elemento, não uma divisão simples do campo de elemento por dois.
+- Implementada a unidade escalar de divisão do RSP:
+  - VRCP (0x30), VRCPL (0x31), VRCPH (0x32), VRSQ (0x34), VRSQL (0x35), VRSQH (0x36).
+  - VMOV (0x33) e VNOP (0x37).
+  - Estado separado DIV_IN, DIV_OUT e indicador de entrada alta pendente.
+  - Tabelas de aproximação RCP e RSQ de 512 entradas cada, integradas em `rsp_divide_tables.h`.
+  - Tratamento de VRCPH/VRSQH para devolver a metade alta anterior e preparar a metade alta de entrada; VRCPL/VRSQL consomem a metade alta pendente ou usam entrada de 16 bits com sinal estendido quando não há entrada pendente.
+  - Efeito colateral de carregar ACC_LO conforme o mapa de elementos para as operações escalares aplicáveis; VNOP não altera estado.
+- Testes adicionados para VMOV/VNOP, VRCP, VRCPH, VRCPL e VRSQ, incluindo latch DIV_IN/DIV_OUT e o caso de entrada zero.
+- CI da revisão corrigida: workflow `44901838371`; `native-host-tests` concluído com sucesso. `assemble-debug` ainda estava em andamento no momento deste registro. Não declarar build Android aprovada até o workflow terminar.
+- Um workflow anterior (`44901810790`) falhou por chaves de inicialização ausentes nas tabelas; a correção foi registrada no commit `e75381a` e está sendo validada no workflow acima.
+- Referências técnicas: SGI Nintendo 64 RSP Programmer's Guide, seções VU Divide Instructions; documentação RSP do r64emu (RCP_ROM/RSQ_ROM, DIV_IN/DIV_OUT); implementação de referência Project64 em `RSPInterpreterOps.cpp` e `RSPRegister.cpp`.
