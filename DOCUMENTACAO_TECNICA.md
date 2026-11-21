@@ -2,7 +2,7 @@
 
 > **Objetivo:** registrar a pesquisa de arquitetura do Mupen64Plus AE como referência técnica para o desenvolvimento de um emulador Nintendo 64 para Android, com atenção ao Android 16 e ao Poco C85 (Unisoc T7250 / Mali-G52 MC2).
 >
-> **Estado:** documento de pesquisa. Os pontos abaixo descrevem o código de referência estudado e hipóteses/testes propostos. Não significam que essas partes já estejam implementadas neste repositório.
+> **Estado:** documento misto de pesquisa e acompanhamento de implementação. As seções sobre Mupen64Plus AE descrevem apenas o projeto de referência; as seções 17 e 18 registram o estado observado no código do M64plus. Não confundir pesquisa, implementação parcial e validação no aparelho.
 >
 > **Limite importante:** este estudo não autoriza copiar arquivos isolados do Mupen64Plus AE nem importar binários/plugins sem compreender e integrar suas dependências e licenças. Nenhum código do projeto de referência foi incorporado por este documento.
 
@@ -259,30 +259,29 @@ A investigação identificou Oboe e SoundTouch na pilha de áudio do projeto de 
 
 Separar os subsistemas e registrar resultados independentes:
 
-| Subsistema | O que comprovar | Evidência útil |
+| Subsistema | Estado observado no M64plus | Próxima evidência necessária |
 |---|---|---|
-| ROM/loader | ROM válida, tamanho e inicialização | logs de leitura e validação |
-| CPU/Core | loop de execução ativo | PC, ciclos, estado e modo de CPU |
-| Dynarec | geração e execução de blocos ARM64 | logs de inicialização, cache e falhas de memória |
-| RSP | tarefa reconhecida e concluída | tipo de tarefa, microcode e callbacks |
-| GFX | display lists recebidas e processadas | contadores de listas e erros do plugin |
-| EGL/Surface | contexto e superfície válidos | versão GL, renderer, estado EGL e thread |
-| Áudio | tarefas e buffers entregues | contadores de amostras/buffers e erros |
-| Android UI | frames recebidos e desenhados | callbacks de frame e estado da Surface |
+| ROM/loader | Ainda não implementado | ROM de teste validada e boot reproduzível |
+| CPU/Core | Interpretador MIPS inicial e integração com barramento | testes de instruções e execução de código de boot |
+| Dynarec | Não comprovado como implementado no M64plus | geração/execução ARM64 e fallback medido |
+| RSP | Interpretador escalar parcial e COP2 parcial | cobertura vetorial, tarefas e sincronização |
+| GFX/RDP | Não implementado como pipeline de jogos | display lists, comandos RDP e framebuffer |
+| EGL/Surface | Triângulo de diagnóstico GLES2 observado | contexto, renderer, ciclo de vida e apresentação contínua |
+| Áudio | Não implementado | tarefas RSP de áudio e saída Android |
+| Android UI | Tela de diagnóstico | apresentação de frames gerados pelo emulador |
 
-Não usar “o PC avançou” como prova de que o jogo está funcionando. CPU, RSP, vídeo, áudio e apresentação precisam ser validados separadamente.
+Não usar “o PC avançou” nem o triângulo de diagnóstico como prova de que um jogo está funcionando. CPU, RSP, RDP, áudio e apresentação precisam ser validados separadamente.
 
 ## 14. Próximos testes prioritários
 
-1. Confirmar no Poco C85 a ABI efetiva do processo e o tamanho de página do sistema.
-2. Criar um teste mínimo de EGL que registre versão, renderer, extensões e formato de superfície realmente disponíveis.
-3. Validar o ciclo de vida de `Surface`, EGL context e thread de renderização.
-4. Medir se o Dynarec consegue reservar/proteger memória executável; registrar falhas e fornecer fallback explícito para cached interpreter.
-5. Validar CPU com ROM de teste e comparar Dynarec com interpretador.
-6. Validar RSP HLE com tarefas de áudio e gráficos, incluindo comportamento quando o microcode não é reconhecido.
-7. Integrar um plugin gráfico apenas depois que a API do Core, a superfície e o contexto EGL estiverem corretos.
-8. Testar áudio em separado e depois em conjunto com vídeo.
-9. Medir desempenho e estabilidade por jogo; não assumir que uma configuração rápida em um título será ideal em todos.
+1. Completar COP2 com testes de referência para operações vetoriais, flags VCO/VCC/VCE e accumulator; não assumir que a implementação parcial atual reproduz todos os detalhes do RSP real.
+2. Implementar loads/stores vetoriais e ampliar instruções escalares do RSP.
+3. Revisar branches, delay slots, BREAK e comportamento de SP_PC/SP_STATUS com casos de teste de borda.
+4. Modelar a sincronização CPU↔RSP, interrupções e DMA com temporização/orçamento de ciclos, em vez de tratar a execução como cópia instantânea.
+5. Implementar PI e mapeamento de cartucho; criar carregador de ROM de teste e validar o caminho de boot.
+6. Só depois de tarefas gráficas RSP confiáveis, implementar RDP e um caminho de framebuffer.
+7. Validar EGL/Surface e renderer N64 separadamente; o triângulo GLES2 atual é somente diagnóstico.
+8. Implementar AI/áudio e os demais dispositivos, depois integrar e medir o conjunto no Poco C85.
 
 ## 15. O que ainda não está comprovado
 
@@ -291,9 +290,11 @@ Não usar “o PC avançou” como prova de que o jogo está funcionando. CPU, R
 - Que o aparelho use páginas de memória de 4 KiB ou 16 KiB.
 - Que permissões RWX sejam permitidas ou negadas no Android 16 desse aparelho.
 - Que o fallback de memória executável esteja ativo no build padrão.
-- Que RSP HLE cubra todos os microcodes/jogos desejados.
+- Que o RSP parcial atual cubra as instruções vetoriais ou microcodes exigidos por jogos comerciais.
+- Que CPU/RSP estejam sincronizados em ciclos como o hardware real.
+- Que exista boot de ROM, RDP, áudio ou compatibilidade com jogos.
 - Que copiar bibliotecas nativas do AE isoladamente seja suficiente para obter um emulador funcional.
-- Que a arquitetura pesquisada já esteja implementada no repositório M64plus.
+- Que o renderer de diagnóstico GLES2 seja um renderer Nintendo 64.
 
 ## 16. Referências principais
 
@@ -325,17 +326,60 @@ Ao retomar este projeto em outra conversa:
 6. Atualizar este documento quando uma investigação ou teste produzir resultado verificável, registrando arquivo, commit, dispositivo, versão Android e logs relevantes.
 
 
-## 17. Barramento físico inicial (M64plus)
+## 17. Barramento físico e dispositivos iniciais (M64plus)
 
-Commit inicial desta etapa: o barramento foi separado da RDRAM e possui decodificação explícita das regiões:
+Arquivos principais: `app/src/main/cpp/n64/bus.h` e `bus.cpp`.
 
-| Região | Endereço físico | Tamanho | Estado |
-|---|---:|---:|---|
+| Região | Endereço físico | Tamanho / observação | Estado observado |
+|---|---:|---|---|
 | RDRAM | `0x00000000` | 8 MiB | Implementada, big-endian |
-| SP DMEM | `0x04000000` | 4 KiB | Implementada como memória independente |
-| SP IMEM | `0x04001000` | 4 KiB | Implementada como memória independente |
-| Demais endereços | — | — | Ainda não mapeados; leitura/escrita retorna falha |
+| SP DMEM | `0x04000000` | 4 KiB | Implementada |
+| SP IMEM | `0x04001000` | 4 KiB | Implementada |
+| MI registers | `0x04300000` | 0x10 bytes | MI_MODE, MI_VERSION, MI_INTR, MI_INTR_MASK iniciais |
+| SP registers | `0x04040000` | 0x20 bytes | SP_MEM_ADDR, SP_DRAM_ADDR, READ/WRITE_LENGTH, STATUS, DMA_FULL/BUSY e SEMAPHORE |
+| SP_PC | `0x04080000` | 4 bytes | Registrador de PC do RSP |
+| Demais dispositivos | — | — | Não mapeados neste estágio |
 
-A classe `Bus` oferece acessos de 8, 16, 32 e 64 bits, valida que cada acesso permaneça dentro de uma única região e expõe a RDRAM para inspeção/testes. O autoteste JNI valida decodificação, big-endian, independência DMEM/IMEM, limites e reset.
+A classe `Bus` oferece acessos big-endian de 8, 16, 32 e 64 bits, valida que cada acesso permaneça dentro de uma região e rejeita acessos MMIO que não sejam de 32 bits alinhados. A CPU principal acessa o barramento compartilhado por meio de `N64Machine`; os testes de integração executam instruções a partir da IMEM e leem/escrevem DMEM e RDRAM.
 
-**Limite desta entrega:** a CPU ainda executa diretamente sobre `Rdram`; esta classe é uma fundação isolada e ainda não substitui o caminho de memória do processador. Também não existem ainda registradores MMIO do SP, MI, VI, AI, PI, RI ou SI, interrupções por dispositivos, DMA ou mapeamento de cartucho. O próximo passo é implementar os blocos de registradores e então migrar a CPU para o barramento sem quebrar os testes existentes.
+O DMA do SP suporta comprimento arredondado em blocos de 8 bytes, contagem de linhas, skip de RDRAM e alternância/wrap entre DMEM e IMEM. **Limitação:** a transferência é síncrona e imediata; fila, latência, concorrência e temporização por ciclos ainda não estão modeladas. O MI implementa apenas registradores iniciais e máscara/status de interrupções; não equivale ao conjunto completo de dispositivos do console.
+
+Testes host em `tests/bus_tests.cpp` e autotestes JNI cobrem decodificação, big-endian, independência DMEM/IMEM, DMA, linhas/skip, wrap, limites, MI, SP_STATUS, SP_PC e interrupções iniciais.
+
+
+## 18. CPU/RSP e máquina compartilhada (M64plus)
+
+Arquivos principais:
+- `app/src/main/cpp/n64/machine.h` / `machine.cpp`: classe `N64Machine`, dona do barramento, CPU principal e RSP.
+- `app/src/main/cpp/n64/rsp_cpu.h` / `rsp_cpu.cpp`: interpretador RSP escalar e unidade vetorial parcial.
+- `tests/rsp_cpu_tests.cpp`, `tests/machine_tests.cpp` e `app/src/main/cpp/rsp-machine-jni.cpp`: testes de instruções e integração.
+
+### RSP escalar implementado parcialmente
+
+O interpretador atual contém, entre outras instruções, operações aritméticas/lógicas escalares, imediatas, loads/stores escalares para DMEM, saltos/desvios com delay slot e BREAK. A execução do RSP é limitada por orçamento de instruções em `runRsp()`; isso é uma ferramenta inicial de teste, não um agendador fiel ao relógio do N64.
+
+### COP2 implementado parcialmente
+
+O código atual implementa:
+- Movimentação: MFC2, MTC2, CFC2 e CTC2.
+- Aritmética: VADD, VSUB, VADDC e VSUBC.
+- Lógica: VAND, VNAND, VOR, VNOR, VXOR e VNXOR.
+- Registradores vetoriais de 8 lanes de 16 bits, accumulator por lane e estado inicial de VCO, VCC e VCE.
+- Mapeamento de elemento para seleção de lanes e acesso aos bytes dos registradores vetoriais.
+
+**Não declarar COP2 completo.** Permanecem ausentes grande parte das operações vetoriais do RSP, loads/stores vetoriais, comportamento completo de flags/accumulator e validação diferencial contra casos de referência. Pipeline hazards e temporização também não estão implementados. Os testes atuais confirmam apenas os casos explicitamente cobertos.
+
+### Integração com SP e CPU
+
+`N64Machine::stepRsp()` verifica SP_HALT, sincroniza o PC do interpretador com SP_PC, executa uma instrução e atualiza SP_PC. Ao executar BREAK, sinaliza SP_HALT/SP_BROKE e, se habilitado, a interrupção do SP no MI. Os testes JNI cobrem:
+- inicialização e execução do RSP a partir de IMEM;
+- BREAK e sinalização de interrupção;
+- CPU iniciando o RSP via registradores SP;
+- CPU lendo o resultado escrito pelo RSP em DMEM;
+- uma tarefa vetorial mínima com VADD, seguida de BREAK.
+
+O teste integrado confirma um cenário mínimo, não execução de microcodes comerciais, display lists completas ou jogos.
+
+### Próxima implementação recomendada
+
+A próxima etapa de código deve ser estreita e verificável: adicionar instruções de transferência vetorial (por exemplo, LBV/LSV/LLV/LDV e SBV/SSV/SLV/SDV, depois os formatos de load/store restantes), cada uma com testes de endianness, alinhamento, elemento e wrap de endereço. Em paralelo, expandir COP2 em pequenos grupos com testes de flags e accumulator. Não iniciar RDP/renderização de jogos antes de o caminho de tarefas gráficas do RSP estar suficientemente testado.
