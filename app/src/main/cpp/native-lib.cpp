@@ -1,5 +1,6 @@
 #include <jni.h>
 #include "n64/mips_cpu.h"
+#include "n64/cp0.h"
 #include "n64/rdram.h"
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeRdramSelfTest(JNIEnv*, jclass) {
@@ -104,5 +105,39 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuMemorySelfTest(JNIEnv*, jclass) {
     if(wideCpu.reg(12)!=0xDDULL || wideCpu.reg(13)!=0xCCDDULL) return JNI_FALSE;
     std::uint64_t copiedValue = 0;
     if(!wideMemory.read64(0x208,copiedValue) || copiedValue!=wideValue) return JNI_FALSE;
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeCp0SelfTest(JNIEnv*, jclass) {
+    using m64plus::n64::Cp0;
+    using m64plus::n64::ExceptionCode;
+    Cp0 cp0;
+    if (cp0.read(Cp0::kStatus) != 0 || cp0.exceptionLevel()) return JNI_FALSE;
+    // Address error in a branch delay slot: EPC points to the branch.
+    const std::uint64_t vector = cp0.raiseException(ExceptionCode::AddressLoad,
+                                                     0xFFFFFFFF80001004ULL, true,
+                                                     0xFFFFFFFFA0000001ULL);
+    if (vector != 0xFFFFFFFF80000180ULL) return JNI_FALSE;
+    if (cp0.read(Cp0::kEpc) != 0xFFFFFFFF80001000ULL) return JNI_FALSE;
+    if (cp0.read(Cp0::kBadVAddr) != 0xFFFFFFFFA0000001ULL) return JNI_FALSE;
+    if ((cp0.read(Cp0::kCause) & (1ULL << 31U)) == 0) return JNI_FALSE;
+    if (((cp0.read(Cp0::kCause) >> 2U) & 0x1FULL) != 4U) return JNI_FALSE;
+    if (!cp0.exceptionLevel()) return JNI_FALSE;
+    // Nested exception must preserve the original EPC.
+    cp0.raiseException(ExceptionCode::Breakpoint, 0xFFFFFFFF80002000ULL);
+    if (cp0.read(Cp0::kEpc) != 0xFFFFFFFF80001000ULL) return JNI_FALSE;
+    if (cp0.exceptionReturn() != 0xFFFFFFFF80001000ULL || cp0.exceptionLevel()) return JNI_FALSE;
+    // Count/Compare timer interrupt; writing Compare acknowledges it.
+    if (!cp0.write(Cp0::kCount, 4) || !cp0.write(Cp0::kCompare, 6)) return JNI_FALSE;
+    cp0.tick();
+    cp0.tick();
+    if ((cp0.read(Cp0::kCause) & (1ULL << 15U)) == 0) return JNI_FALSE;
+    if (!cp0.write(Cp0::kCompare, 10)) return JNI_FALSE;
+    if ((cp0.read(Cp0::kCause) & (1ULL << 15U)) != 0) return JNI_FALSE;
+    // BEV selects the boot exception vector.
+    if (!cp0.write(Cp0::kStatus, Cp0::kStatusBev)) return JNI_FALSE;
+    if (cp0.raiseException(ExceptionCode::Syscall, 0xFFFFFFFF80003000ULL) !=
+        0xFFFFFFFFBFC00380ULL) return JNI_FALSE;
     return JNI_TRUE;
 }
