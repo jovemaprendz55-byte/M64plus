@@ -458,3 +458,12 @@ A auditoria ainda deve continuar por:
 
 ### Atualização de CI — LFV/SFV (2026-11-21)
 - A verificação final confirmou que os quatro workflows `44903198432`, `44903212457`, `44903225151` e `44903235082` concluíram com sucesso nos dois jobs: `native-host-tests` e `assemble-debug`. O status pendente descrito na seção anterior foi superado.
+### Revisão de precisão — LTV/STV, SWV e LWV (2026-11-21)
+- A primeira implementação de LTV/STV foi refinada após confronto com o código do Ares e a descrição de transposição do guia SGI. A versão atual aplica a rotação dos halfwords e respeita a janela de 16 bytes alinhada em 8 bytes, incluindo a seleção influenciada pelo bit 3 do endereço no LTV.
+- LTV usa a janela iniciada em `windowBase + ((element + (address & 8)) & 15)`; cada halfword é distribuído para `vtBase + ((slice + (element >> 1)) & 7)`, lane `slice`. STV reúne a mesma diagonal e inicia a gravação em `windowBase + ((address & 7) - (element & 0x0E))`, com wrap de 16 bytes.
+- Implementado SWV (SWC2 subopcode `0x0A`): grava 16 bytes, começando na posição de elemento indicada, com rotação de origem e wrap dentro de uma janela de 16 bytes ancorada no limite de 8 bytes.
+- LWV (LWC2 subopcode `0x0A`) foi modelado como no-op, pois não está presente no RSP de varejo do Nintendo 64.
+- Testes atualizados verificam as oito diagonais e quatro grupos de registradores, a rotação de origem/destino de LTV/STV, a janela final do DMEM, SWV com elemento 13 e base desalinhada em 8 bytes, e o no-op de LWV.
+- Commits de refinamento LTV/STV: `9a9d4f2` e `a5a1978`; SWV/LWV: `f5c9b3a`, testes `3e9a4d0`, correção do decoder `16ec857`.
+- Workflow mais recente `44903884566`: `native-host-tests` aprovado; `assemble-debug` ainda em execução na última verificação.
+- Limitação remanescente: o pipeline do RSP ainda não implementa os três slots de atraso/interlocks das cargas vetoriais. Elementos ilegais e alinhamentos fora das condições documentadas ainda exigem validação adicional.
