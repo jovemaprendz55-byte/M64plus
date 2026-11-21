@@ -518,21 +518,46 @@ bool RspCpu::step(Bus& bus) noexcept {
         if (subOpcode == 0x0BU) { // LTV / STV: transpose eight halfwords across an 8-register group.
             const unsigned groupBase = rt & 0x18U;
             const unsigned diagonal = (element >> 1U) & 0x07U;
-            const std::uint32_t alignedAddress = address & ~0x0FU;
-            for (unsigned slice = 0; slice < 8U; ++slice) {
-                const unsigned vectorRegister = groupBase | ((slice + diagonal) & 0x07U);
-                const std::uint32_t dmemAddress = Bus::kSpDmemBase +
-                    ((alignedAddress + slice * 2U) & 0x0FFFU);
-                if (load) {
-                    std::uint16_t value = 0;
-                    if (!bus.read16(dmemAddress, value)) {
+            const std::uint32_t windowBase = address & ~0x07U;
+            if (load) {
+                // LTV rotates the source halfwords within the 16-byte window.
+                const unsigned firstByte = (element + (address & 0x08U)) & 0x0FU;
+                for (unsigned slice = 0; slice < 8U; ++slice) {
+                    const unsigned vectorRegister =
+                        groupBase | ((slice + diagonal) & 0x07U);
+                    const unsigned byteOffset = (firstByte + slice * 2U) & 0x0FU;
+                    std::uint8_t high = 0;
+                    std::uint8_t low = 0;
+                    if (!bus.read8(Bus::kSpDmemBase +
+                                       ((windowBase + byteOffset) & 0x0FFFU), high) ||
+                        !bus.read8(Bus::kSpDmemBase +
+                                       ((windowBase + ((byteOffset + 1U) & 0x0FU)) & 0x0FFFU),
+                                   low)) {
                         halted_ = true; faulted_ = true;
                         return false;
                     }
-                    vr_[vectorRegister][slice] = value;
-                } else if (!bus.write16(dmemAddress, vr_[vectorRegister][slice])) {
-                    halted_ = true; faulted_ = true;
-                    return false;
+                    vr_[vectorRegister][slice] =
+                        static_cast<std::uint16_t>((static_cast<std::uint16_t>(high) << 8U) |
+                                                   static_cast<std::uint16_t>(low));
+                }
+            } else {
+                // STV writes the diagonal into a rotated 16-byte window.
+                const unsigned firstByte =
+                    ((address & 0x07U) - (element & 0x0EU)) & 0x0FU;
+                for (unsigned slice = 0; slice < 8U; ++slice) {
+                    const unsigned vectorRegister =
+                        groupBase | ((slice + diagonal) & 0x07U);
+                    const std::uint16_t value = vr_[vectorRegister][slice];
+                    const unsigned byteOffset = (firstByte + slice * 2U) & 0x0FU;
+                    if (!bus.write8(Bus::kSpDmemBase +
+                                        ((windowBase + byteOffset) & 0x0FFFU),
+                                    static_cast<std::uint8_t>(value >> 8U)) ||
+                        !bus.write8(Bus::kSpDmemBase +
+                                        ((windowBase + ((byteOffset + 1U) & 0x0FU)) & 0x0FFFU),
+                                    static_cast<std::uint8_t>(value))) {
+                        halted_ = true; faulted_ = true;
+                        return false;
+                    }
                 }
             }
         } else if (subOpcode == 9U && load) { // LFV: load four bytes from a 16-byte quadword.
