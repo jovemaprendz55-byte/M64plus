@@ -438,3 +438,10 @@ A auditoria ainda deve continuar por:
 - Testes cobrem o exemplo element=5 (lanes 7,4,5,6), endereço desalinhado com wrap e um elemento que seleciona posições zeradas.
 - Implementação: `961390a`; testes: `f03d589`. CI pendente.
 - Observação: LFV foi corrigida no commit `d59858e` para usar os padrões distintos `0,4,8,12` e `8,12,0,4`; testes corrigidos em `15480dd`. A validação de CI dessa correção também precisa ser acompanhada.
+
+
+### Estado da validação — LFV/SFV (2026-11-21)
+- Correção LFV + testes atualizados: workflow `44903198432` — `native-host-tests` aprovado; `assemble-debug` ainda em execução na última verificação.
+- Implementação SFV: workflow `44903225151` — `native-host-tests` aprovado; `assemble-debug` ainda em execução na última verificação.
+- Testes SFV: workflow `44903235082` — `native-host-tests` aprovado; `assemble-debug` ainda em execução na última verificação.
+- Portanto, LFV/SFV ainda não estão marcadas como integralmente validadas até a conclusão dos builds Android.
