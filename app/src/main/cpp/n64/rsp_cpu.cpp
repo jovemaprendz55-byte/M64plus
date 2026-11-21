@@ -83,16 +83,17 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
         return true;
     }
     const bool multiplyFraction = function == 0x00U;
+    const bool multiplyUnsigned = function == 0x01U;
     const bool add = function == 0x10U, sub = function == 0x11U;
     const bool addCarry = function == 0x14U, subCarry = function == 0x15U;
     const bool logical = function >= 0x28U && function <= 0x2DU;
-    if (!multiplyFraction && !add && !sub && !addCarry && !subCarry && !logical) return false;
+    if (!multiplyFraction && !multiplyUnsigned && !add && !sub && !addCarry && !subCarry && !logical) return false;
     std::uint16_t nextVco = 0;
     for (unsigned lane = 0; lane < 8U; ++lane) {
         const std::uint16_t left = vr_[vs][lane];
         const std::uint16_t right = vr_[vt][kElementMap[element][lane]];
         std::uint16_t value = 0;
-        if (multiplyFraction) {
+        if (multiplyFraction || multiplyUnsigned) {
             const std::int64_t product =
                 static_cast<std::int64_t>(static_cast<std::int16_t>(left)) *
                 static_cast<std::int16_t>(right) * 2 + 0x8000;
@@ -107,9 +108,15 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
             const std::int64_t shifted = signedAccumulator >= 0
                 ? signedAccumulator / 65536
                 : -((-signedAccumulator + 65535) / 65536);
-            if (shifted < -32768) value = 0x8000U;
-            else if (shifted > 32767) value = 0x7FFFU;
-            else value = static_cast<std::uint16_t>(shifted);
+            if (multiplyUnsigned) {
+                if (shifted < 0) value = 0U;
+                else if (shifted > 32767) value = 0xFFFFU;
+                else value = static_cast<std::uint16_t>(shifted);
+            } else {
+                if (shifted < -32768) value = 0x8000U;
+                else if (shifted > 32767) value = 0x7FFFU;
+                else value = static_cast<std::uint16_t>(shifted);
+            }
         } else if (add || sub) {
             const std::int32_t a = static_cast<std::int16_t>(left);
             const std::int32_t b = static_cast<std::int16_t>(right);
