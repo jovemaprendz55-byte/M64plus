@@ -1,5 +1,6 @@
 #include "n64/mips_cpu.h"
 #include "n64/rdram.h"
+#include "n64/bus.h"
 #include "n64/cp0.h"
 #include "n64/tlb.h"
 #include <cstdint>
@@ -11,6 +12,9 @@ std::uint64_t signExtend32(std::uint32_t value) {
 std::uint64_t signExtend16(std::uint16_t value) {
     return static_cast<std::uint64_t>(static_cast<std::int64_t>(static_cast<std::int16_t>(value)));
 }
+
+bool MipsCpu::step(Rdram& memory) { return stepMemory(memory); }
+bool MipsCpu::step(Bus& memory) { return stepMemory(memory); }
 }
 MipsCpu::MipsCpu() { reset(); }
 void MipsCpu::reset(std::uint64_t pc) {
@@ -30,7 +34,8 @@ std::uint64_t MipsCpu::pc() const noexcept { return pc_; }
 std::uint64_t MipsCpu::instructionsExecuted() const noexcept { return executed_; }
 void MipsCpu::setTlbEnabled(bool enabled) noexcept { tlbEnabled_ = enabled; }
 const Cp0& MipsCpu::cp0() const noexcept { return cp0_; }
-bool MipsCpu::step(Rdram& memory) {
+template <typename Memory>
+bool MipsCpu::stepMemory(Memory& memory) {
     const bool inDelaySlot = pendingBranch_;
     const auto takeException = [&](ExceptionCode code, std::uint64_t badAddress = 0, bool tlbRefill = false) {
         pc_ = cp0_.raiseException(code, pc_, inDelaySlot, badAddress, tlbRefill);

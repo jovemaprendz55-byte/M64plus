@@ -5,17 +5,20 @@
 #include "n64/tlb.h"
 namespace m64plus::n64 {
 class Rdram;
+class Bus;
 class MipsCpu final {
 public:
     MipsCpu();
     void reset(std::uint64_t pc = 0);
     bool step(Rdram& memory);
+    bool step(Bus& memory);
     void setTlbEnabled(bool enabled) noexcept;
     std::uint64_t reg(unsigned index) const noexcept;
     std::uint64_t pc() const noexcept;
     std::uint64_t instructionsExecuted() const noexcept;
     const Cp0& cp0() const noexcept;
 private:
+    template <typename Memory> bool stepMemory(Memory& memory);
     std::array<std::uint64_t, 32> gpr_{};
     std::uint64_t pc_ = 0;
     std::uint64_t executed_ = 0;

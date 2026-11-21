@@ -4,6 +4,7 @@
 #include "n64/rdram.h"
 #include "n64/tlb.h"
 #include "n64/bus.h"
+#include "n64/bus.h"
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeRdramSelfTest(JNIEnv*, jclass) {
     m64plus::n64::Rdram memory;
@@ -476,6 +477,32 @@ Java_com_jsr_m64plus_MainActivity_nativeBusSelfTest(JNIEnv*, jclass) {
     bus.reset();
     if (!bus.read64(rdramAddress, actual) || actual != 0 ||
         !bus.read32(dmemAddress, dmem) || dmem != 0)
+        return JNI_FALSE;
+    return JNI_TRUE;
+}
+
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeCpuBusIntegrationSelfTest(JNIEnv*, jclass) {
+    using m64plus::n64::Bus;
+    using m64plus::n64::MipsCpu;
+    Bus bus;
+    const std::uint32_t program[] = {
+        0x3C080400U, // LUI t0,0x0400 -> SP DMEM base
+        0x24091234U, // ADDIU t1,zero,0x1234
+        0xAD090000U, // SW t1,0(t0) through physical bus
+        0x8D0A0000U  // LW t2,0(t0) through physical bus
+    };
+    for (std::uint32_t i = 0; i < 4U; ++i)
+        if (!bus.write32(Bus::kSpImemBase + i * 4U, program[i]))
+            return JNI_FALSE;
+    MipsCpu cpu;
+    cpu.reset(Bus::kSpImemBase);
+    for (unsigned i = 0; i < 4U; ++i)
+        if (!cpu.step(bus)) return JNI_FALSE;
+    std::uint32_t stored = 0;
+    if (!bus.read32(Bus::kSpDmemBase, stored) || stored != 0x1234U ||
+        cpu.reg(10) != 0x1234ULL || cpu.instructionsExecuted() != 4U)
         return JNI_FALSE;
     return JNI_TRUE;
 }
