@@ -414,3 +414,10 @@ A auditoria ainda deve continuar por:
 - SPV extrai bits 15..8; SUV extrai bits 14..7. Testes verificam os oito bytes de cada formato e offset escalado por 8.
 - O tratamento de elemento não zero permanece fora da implementação validada; o guia oficial indica element=0 para esses formatos packed. Ainda faltam LHV/SHV, LFV/SFV e LTV/STV.
 - CI pendente para esta nova implementação.
+
+
+### Continuação do RSP — LHV/SHV (2026-11-21)
+- Implementados LHV e SHV (subopcode 8): oito bytes espaçados por dois bytes em DMEM, com offset escalado por 16.
+- LHV coloca cada byte em bits 14..7 do elemento vetorial e zera os demais bits; SHV extrai os mesmos bits para gravar na memória.
+- Testes verificam os oito elementos, stride de dois bytes, escalonamento do offset e transformação dos valores.
+- A seleção por alinhamento e valores de elemento fora do padrão documentado ainda exige comparação mais ampla com testes de hardware/referência. CI pendente.
