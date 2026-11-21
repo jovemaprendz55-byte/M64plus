@@ -2,6 +2,8 @@
 
 #include "n64/bus.h"
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
 
 namespace m64plus::n64 {
@@ -9,6 +11,16 @@ namespace {
 constexpr std::uint32_t kPcMask = 0x0FFCU;
 constexpr std::uint32_t kDmemBase = Bus::kSpDmemBase;
 constexpr std::uint32_t kImemBase = Bus::kSpImemBase;
+constexpr std::array<std::array<std::uint8_t, 8>, 16> kElementMap{{
+    {{0,1,2,3,4,5,6,7}}, {{0,0,2,2,4,4,6,6}},
+    {{1,1,3,3,5,5,7,7}}, {{0,0,0,0,4,4,4,4}},
+    {{1,1,1,1,5,5,5,5}}, {{2,2,2,2,6,6,6,6}},
+    {{3,3,3,3,7,7,7,7}}, {{4,4,4,4,4,4,4,4}},
+    {{0,0,0,0,0,0,0,0}}, {{1,1,1,1,1,1,1,1}},
+    {{2,2,2,2,2,2,2,2}}, {{3,3,3,3,3,3,3,3}},
+    {{4,4,4,4,4,4,4,4}}, {{5,5,5,5,5,5,5,5}},
+    {{6,6,6,6,6,6,6,6}}, {{7,7,7,7,7,7,7,7}}
+}};
 
 std::uint32_t signExtend16(std::uint16_t value) noexcept {
     return static_cast<std::uint32_t>(static_cast<std::int32_t>(
@@ -23,6 +35,11 @@ void RspCpu::reset() noexcept {
     pc_ = 0;
     pendingBranchTarget_ = 0;
     executed_ = 0;
+    for (auto& vector : vr_) vector.fill(0);
+    accumulator_.fill(0);
+    vco_ = 0;
+    vcc_ = 0;
+    vce_ = 0;
     pendingBranch_ = false;
     halted_ = false;
 }
@@ -34,6 +51,63 @@ std::uint32_t RspCpu::reg(unsigned index) const noexcept {
 std::uint32_t RspCpu::pc() const noexcept { return pc_; }
 bool RspCpu::halted() const noexcept { return halted_; }
 std::uint64_t RspCpu::instructionsExecuted() const noexcept { return executed_; }
+std::uint16_t RspCpu::vectorLane(unsigned r, unsigned lane) const noexcept {
+    return r < vr_.size() && lane < 8U ? vr_[r][lane] : 0U;
+}
+void RspCpu::setVectorLane(unsigned r, unsigned lane, std::uint16_t value) noexcept {
+    if (r < vr_.size() && lane < 8U) vr_[r][lane] = value;
+}
+std::uint16_t RspCpu::vectorCarryFlags() const noexcept { return vco_; }
+std::uint16_t RspCpu::vectorCompareFlags() const noexcept { return vcc_; }
+std::uint8_t RspCpu::vectorClipFlags() const noexcept { return vce_; }
+
+bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
+                           unsigned vd, unsigned function) noexcept {
+    if (vt >= 32U || vs >= 32U || vd >= 32U || element >= 16U) return false;
+    const bool add = function == 0x10U, sub = function == 0x11U;
+    const bool addCarry = function == 0x14U, subCarry = function == 0x15U;
+    const bool logical = function >= 0x28U && function <= 0x2DU;
+    if (!add && !sub && !addCarry && !subCarry && !logical) return false;
+    std::uint16_t nextVco = 0;
+    for (unsigned lane = 0; lane < 8U; ++lane) {
+        const std::uint16_t left = vr_[vs][lane];
+        const std::uint16_t right = vr_[vt][kElementMap[element][lane]];
+        std::uint16_t value = 0;
+        if (add || sub) {
+            const std::int32_t a = static_cast<std::int16_t>(left);
+            const std::int32_t b = static_cast<std::int16_t>(right);
+            const std::int32_t carry = (vco_ & (1U << lane)) != 0U ? 1 : 0;
+            const std::int32_t sum = add ? a + b + carry : a - b - carry;
+            accumulator_[lane] = sum;
+            value = static_cast<std::uint16_t>(std::max(-32768, std::min(32767, sum)));
+        } else if (addCarry) {
+            const std::uint32_t sum = static_cast<std::uint32_t>(left) + right;
+            accumulator_[lane] = sum;
+            value = static_cast<std::uint16_t>(sum);
+            if (sum > 0xFFFFU) nextVco |= static_cast<std::uint16_t>(1U << (lane + 8U));
+        } else if (subCarry) {
+            const std::uint32_t diff = static_cast<std::uint32_t>(left) - right;
+            accumulator_[lane] = static_cast<std::int16_t>(static_cast<std::uint16_t>(diff));
+            value = static_cast<std::uint16_t>(diff);
+            if (left < right) nextVco |= static_cast<std::uint16_t>(1U << lane);
+            if (left != right) nextVco |= static_cast<std::uint16_t>(1U << (lane + 8U));
+        } else {
+            switch (function) {
+            case 0x28U: value = left & right; break;
+            case 0x29U: value = static_cast<std::uint16_t>(~(left & right)); break;
+            case 0x2AU: value = left | right; break;
+            case 0x2BU: value = static_cast<std::uint16_t>(~(left | right)); break;
+            case 0x2CU: value = left ^ right; break;
+            case 0x2DU: value = static_cast<std::uint16_t>(~(left ^ right)); break;
+            default: return false;
+            }
+            accumulator_[lane] = static_cast<std::int16_t>(value);
+        }
+        vr_[vd][lane] = value;
+    }
+    if (add || sub || addCarry || subCarry) vco_ = nextVco;
+    return true;
+}
 
 bool RspCpu::step(Bus& bus) noexcept {
     if (halted_) return false;
@@ -70,7 +144,13 @@ bool RspCpu::step(Bus& bus) noexcept {
             static_cast<std::int32_t>(nextPc) + offset) & kPcMask;
     };
 
-    switch (opcode) {
+    if (opcode == 0x12U && rs >= 0x10U) {
+        if (inDelaySlot || !executeVector(rs & 0x0FU, rt, rd,
+                                          (instruction >> 6U) & 31U, function)) {
+            halted_ = true;
+            return false;
+        }
+    } else switch (opcode) {
     case 0x00U:
         destination = rd;
         switch (function) {
