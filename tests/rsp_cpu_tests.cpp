@@ -885,6 +885,41 @@ void testVectorTransposeTransfers() {
     require(!wrapRsp.faulted(), "aligned final DMEM LTV is valid");
 }
 
+void testVectorWrapStoreAndAbsentWrapLoad() {
+    Bus bus;
+    RspCpu rsp;
+    for (unsigned lane = 0; lane < 8U; ++lane)
+        rsp.setVectorLane(9, lane, static_cast<std::uint16_t>(0x1020U + lane * 0x0101U));
+    put(bus, 0, iType(0x09, 0, 1, 0x0107)); // deliberately 8-byte-offset base
+    put(bus, 4, vectorMemoryType(0x3A, 1, 9, 0x0AU, 13, 1)); // SWV, scaled offset 16
+    require(rsp.step(bus) && rsp.step(bus), "execute SWV wrapped store");
+
+    for (unsigned byte = 0; byte < 16U; ++byte) {
+        const unsigned sourceByte = (13U + byte) & 0x0FU;
+        const std::uint16_t sourceLane = rsp.vectorLane(9, sourceByte / 2U);
+        const std::uint8_t expected = static_cast<std::uint8_t>(
+            (sourceByte & 1U) == 0U ? sourceLane >> 8U : sourceLane);
+        const unsigned destinationOffset = (7U + byte) & 0x0FU;
+        std::uint8_t actual = 0;
+        require(bus.read8(Bus::kSpDmemBase + 0x0110U + destinationOffset, actual),
+                "read SWV destination byte");
+        require(actual == expected,
+                "SWV wraps vector source and 16-byte DMEM window independently");
+    }
+    require(!rsp.faulted(), "SWV is supported");
+
+    Bus loadBus;
+    RspCpu loadRsp;
+    for (unsigned lane = 0; lane < 8U; ++lane)
+        loadRsp.setVectorLane(4, lane, static_cast<std::uint16_t>(0xCA00U + lane));
+    put(loadBus, 0, vectorMemoryType(0x32, 0, 4, 0x0AU, 0, 0)); // LWV is absent on retail N64
+    require(loadRsp.step(loadBus), "execute reserved LWV encoding as a no-op");
+    for (unsigned lane = 0; lane < 8U; ++lane)
+        require(loadRsp.vectorLane(4, lane) == static_cast<std::uint16_t>(0xCA00U + lane),
+                "LWV no-op leaves its destination vector unchanged");
+    require(!loadRsp.faulted(), "LWV encoding is a no-op, not an unsupported-opcode fault");
+}
+
 void testVectorAbsolute() {
     Bus bus;
     RspCpu rsp;
@@ -1007,6 +1042,7 @@ int main() {
     testVectorInstructionInBranchDelaySlot();
     testVectorMoveAndNoop();
     testVectorTransposeTransfers();
+    testVectorWrapStoreAndAbsentWrapLoad();
     testVectorAbsolute();
     testVectorBasicMemoryTransfers();
     testVectorQuadMemoryTransfers();
