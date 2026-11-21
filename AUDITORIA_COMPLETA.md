@@ -467,3 +467,10 @@ A auditoria ainda deve continuar por:
 - Commits de refinamento LTV/STV: `9a9d4f2` e `a5a1978`; SWV/LWV: `f5c9b3a`, testes `3e9a4d0`, correção do decoder `16ec857`.
 - Workflow mais recente `44903884566`: `native-host-tests` aprovado; `assemble-debug` ainda em execução na última verificação.
 - Limitação remanescente: o pipeline do RSP ainda não implementa os três slots de atraso/interlocks das cargas vetoriais. Elementos ilegais e alinhamentos fora das condições documentadas ainda exigem validação adicional.
+### Revisão de precisão — janelas DMEM de LHV/SHV/LFV/SFV (2026-11-21)
+- A comparação com o interpretador do Ares revelou que esses formatos usam janelas de 16 bytes ancoradas em um limite de 8 bytes, e não simplesmente endereços lineares a partir do endereço efetivo.
+- LHV agora calcula o início da sequência a partir de `(address & 7) - element` e percorre os oito bytes com stride 2 e wrap de 16 bytes. SHV usa a janela equivalente, seleciona bytes a partir do elemento vetorial e recompõe o byte de saída com os bits 14..7.
+- LFV agora soma o desalinhamento de 8 bytes aos padrões `0,4,8,12` ou `8,12,0,4` e faz wrap dentro da janela. SFV agora grava os quatro bytes a cada quatro posições dentro da mesma janela de 16 bytes, inclusive quando o bit 3 do endereço está ligado.
+- Testes foram ampliados para endereços com deslocamento de 6 bytes dentro da janela; LHV/SHV atravessam o limite de 16 bytes, LFV verifica as duas metades com base desalinhada, e SFV verifica o wrap com bit 3 do endereço ligado.
+- Implementação: commit `c51d32a`; testes de LHV/SHV/LFV: `13967fd`; teste adicional de SFV: `b707097`.
+- Workflow `44904063267`: `native-host-tests` aprovado; `assemble-debug` ainda em execução na última verificação.
