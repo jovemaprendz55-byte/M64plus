@@ -87,22 +87,34 @@ void Cp0::tick() noexcept {
 }
 
 std::uint64_t Cp0::raiseException(ExceptionCode code, std::uint64_t instructionPc,
-                                  bool inDelaySlot, std::uint64_t badAddress) noexcept {
-    if ((registers_[kStatus] & kStatusExl) == 0) {
+                                  bool inDelaySlot, std::uint64_t badAddress,
+                                  bool tlbRefill) noexcept {
+    const bool wasExceptionLevel = (registers_[kStatus] & kStatusExl) != 0;
+    const bool isTlbException = code == ExceptionCode::TlbLoad ||
+        code == ExceptionCode::TlbStore || code == ExceptionCode::TlbModification;
+    const bool useTlbRefillVector = tlbRefill && !wasExceptionLevel &&
+        (code == ExceptionCode::TlbLoad || code == ExceptionCode::TlbStore);
+    if (!wasExceptionLevel) {
         registers_[kEpc] = inDelaySlot ? instructionPc - 4U : instructionPc;
         if (inDelaySlot) registers_[kCause] |= kCauseBd;
         else registers_[kCause] &= ~kCauseBd;
+        if (isTlbException) {
+            registers_[kContext] = (registers_[kContext] & ~0x7FFFF0ULL) |
+                ((badAddress >> 9U) & 0x7FFFF0ULL);
+            registers_[kEntryHi] = (registers_[kEntryHi] & 0xFFULL) |
+                (badAddress & 0xFFFFE000ULL);
+        }
     }
     registers_[kCause] = (registers_[kCause] & ~kCauseExcCodeMask) |
         (static_cast<std::uint64_t>(code) << 2U);
     if (code == ExceptionCode::AddressLoad || code == ExceptionCode::AddressStore ||
-        code == ExceptionCode::TlbLoad || code == ExceptionCode::TlbStore ||
-        code == ExceptionCode::TlbModification) {
+        isTlbException) {
         registers_[kBadVAddr] = badAddress;
     }
     registers_[kStatus] |= kStatusExl;
-    return (registers_[kStatus] & kStatusBev) != 0 ? 0xFFFFFFFFBFC00380ULL
-                                                   : 0xFFFFFFFF80000180ULL;
+    if ((registers_[kStatus] & kStatusBev) != 0)
+        return useTlbRefillVector ? 0xFFFFFFFFBFC00200ULL : 0xFFFFFFFFBFC00380ULL;
+    return useTlbRefillVector ? 0xFFFFFFFF80000000ULL : 0xFFFFFFFF80000180ULL;
 }
 
 std::uint64_t Cp0::exceptionReturn() noexcept {

@@ -32,8 +32,8 @@ void MipsCpu::setTlbEnabled(bool enabled) noexcept { tlbEnabled_ = enabled; }
 const Cp0& MipsCpu::cp0() const noexcept { return cp0_; }
 bool MipsCpu::step(Rdram& memory) {
     const bool inDelaySlot = pendingBranch_;
-    const auto takeException = [&](ExceptionCode code, std::uint64_t badAddress = 0) {
-        pc_ = cp0_.raiseException(code, pc_, inDelaySlot, badAddress);
+    const auto takeException = [&](ExceptionCode code, std::uint64_t badAddress = 0, bool tlbRefill = false) {
+        pc_ = cp0_.raiseException(code, pc_, inDelaySlot, badAddress, tlbRefill);
         pendingBranch_ = false;
         pendingBranchTarget_ = 0;
         cp0_.tick();
@@ -49,7 +49,9 @@ bool MipsCpu::step(Rdram& memory) {
         std::uint32_t translated = 0;
         const auto result = tlb_.translate(pc_, static_cast<std::uint8_t>(
             cp0_.read(Cp0::kEntryHi) & 0xFFU), false, translated);
-        if (result == TlbResult::Miss || result == TlbResult::Invalid)
+        if (result == TlbResult::Miss)
+            return takeException(ExceptionCode::TlbLoad, pc_, true);
+        if (result == TlbResult::Invalid)
             return takeException(ExceptionCode::TlbLoad, pc_);
         if (result == TlbResult::Modified)
             return takeException(ExceptionCode::TlbModification, pc_);
@@ -219,7 +221,9 @@ bool MipsCpu::step(Rdram& memory) {
             std::uint32_t translated = 0;
             const auto result = tlb_.translate(effective, static_cast<std::uint8_t>(
                 cp0_.read(Cp0::kEntryHi) & 0xFFU), false, translated);
-            if (result == TlbResult::Miss || result == TlbResult::Invalid)
+            if (result == TlbResult::Miss)
+                return takeException(ExceptionCode::TlbLoad, effective, true);
+            if (result == TlbResult::Invalid)
                 return takeException(ExceptionCode::TlbLoad, effective);
             if (result == TlbResult::Modified)
                 return takeException(ExceptionCode::TlbModification, effective);
@@ -261,7 +265,9 @@ bool MipsCpu::step(Rdram& memory) {
             std::uint32_t translated = 0;
             const auto result = tlb_.translate(effective, static_cast<std::uint8_t>(
                 cp0_.read(Cp0::kEntryHi) & 0xFFU), true, translated);
-            if (result == TlbResult::Miss || result == TlbResult::Invalid)
+            if (result == TlbResult::Miss)
+                return takeException(ExceptionCode::TlbStore, effective, true);
+            if (result == TlbResult::Invalid)
                 return takeException(ExceptionCode::TlbStore, effective);
             if (result == TlbResult::Modified)
                 return takeException(ExceptionCode::TlbModification, effective);
