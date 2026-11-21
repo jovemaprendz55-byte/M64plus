@@ -40,6 +40,25 @@ void testCpuKsegDirectMappingWithoutTlb() {
             "CPU PC remains in canonical KSEG0 after instruction fetches");
 }
 
+void testMachineDoesNotRetryUnsupportedRspInstruction() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    require(bus.write32(Bus::kSpImemBase, 0xFFFFFFFFU),
+            "write unsupported RSP instruction");
+    require(bus.write32(Bus::kSpPc, 0U), "set faulting RSP PC");
+    require(bus.write32(Bus::kSpStatus, 1U), "release RSP HALT");
+    require(!machine.stepRsp(), "unsupported RSP instruction fails");
+    require(machine.rsp().faulted(), "machine preserves RSP fault state");
+    require(!machine.stepRsp(), "machine does not restart faulting instruction");
+    require(machine.rsp().instructionsExecuted() == 0U,
+            "faulting instruction is not repeatedly executed");
+    require(bus.write32(Bus::kSpPc, 4U), "move SP_PC to a new task location");
+    require(bus.write32(Bus::kSpImemBase + 4U, 0x0000000DU),
+            "write BREAK at new task location");
+    require(machine.stepRsp(), "new SP_PC permits a new RSP task");
+    require(bus.spHalted() && bus.spBroke(), "new task BREAK halts normally");
+}
+
 void testSharedCpuRspBusAndSpBreak() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -117,6 +136,7 @@ void testSharedCpuRspBusAndSpBreak() {
 
 int main() {
     testCpuKsegDirectMappingWithoutTlb();
+    testMachineDoesNotRetryUnsupportedRspInstruction();
     testSharedCpuRspBusAndSpBreak();
     std::cout << "N64 machine CPU/RSP integration tests passed.\n";
     return 0;
