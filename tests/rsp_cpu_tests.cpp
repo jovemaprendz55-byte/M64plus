@@ -26,6 +26,11 @@ std::uint32_t cop2Move(unsigned rs, unsigned rt, unsigned rd, unsigned element) 
     return (0x12U << 26U) | (rs << 21U) | (rt << 16U) |
         (rd << 11U) | (element << 7U);
 }
+std::uint32_t vectorMemoryType(unsigned op, unsigned base, unsigned vt,
+                                  unsigned subOpcode, unsigned element, unsigned offset) {
+    return (op << 26U) | (base << 21U) | (vt << 16U) |
+        (subOpcode << 11U) | (element << 7U) | (offset & 0x7FU);
+}
 void put(Bus& bus, std::uint32_t pc, std::uint32_t instruction) {
     require(bus.write32(Bus::kSpImemBase + pc, instruction), "write RSP instruction");
 }
@@ -557,6 +562,51 @@ void testVectorMoveAndNoop() {
     require(!rsp.faulted(), "VNOP is a supported instruction");
 }
 
+void testVectorBasicMemoryTransfers() {
+    Bus bus;
+    RspCpu rsp;
+    for (unsigned i = 0; i < 16U; ++i)
+        require(bus.write8(Bus::kSpDmemBase + 0x100U + i,
+                           static_cast<std::uint8_t>(0x10U + i)),
+                "initialize vector-load DMEM");
+    rsp.setVectorLane(6, 0, 0xAABBU);
+    rsp.setVectorLane(6, 1, 0x1122U);
+    rsp.setVectorLane(6, 2, 0x3344U);
+    rsp.setVectorLane(6, 3, 0x5566U);
+    rsp.setVectorLane(6, 4, 0x7788U);
+    rsp.setVectorLane(6, 5, 0x99AAU);
+    rsp.setVectorLane(6, 6, 0xBBCCU);
+    rsp.setVectorLane(6, 7, 0xDDEEU);
+    put(bus, 0, iType(0x09, 0, 1, 0x0100)); // base = DMEM offset 0x100
+    put(bus, 4, vectorMemoryType(0x32, 1, 2, 0, 0, 0)); // LBV v2[e0]
+    put(bus, 8, vectorMemoryType(0x32, 1, 3, 1, 14, 0)); // LSV v3[e14]
+    put(bus, 12, vectorMemoryType(0x32, 1, 4, 2, 12, 0)); // LLV v4[e12]
+    put(bus, 16, vectorMemoryType(0x32, 1, 5, 3, 8, 0)); // LDV v5[e8]
+    put(bus, 20, vectorMemoryType(0x3A, 1, 6, 0, 0, 0)); // SBV
+    put(bus, 24, vectorMemoryType(0x3A, 1, 6, 1, 14, 1)); // SSV at base + 2
+    put(bus, 28, vectorMemoryType(0x3A, 1, 6, 2, 12, 2)); // SLV at base + 8
+    put(bus, 32, vectorMemoryType(0x3A, 1, 6, 3, 8, 3)); // SDV at base + 24
+    for (unsigned i = 0; i < 9U; ++i)
+        require(rsp.step(bus), "execute RSP vector memory transfer program");
+
+    require(rsp.vectorLane(2, 0) == 0x1000U, "LBV loads one byte into vector high byte");
+    require(rsp.vectorLane(3, 7) == 0x1011U, "LSV loads two bytes at element 14");
+    require(rsp.vectorLane(4, 6) == 0x1011U && rsp.vectorLane(4, 7) == 0x1213U,
+            "LLV loads four bytes at element 12");
+    require(rsp.vectorLane(5, 4) == 0x1011U && rsp.vectorLane(5, 7) == 0x1617U,
+            "LDV loads eight bytes at element 8");
+    std::uint8_t value = 0;
+    require(bus.read8(Bus::kSpDmemBase + 0x100U, value) && value == 0xAAU,
+            "SBV stores one byte");
+    require(bus.read8(Bus::kSpDmemBase + 0x102U, value) && value == 0xDDU,
+            "SSV uses size-scaled offset and stores first selected byte");
+    require(bus.read8(Bus::kSpDmemBase + 0x108U, value) && value == 0xBBU,
+            "SLV uses word-scaled offset and wraps vector byte selection");
+    require(bus.read8(Bus::kSpDmemBase + 0x118U, value) && value == 0x77U,
+            "SDV uses doubleword-scaled offset");
+    require(!rsp.faulted(), "basic RSP vector memory instructions are supported");
+}
+
 void testVectorAbsolute() {
     Bus bus;
     RspCpu rsp;
@@ -679,6 +729,7 @@ int main() {
     testVectorInstructionInBranchDelaySlot();
     testVectorMoveAndNoop();
     testVectorAbsolute();
+    testVectorBasicMemoryTransfers();
     testVectorReciprocalAndDivideLatch();
     testCop2VectorAndControlMoves();
     std::cout << "All scalar and vector RSP host tests passed.\n";
