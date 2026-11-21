@@ -851,15 +851,18 @@ void testVectorTransposeTransfers() {
                 const unsigned vectorRegister =
                     group * 8U + ((slice + diagonal) & 7U);
                 const std::uint16_t expected = static_cast<std::uint16_t>(
-                    0x1000U + group * 0x100U + diagonal * 8U + slice);
+                    0x1000U + group * 0x100U + diagonal * 8U +
+                    ((slice + diagonal) & 7U));
                 require(rsp.vectorLane(vectorRegister, slice) == expected,
-                        "LTV scatters each halfword into the correct diagonal lane");
+                        "LTV rotates source halfwords into the correct diagonal lane");
+                const unsigned storedOffset =
+                    ((16U - diagonal * 2U) + slice * 2U) & 0x0FU;
                 std::uint16_t stored = 0;
                 require(bus.read16(Bus::kSpDmemBase + 0x0400U +
-                                   transfer * 16U + slice * 2U, stored),
-                        "read back STV transpose destination");
+                                   transfer * 16U + storedOffset, stored),
+                        "read back rotated STV transpose destination");
                 require(stored == expected,
-                        "STV gathers the same diagonal lane into the memory word");
+                        "STV stores each diagonal lane at its rotated memory position");
             }
         }
     }
