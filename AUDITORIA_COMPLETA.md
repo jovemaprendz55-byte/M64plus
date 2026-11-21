@@ -369,3 +369,11 @@ A auditoria ainda deve continuar por:
 - CI da revisão corrigida: workflow `44901838371`; `native-host-tests` concluído com sucesso. `assemble-debug` ainda estava em andamento no momento deste registro. Não declarar build Android aprovada até o workflow terminar.
 - Um workflow anterior (`44901810790`) falhou por chaves de inicialização ausentes nas tabelas; a correção foi registrada no commit `e75381a` e está sendo validada no workflow acima.
 - Referências técnicas: SGI Nintendo 64 RSP Programmer's Guide, seções VU Divide Instructions; documentação RSP do r64emu (RCP_ROM/RSQ_ROM, DIV_IN/DIV_OUT); implementação de referência Project64 em `RSPInterpreterOps.cpp` e `RSPRegister.cpp`.
+
+
+### Validação e revisão adicional da divisão RSP — 2026-11-21
+- Workflow `44901838371` concluído com sucesso nos dois jobs: `native-host-tests` e `assemble-debug`. A compilação Android debug está aprovada para o commit validado por esse workflow.
+- Revisão adicional da seleção de lane identificou que VRCP/VRCPL/VRSQL/VRSQ usavam apenas `element & 7`, o que falhava quando o campo de elemento está entre 0 e 7: nesses casos a lane de origem também depende da lane de destino. Corrigido para usar o mapa de seleção escalar `kElementMap[element][destinationLane]`, alinhando a origem à regra de single-lane do RSP.
+- Teste de regressão atualizado: com `element=0`, destino na lane 3 e valor 1 na lane 3 de VT, VRCP agora retorna `0xC000` (resultado baixo da ROM RCP) em vez de ler incorretamente a lane 0.
+- Commits dessa correção e teste registrados diretamente em `main`; CI deverá validar ambos antes de considerar esta revisão concluída.
+- Ainda falta ampliar os vetores numéricos de VRCP/RSQ para entradas negativas, limites, valores de 32 bits e reset dos latches. O suporte permanece parcial até essa cobertura adicional e comparação independente bit a bit.
