@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(m64plus_native LANGUAGES CXX)
+add_library(m64plus_native SHARED native-lib.cpp n64/rdram.cpp)
+target_include_directories(m64plus_native PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(m64plus_native PRIVATE cxx_std_17)
+target_compile_options(m64plus_native PRIVATE -Wall -Wextra -Wpedantic -Werror)
+find_library(log-lib log)
+target_link_libraries(m64plus_native PRIVATE ${log-lib})

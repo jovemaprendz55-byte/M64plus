@@ -1,41 +1,27 @@
 # M64plus
 
-Emulador Nintendo 64 para Android. Plataforma inicial de desenvolvimento: Android 16, ARM64, com testes previstos no Poco C85 (Unisoc T7250 / Mali-G52 MC2).
+Emulador Nintendo 64 para Android. Alvo inicial: Android 16 ARM64 e testes no Poco C85 (Unisoc T7250 / Mali-G52 MC2).
 
 ## Estado atual
 
-**Marco 0 — inicialização gráfica Android/OpenGL ES 2.0**
+**Marco 0 — gráfico:** aplicativo Android com OpenGL ES 2.0. O triângulo de diagnóstico foi confirmado visualmente no Poco C85.
 
-O aplicativo contém a estrutura Android mínima e um renderer de diagnóstico que desenha um triângulo colorido via `GLSurfaceView`. O renderer registra fabricante, GPU, versão OpenGL ES, extensões EGL e extensões GL importantes.
+**Marco 1 — RDRAM nativa:** implementada em C++17 uma memória de 8 MiB com leitura/escrita big-endian de 8, 16, 32 e 64 bits, reset e validação de limites. O aplicativo chama um autoteste JNI na inicialização e registra PASS ou FAIL no Logcat.
 
-> O triângulo é apenas um teste do pipeline gráfico. Ainda não existe CPU MIPS, RSP, RDP, áudio, carregador de ROM ou emulação de jogos.
+O autoteste verifica tamanho, leitura/escrita de uma palavra, ordem big-endian e rejeição de acesso que ultrapassa o fim da memória. Não é ainda uma implementação completa do subsistema de memória do Nintendo 64.
+
+Ainda não há CPU MIPS/R4300, RSP, RDP, áudio, carregador de ROM ou emulação de jogos.
 
 ## Compilação
 
-Abra a pasta raiz no Android Studio com JDK 17, Android Gradle Plugin 8.13.2 e Android SDK 36.
-
-Também existe uma compilação automática pelo GitHub Actions em cada push ou pull request para `main`. O workflow executa `gradle assembleDebug`. O repositório ainda não inclui Gradle Wrapper.
-
-## Teste no Poco C85
-
-1. Instale e abra o APK de depuração gerado pelo workflow.
-2. Confirme se o triângulo colorido aparece e permanece estável.
-3. Conecte o aparelho por ADB e execute:
-
-```bash
-adb logcat -c
-adb logcat -s M64plus-GPU:I
-```
-
-4. Envie as linhas `GL_VENDOR`, `GL_RENDERER`, `GL_VERSION`, `IMPORTANT_GL_EXTENSIONS`, `EGL_EXTENSIONS` e `SURFACE_SIZE`.
+Requisitos: JDK 17, Gradle 8.13, Android SDK 36, NDK 27.2.12479018 e CMake 3.22.1. O GitHub Actions compila o APK debug e publica o artefato m64plus-debug-apk.
 
 ## Próximas etapas
 
-1. Validar a compilação automática e o teste gráfico no aparelho.
-2. Escolher caminhos de renderização com base nas capacidades reais do driver Mali.
-3. Criar o esqueleto nativo JNI e testes de memória/CPU.
-4. Implementar a CPU MIPS/R4300 e o sistema de memória.
-5. Implementar RSP e RDP com sincronização correta.
-6. Integrar áudio, controles e carregamento de ROMs.
+1. Validar o build nativo no CI e no Poco C85.
+2. Ampliar os testes de memória, alinhamento e endianness.
+3. Implementar CPU MIPS/R4300: registradores, PC, HI/LO e decodificação.
+4. Implementar barramento e exceções.
+5. Desenvolver RSP, RDP, áudio, controles e carregamento de ROMs.
 
-O repositório anterior `N64-Android` é independente e não é alterado por este projeto.
+O repositório antigo N64-Android permanece independente e intocado.
