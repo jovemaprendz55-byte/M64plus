@@ -562,6 +562,29 @@ void testVectorMoveAndNoop() {
     require(!rsp.faulted(), "VNOP is a supported instruction");
 }
 
+void testPackedVectorLoads() {
+    Bus bus;
+    RspCpu rsp;
+    for (unsigned i = 0; i < 8U; ++i)
+        require(bus.write8(Bus::kSpDmemBase + 0x308U + i,
+                           static_cast<std::uint8_t>(0x10U + i)),
+                "initialize packed vector load bytes");
+    put(bus, 0, iType(0x09, 0, 1, 0x0300));
+    put(bus, 4, vectorMemoryType(0x32, 1, 2, 6, 0, 1)); // LPV offset * 8
+    put(bus, 8, vectorMemoryType(0x32, 1, 3, 7, 0, 1)); // LUV offset * 8
+    require(rsp.step(bus), "set packed vector load base");
+    require(rsp.step(bus), "execute LPV");
+    require(rsp.step(bus), "execute LUV");
+    for (unsigned lane = 0; lane < 8U; ++lane) {
+        const std::uint16_t byte = static_cast<std::uint16_t>(0x10U + lane);
+        require(rsp.vectorLane(2, lane) == static_cast<std::uint16_t>(byte << 8U),
+                "LPV places each byte at bit 15 and clears lower bits");
+        require(rsp.vectorLane(3, lane) == static_cast<std::uint16_t>(byte << 7U),
+                "LUV places each byte at bit 14 and clears remaining bits");
+    }
+    require(!rsp.faulted(), "LPV and LUV are supported RSP memory instructions");
+}
+
 void testVectorQuadMemoryTransfers() {
     Bus bus;
     RspCpu rsp;
@@ -790,6 +813,7 @@ int main() {
     testVectorAbsolute();
     testVectorBasicMemoryTransfers();
     testVectorQuadMemoryTransfers();
+    testPackedVectorLoads();
     testVectorReciprocalAndDivideLatch();
     testCop2VectorAndControlMoves();
     std::cout << "All scalar and vector RSP host tests passed.\n";
