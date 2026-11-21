@@ -6,6 +6,17 @@ on:
     branches: [main]
   workflow_dispatch:
 jobs:
+  native-host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure native tests
+        run: cmake -S . -B build-host -DCMAKE_BUILD_TYPE=Debug
+      - name: Build native tests
+        run: cmake --build build-host --parallel
+      - name: Run native tests
+        run: ctest --test-dir build-host --output-on-failure
   assemble-debug:
     runs-on: ubuntu-latest
     steps:
