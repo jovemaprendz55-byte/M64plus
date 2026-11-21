@@ -12,10 +12,10 @@ constexpr std::uint32_t kPcMask = 0x0FFCU;
 constexpr std::uint32_t kDmemBase = Bus::kSpDmemBase;
 constexpr std::uint32_t kImemBase = Bus::kSpImemBase;
 constexpr std::array<std::array<std::uint8_t, 8>, 16> kElementMap{{
-    {{0,1,2,3,4,5,6,7}}, {{0,0,2,2,4,4,6,6}},
-    {{1,1,3,3,5,5,7,7}}, {{0,0,0,0,4,4,4,4}},
-    {{1,1,1,1,5,5,5,5}}, {{2,2,2,2,6,6,6,6}},
-    {{3,3,3,3,7,7,7,7}}, {{4,4,4,4,4,4,4,4}},
+    {{0,1,2,3,4,5,6,7}}, {{0,1,2,3,4,5,6,7}},
+    {{0,0,2,2,4,4,6,6}}, {{1,1,3,3,5,5,7,7}},
+    {{0,0,0,0,4,4,4,4}}, {{1,1,1,1,5,5,5,5}},
+    {{2,2,2,2,6,6,6,6}}, {{3,3,3,3,7,7,7,7}},
     {{0,0,0,0,0,0,0,0}}, {{1,1,1,1,1,1,1,1}},
     {{2,2,2,2,2,2,2,2}}, {{3,3,3,3,3,3,3,3}},
     {{4,4,4,4,4,4,4,4}}, {{5,5,5,5,5,5,5,5}},
@@ -84,7 +84,7 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
             const std::uint32_t sum = static_cast<std::uint32_t>(left) + right;
             accumulator_[lane] = sum;
             value = static_cast<std::uint16_t>(sum);
-            if (sum > 0xFFFFU) nextVco |= static_cast<std::uint16_t>(1U << (lane + 8U));
+            if (sum > 0xFFFFU) nextVco |= static_cast<std::uint16_t>(1U << lane);
         } else if (subCarry) {
             const std::uint32_t diff = static_cast<std::uint32_t>(left) - right;
             accumulator_[lane] = static_cast<std::int16_t>(static_cast<std::uint16_t>(diff));
