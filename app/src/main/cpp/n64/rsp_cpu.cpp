@@ -506,7 +506,7 @@ bool RspCpu::step(Bus& bus) noexcept {
         if ((offset & 0x40) != 0) offset -= 0x80;
         const unsigned scale = subOpcode <= 3U ? (1U << subOpcode) :
             (subOpcode <= 5U || subOpcode == 8U || subOpcode == 9U ||
-             subOpcode == 0x0BU ? 16U : 8U);
+             subOpcode == 0x0AU || subOpcode == 0x0BU ? 16U : 8U);
         const std::uint32_t address = static_cast<std::uint32_t>(
             static_cast<std::int64_t>(gpr_[rs]) +
             static_cast<std::int64_t>(offset) * scale) & 0x0FFFU;
@@ -515,7 +515,21 @@ bool RspCpu::step(Bus& bus) noexcept {
         std::uint32_t memoryStart = address;
         bool wrapVector = !load;
 
-        if (subOpcode == 0x0BU) { // LTV / STV: transpose eight halfwords across an 8-register group.
+        if (subOpcode == 0x0AU && !load) { // SWV: store a wrapped 16-byte vector.
+            const std::uint32_t windowBase = address & ~0x07U;
+            const unsigned firstMemoryByte = address & 0x07U;
+            for (unsigned byte = 0; byte < 16U; ++byte) {
+                const std::uint32_t dmemAddress = Bus::kSpDmemBase +
+                    ((windowBase + ((firstMemoryByte + byte) & 0x0FU)) & 0x0FFFU);
+                if (!bus.write8(dmemAddress,
+                                readVectorByte(rt, (element + byte) & 0x0FU))) {
+                    halted_ = true; faulted_ = true;
+                    return false;
+                }
+            }
+        } else if (subOpcode == 0x0AU && load) {
+            // LWV is not implemented by the retail N64 RSP; the encoding is a no-op.
+        } else if (subOpcode == 0x0BU) { // LTV / STV: transpose eight halfwords across an 8-register group.
             const unsigned groupBase = rt & 0x18U;
             const unsigned diagonal = (element >> 1U) & 0x07U;
             const std::uint32_t windowBase = address & ~0x07U;
