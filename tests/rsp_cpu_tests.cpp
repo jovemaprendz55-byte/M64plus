@@ -57,6 +57,7 @@ void testArithmeticAndMemory() {
     require(rsp.reg(1) == 0x12345678U, "LUI/ORI result");
     require(rsp.reg(3) == 0x12345678U, "LW result");
     require(rsp.halted(), "BREAK halts RSP");
+    require(!rsp.faulted(), "normal BREAK is not an execution fault");
     require(rsp.reg(0) == 0U, "zero register remains zero");
 }
 void testBranchDelaySlot() {
@@ -76,6 +77,7 @@ void testBranchDelaySlot() {
     require(rsp.reg(3) == 0U, "instruction after delay slot skipped");
     require(rsp.step(bus), "execute target BREAK");
     require(rsp.halted(), "target BREAK halts");
+    require(!rsp.faulted(), "BREAK after a branch is not an execution fault");
 }
 void testByteAndHalfwordMemory() {
     Bus bus;
