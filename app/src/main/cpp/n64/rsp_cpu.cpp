@@ -200,14 +200,16 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
             const bool vcoHigh = (vco_ & (1U << (lane + 8U))) != 0U;
             bool selected = false;
             if (compareLess) selected = a < b || (equal && vcoLow && vcoHigh);
-            else if (compareEqual) selected = equal && !vcoLow;
-            else if (compareNotEqual) selected = !equal || vcoLow;
+            else if (compareEqual) selected = equal && !vcoHigh;
+            else if (compareNotEqual) selected = !equal || vcoHigh;
             else selected = a > b || (equal && !(vcoLow && vcoHigh));
             if (selected) nextVcc |= static_cast<std::uint16_t>(1U << lane);
             value = selected ? left : right;
+            accumulator_[lane].lo = value;
         } else if (merge) {
             const bool selected = (vcc_ & (1U << lane)) != 0U;
             value = selected ? left : right;
+            accumulator_[lane].lo = value;
         } else if (add || sub) {
             const std::int32_t a = static_cast<std::int16_t>(left);
             const std::int32_t b = static_cast<std::int16_t>(right);
