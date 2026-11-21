@@ -8,7 +8,9 @@ bool Rdram::contains(std::uint32_t address, std::size_t width) const noexcept {
     return width <= bytes_.size() && offset <= bytes_.size() - width;
 }
 bool Rdram::read8(std::uint32_t a, std::uint8_t& v) const {
-    if (!contains(a, 1)) return false; v = bytes_[a]; return true;
+    if (!contains(a, 1)) return false;
+    v = bytes_[a];
+    return true;
 }
 bool Rdram::read16(std::uint32_t a, std::uint16_t& v) const {
     if (!contains(a, 2)) return false;
@@ -28,7 +30,9 @@ bool Rdram::read64(std::uint32_t a, std::uint64_t& v) const {
     v = (static_cast<std::uint64_t>(hi) << 32U) | lo; return true;
 }
 bool Rdram::write8(std::uint32_t a, std::uint8_t v) {
-    if (!contains(a, 1)) return false; bytes_[a] = v; return true;
+    if (!contains(a, 1)) return false;
+    bytes_[a] = v;
+    return true;
 }
 bool Rdram::write16(std::uint32_t a, std::uint16_t v) {
     if (!contains(a, 2)) return false;
