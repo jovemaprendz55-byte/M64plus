@@ -56,13 +56,37 @@ void testSharedCpuRspBusAndSpBreak() {
     require(machine.cpu().reg(9) == 0x1234U,
             "main CPU sees the RSP result in shared SP DMEM");
 
-    // A later task can restart the halted RSP at a CPU-programmed SP_PC.
-    require(bus.write32(Bus::kSpImemBase + 0x40U, 0x24020077U), "load second task");
-    require(bus.write32(Bus::kSpImemBase + 0x44U, 0x0000000DU), "load second task BREAK");
-    require(bus.write32(Bus::kSpPc, 0x40U), "program second task PC");
-    require(bus.write32(Bus::kSpStatus, 1U | (1U << 2U)), "clear HALT and BROKE for next task");
-    require(machine.runRsp(4U) == 2U, "RSP restarts from the programmed PC");
-    require(machine.rsp().reg(2) == 0x77U, "second RSP task executes");
+    // The main CPU programs SP_PC and releases HALT through MMIO.
+    const std::uint32_t startRsp[] = {
+        0x3C080408U, // LUI t0,0x0408 -> SP_PC
+        0x24090040U, // ADDIU t1,zero,0x40
+        0xAD090000U, // SW t1,0(t0) -> SP_PC
+        0x3C0A0404U, // LUI t2,0x0404 -> SP registers
+        0x240B0005U, // ADDIU t3,zero,clear HALT + clear BROKE
+        0xAD4B0010U  // SW t3,0x10(t2) -> SP_STATUS
+    };
+    for (std::uint32_t i = 0; i < 6U; ++i)
+        require(bus.write32(8U + i * 4U, startRsp[i]), "write CPU RSP-start program");
+    for (unsigned i = 0; i < 6U; ++i)
+        require(machine.stepCpu(), "CPU programs SP_PC and SP_STATUS");
+    require(bus.spProgramCounter() == 0x40U && !bus.spHalted(),
+            "CPU starts RSP task through MMIO");
+
+    const std::uint32_t vectorTask[] = {
+        0x24017530U, // ADDIU r1,zero,30000
+        0x48810800U, // MTC2 r1,v1[e0]
+        0x24012710U, // ADDIU r1,zero,10000
+        0x48811000U, // MTC2 r1,v2[e0]
+        0x4A0208D0U, // VADD v3,v1,v2
+        0x0000000DU  // BREAK
+    };
+    for (std::uint32_t i = 0; i < 6U; ++i)
+        require(bus.write32(Bus::kSpImemBase + 0x40U + i * 4U, vectorTask[i]),
+                "load vector RSP task");
+    require(machine.runRsp(8U) == 6U, "RSP runs COP2 vector task");
+    require(machine.rsp().vectorLane(3, 0) == 32767U,
+            "integrated RSP executes saturated VADD");
+    require(bus.spHalted() && bus.spBroke(), "second task also signals BREAK");
 }
 } // namespace
 

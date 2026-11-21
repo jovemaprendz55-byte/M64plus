@@ -34,5 +34,26 @@ Java_com_jsr_m64plus_MainActivity_nativeRspMachineSelfTest(JNIEnv*, jclass) {
         return JNI_FALSE;
     if (!machine.stepCpu() || !machine.stepCpu()) return JNI_FALSE;
     if (machine.cpu().reg(9) != 0x1234U) return JNI_FALSE;
+
+    const std::uint32_t startRsp[] = {
+        0x3C080408U, 0x24090040U, 0xAD090000U,
+        0x3C0A0404U, 0x240B0005U, 0xAD4B0010U
+    };
+    for (std::uint32_t i = 0; i < 6U; ++i)
+        if (!bus.write32(8U + i * 4U, startRsp[i])) return JNI_FALSE;
+    for (unsigned i = 0; i < 6U; ++i)
+        if (!machine.stepCpu()) return JNI_FALSE;
+    if (bus.spProgramCounter() != 0x40U || bus.spHalted()) return JNI_FALSE;
+
+    const std::uint32_t vectorTask[] = {
+        0x24017530U, 0x48810800U, 0x24012710U,
+        0x48811000U, 0x4A0208D0U, 0x0000000DU
+    };
+    for (std::uint32_t i = 0; i < 6U; ++i)
+        if (!bus.write32(Bus::kSpImemBase + 0x40U + i * 4U, vectorTask[i]))
+            return JNI_FALSE;
+    if (machine.runRsp(8U) != 6U ||
+        machine.rsp().vectorLane(3, 0) != 32767U ||
+        !bus.spHalted() || !bus.spBroke()) return JNI_FALSE;
     return JNI_TRUE;
 }
