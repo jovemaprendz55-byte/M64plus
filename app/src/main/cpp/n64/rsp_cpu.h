@@ -17,6 +17,7 @@ public:
     std::uint32_t pc() const noexcept;
     void setPc(std::uint32_t pc) noexcept;
     bool halted() const noexcept;
+    bool faulted() const noexcept;
     std::uint64_t instructionsExecuted() const noexcept;
     std::uint16_t vectorLane(unsigned reg, unsigned lane) const noexcept;
     void setVectorLane(unsigned reg, unsigned lane, std::uint16_t value) noexcept;
@@ -37,5 +38,6 @@ private:
     std::uint64_t executed_ = 0;
     bool pendingBranch_ = false;
     bool halted_ = false;
+    bool faulted_ = false;
 };
 } // namespace m64plus::n64
