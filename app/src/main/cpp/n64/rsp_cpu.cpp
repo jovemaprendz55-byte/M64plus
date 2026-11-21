@@ -159,9 +159,10 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
             const std::int64_t shifted = signedAccumulator >= 0
                 ? signedAccumulator / 65536
                 : -((-signedAccumulator + 65535) / 65536);
-            if (multiplyLow || multiplyAccumulateLow) {
+            if (multiplyLow) {
                 value = static_cast<std::uint16_t>(raw);
-            } else if (multiplyMidUnsigned || multiplyAccumulateMidUnsigned) {
+            } else if (multiplyAccumulateLow || multiplyMidUnsigned ||
+                       multiplyAccumulateMidUnsigned) {
                 if (signedAccumulator < 0) value = 0U;
                 else if (signedAccumulator > 65535) value = 0xFFFFU;
                 else value = static_cast<std::uint16_t>(signedAccumulator);
