@@ -222,10 +222,10 @@ void testCop2VectorAndControlMoves() {
     for (unsigned i = 0; i < sizeof(program) / sizeof(program[0]); ++i)
         require(rsp.step(bus), "execute COP2 move program");
 
-    require(rsp.vectorLane(2, 0) == 0x5634U, "MTC2 writes odd byte offset");
-    require(rsp.vectorLane(2, 1) == 0x12BCU, "MTC2 crosses into next vector lane");
+    require(rsp.vectorLane(2, 0) == 0x5612U, "MTC2 writes odd byte offset");
+    require(rsp.vectorLane(2, 1) == 0x34BCU, "MTC2 crosses into next vector lane");
     require(rsp.vectorLane(2, 7) == 0x0012U, "MTC2 byte 15 writes final byte only");
-    require(rsp.reg(3) == 0x3412U, "MFC2 reads unaligned 16-bit byte window");
+    require(rsp.reg(3) == 0x1234U, "MFC2 reads unaligned 16-bit byte window");
     require(rsp.reg(5) == 0x1256U, "MFC2 wraps byte 15 to byte 0");
     require(rsp.vectorCarryFlags() == 0x1234U, "CTC2 writes VCO");
     require(rsp.vectorCompareFlags() == 0x1234U, "CTC2 writes VCC");
