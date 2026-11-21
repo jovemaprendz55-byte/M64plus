@@ -22,6 +22,10 @@ std::uint32_t vType(unsigned element, unsigned vt, unsigned vs, unsigned vd, uns
     return (0x12U << 26U) | ((0x10U | element) << 21U) |
         (vt << 16U) | (vs << 11U) | (vd << 6U) | function;
 }
+std::uint32_t cop2Move(unsigned rs, unsigned rt, unsigned rd, unsigned element) {
+    return (0x12U << 26U) | (rs << 21U) | (rt << 16U) |
+        (rd << 11U) | (element << 7U);
+}
 void put(Bus& bus, std::uint32_t pc, std::uint32_t instruction) {
     require(bus.write32(Bus::kSpImemBase + pc, instruction), "write RSP instruction");
 }
@@ -194,6 +198,42 @@ void testVectorElementBroadcast() {
     for (unsigned lane = 0; lane < 8U; ++lane)
         require(rsp.vectorLane(3, lane) == 17U, "element 15 broadcasts lane 7");
 }
+void testCop2VectorAndControlMoves() {
+    Bus bus;
+    RspCpu rsp;
+    rsp.setVectorLane(2, 0, 0x5678U);
+    rsp.setVectorLane(2, 1, 0x9ABCU);
+    const std::uint32_t program[] = {
+        iType(0x09, 0, 1, 0x1234),
+        cop2Move(0x04, 1, 2, 1),   // MTC2 at odd byte offset
+        cop2Move(0x00, 3, 2, 1),   // MFC2 reads across lane boundary
+        cop2Move(0x04, 1, 2, 15),  // MTC2 byte 15 does not wrap
+        cop2Move(0x00, 5, 2, 15),  // MFC2 byte 15 wraps its second byte
+        cop2Move(0x06, 1, 0, 0),   // CTC2 VCO
+        cop2Move(0x02, 4, 0, 0),   // CFC2 VCO
+        cop2Move(0x06, 1, 1, 0),   // CTC2 VCC
+        cop2Move(0x02, 6, 1, 0),   // CFC2 VCC
+        cop2Move(0x06, 1, 2, 0),   // CTC2 VCE
+        cop2Move(0x02, 7, 2, 0),   // CFC2 VCE
+        0x0000000DU
+    };
+    for (std::uint32_t i = 0; i < sizeof(program) / sizeof(program[0]); ++i)
+        put(bus, i * 4U, program[i]);
+    for (unsigned i = 0; i < sizeof(program) / sizeof(program[0]); ++i)
+        require(rsp.step(bus), "execute COP2 move program");
+
+    require(rsp.vectorLane(2, 0) == 0x5634U, "MTC2 writes odd byte offset");
+    require(rsp.vectorLane(2, 1) == 0x12BCU, "MTC2 crosses into next vector lane");
+    require(rsp.vectorLane(2, 7) == 0x0012U, "MTC2 byte 15 writes final byte only");
+    require(rsp.reg(3) == 0x3412U, "MFC2 reads unaligned 16-bit byte window");
+    require(rsp.reg(5) == 0x1256U, "MFC2 wraps byte 15 to byte 0");
+    require(rsp.vectorCarryFlags() == 0x1234U, "CTC2 writes VCO");
+    require(rsp.vectorCompareFlags() == 0x1234U, "CTC2 writes VCC");
+    require(rsp.vectorClipFlags() == 0x34U, "CTC2 writes VCE");
+    require(rsp.reg(4) == 0x1234U && rsp.reg(6) == 0x1234U,
+            "CFC2 reads 16-bit control registers");
+    require(rsp.reg(7) == 0x34U, "CFC2 reads 8-bit VCE");
+}
 } // namespace
 
 int main() {
@@ -206,6 +246,7 @@ int main() {
     testVectorPairBroadcastSelectors();
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
+    testCop2VectorAndControlMoves();
     std::cout << "All scalar and vector RSP host tests passed.\n";
     return 0;
 }

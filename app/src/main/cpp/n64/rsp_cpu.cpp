@@ -150,11 +150,69 @@ bool RspCpu::step(Bus& bus) noexcept {
             static_cast<std::int32_t>(nextPc) + offset) & kPcMask;
     };
 
-    if (opcode == 0x12U && rs >= 0x10U) {
-        if (!executeVector(rs & 0x0FU, rt, rd,
-                                          (instruction >> 6U) & 31U, function)) {
-            halted_ = true;
-            return false;
+    const auto readVectorByte = [&](unsigned vectorReg, unsigned byteIndex) noexcept {
+        const std::uint16_t lane = vr_[vectorReg][byteIndex >> 1U];
+        return static_cast<std::uint8_t>((byteIndex & 1U) == 0U
+            ? lane >> 8U : lane);
+    };
+    const auto writeVectorByte = [&](unsigned vectorReg, unsigned byteIndex,
+                                     std::uint8_t value) noexcept {
+        std::uint16_t& lane = vr_[vectorReg][byteIndex >> 1U];
+        if ((byteIndex & 1U) == 0U) {
+            lane = static_cast<std::uint16_t>((lane & 0x00FFU) |
+                (static_cast<std::uint16_t>(value) << 8U));
+        } else {
+            lane = static_cast<std::uint16_t>((lane & 0xFF00U) | value);
+        }
+    };
+
+    if (opcode == 0x12U) {
+        if (rs >= 0x10U) {
+            if (!executeVector(rs & 0x0FU, rt, rd,
+                               (instruction >> 6U) & 31U, function)) {
+                halted_ = true;
+                return false;
+            }
+        } else {
+            const unsigned byteElement = (instruction >> 7U) & 0x0FU;
+            switch (rs) {
+            case 0x00U: { // MFC2: read a 16-bit byte window, sign extended.
+                const std::uint16_t value = static_cast<std::uint16_t>(
+                    (static_cast<std::uint16_t>(readVectorByte(rd, byteElement)) << 8U) |
+                    readVectorByte(rd, (byteElement + 1U) & 0x0FU));
+                destination = rt;
+                result = signExtend16(value);
+                writeRegister = true;
+                break;
+            }
+            case 0x02U: // CFC2: read VCO, VCC, or VCE.
+                if (rd == 0U) result = signExtend16(vco_);
+                else if (rd == 1U) result = signExtend16(vcc_);
+                else if (rd == 2U) {
+                    result = static_cast<std::uint32_t>(static_cast<std::int32_t>(
+                        static_cast<std::int8_t>(vce_)));
+                } else { halted_ = true; return false; }
+                destination = rt;
+                writeRegister = true;
+                break;
+            case 0x04U: { // MTC2: write a 16-bit byte window; byte 15 does not wrap.
+                const std::uint16_t value = static_cast<std::uint16_t>(gpr_[rt]);
+                writeVectorByte(rd, byteElement, static_cast<std::uint8_t>(value >> 8U));
+                if (byteElement < 15U) {
+                    writeVectorByte(rd, byteElement + 1U, static_cast<std::uint8_t>(value));
+                }
+                break;
+            }
+            case 0x06U: // CTC2: write VCO, VCC, or VCE.
+                if (rd == 0U) vco_ = static_cast<std::uint16_t>(gpr_[rt]);
+                else if (rd == 1U) vcc_ = static_cast<std::uint16_t>(gpr_[rt]);
+                else if (rd == 2U) vce_ = static_cast<std::uint8_t>(gpr_[rt]);
+                else { halted_ = true; return false; }
+                break;
+            default:
+                halted_ = true;
+                return false;
+            }
         }
     } else switch (opcode) {
     case 0x00U:

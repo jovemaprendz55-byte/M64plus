@@ -6,8 +6,8 @@
 namespace m64plus::n64 {
 class Bus;
 
-// Initial scalar RSP interpreter. Vector operations and COP0 DMA scheduling
-// are intentionally implemented in later stages.
+// Scalar RSP interpreter with a partial COP2 vector unit. Pipeline hazards,
+// complete vector arithmetic, and COP0 DMA scheduling remain future work.
 class RspCpu final {
 public:
     RspCpu();
