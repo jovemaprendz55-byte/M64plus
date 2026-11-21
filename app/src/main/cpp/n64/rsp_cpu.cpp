@@ -497,7 +497,7 @@ bool RspCpu::step(Bus& bus) noexcept {
         // RSP vector memory transfers. Subopcodes 0-5 are LBV..LRV / SBV..SRV.
         const unsigned subOpcode = (instruction >> 11U) & 31U;
         const bool load = opcode == 0x32U;
-        if (subOpcode > 9U || (subOpcode == 9U && !load)) {
+        if (subOpcode > 9U) {
             halted_ = true; faulted_ = true;
             return false;
         }
@@ -514,15 +514,12 @@ bool RspCpu::step(Bus& bus) noexcept {
         std::uint32_t memoryStart = address;
         bool wrapVector = !load;
 
-        if (subOpcode == 9U) { // LFV: load four bytes into one half of the vector.
-            // The architectural element is a byte index selecting the lower (0)
-            // or upper (8) group of four 16-bit lanes.
+        if (subOpcode == 9U && load) { // LFV: load four bytes from a 16-byte quadword.
+            // The legal element selects the lower or upper 64-bit half.
             if (element != 0U && element != 8U) {
                 halted_ = true; faulted_ = true;
                 return false;
             }
-            // LFV first views a 16-byte DMEM quadword. The lower and upper
-            // 64-bit halves use different repeated byte-selection patterns.
             constexpr unsigned lowerPattern[4] = {0U,  4U,  8U, 12U};
             constexpr unsigned upperPattern[4] = {8U, 12U,  0U,  4U};
             const unsigned* pattern = element == 0U ? lowerPattern : upperPattern;
@@ -536,6 +533,30 @@ bool RspCpu::step(Bus& bus) noexcept {
                 }
                 vr_[rt][(element >> 1U) + i] =
                     static_cast<std::uint16_t>(static_cast<std::uint16_t>(value) << 7U);
+            }
+            byteCount = 0U;
+        } else if (subOpcode == 9U) { // SFV: scatter four packed lane bytes.
+            constexpr unsigned sourceLane[16] = {
+                0U, 6U, 0U, 0U, 1U, 7U, 0U, 0U,
+                2U, 4U, 0U, 0U, 3U, 5U, 0U, 0U
+            };
+            unsigned startElement = element;
+            if (startElement >= 8U) startElement = (startElement + 1U) & 0x0FU;
+            const std::uint32_t alignedAddress = address & ~0x0FU;
+            for (unsigned i = 0; i < 4U; ++i) {
+                const unsigned vectorByte = (startElement + i * 4U) & 0x0FU;
+                const std::uint8_t value = vectorByte == 2U || vectorByte == 3U ||
+                    vectorByte == 6U || vectorByte == 7U ||
+                    vectorByte == 10U || vectorByte == 11U ||
+                    vectorByte == 14U || vectorByte == 15U
+                    ? 0U
+                    : static_cast<std::uint8_t>(vr_[rt][sourceLane[vectorByte]] >> 7U);
+                const std::uint32_t dmemOffset =
+                    (alignedAddress | ((address + i * 4U) & 0x0FU)) & 0x0FFFU;
+                if (!bus.write8(Bus::kSpDmemBase + dmemOffset, value)) {
+                    halted_ = true; faulted_ = true;
+                    return false;
+                }
             }
             byteCount = 0U;
         } else if (subOpcode == 8U) { // LHV / SHV: every second DMEM byte, unsigned packing.
