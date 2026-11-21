@@ -143,6 +143,10 @@ Java_com_jsr_m64plus_MainActivity_nativeCp0SelfTest(JNIEnv*, jclass) {
     if (!cp0.write(Cp0::kStatus, Cp0::kStatusBev)) return JNI_FALSE;
     if (cp0.raiseException(ExceptionCode::Syscall, 0xFFFFFFFF80003000ULL) !=
         0xFFFFFFFFBFC00380ULL) return JNI_FALSE;
+    cp0.exceptionReturn();
+    if (cp0.raiseException(ExceptionCode::TlbLoad, 0x00401234ULL, false,
+                           0x00401234ULL, true) != 0xFFFFFFFFBFC00200ULL)
+        return JNI_FALSE;
     // TLB-related CP0 register masks and read-only Random behavior.
     if (!cp0.write(Cp0::kIndex, 0xFFFFFFFFULL) || cp0.read(Cp0::kIndex) != 0x8000001FULL)
         return JNI_FALSE;
@@ -365,6 +369,9 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuTlbTranslationSelfTest(JNIEnv*, jclas
     if (missCpu.pc() != 0xFFFFFFFF80000000ULL) return JNI_FALSE;
     if (((missCpu.cp0().read(Cp0::kCause) >> 2U) & 0x1FULL) != 2U) return JNI_FALSE;
     if (missCpu.cp0().read(Cp0::kBadVAddr) != 0x00500000ULL) return JNI_FALSE;
+    if (missCpu.cp0().read(Cp0::kEntryHi) != 0x00500000ULL) return JNI_FALSE;
+    if ((missCpu.cp0().read(Cp0::kContext) & 0x7FFFF0ULL) !=
+        ((0x00500000ULL >> 9U) & 0x7FFFF0ULL)) return JNI_FALSE;
     return JNI_TRUE;
 }
 
