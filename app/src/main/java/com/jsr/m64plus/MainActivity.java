@@ -22,6 +22,7 @@ public final class MainActivity extends Activity {
     private static native boolean nativeCpuTlbProtectionSelfTest();
     private static native boolean nativeBusSelfTest();
     private static native boolean nativeCpuBusIntegrationSelfTest();
+    private static native boolean nativeCpuMiInterruptSelfTest();
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         boolean memoryPassed = nativeRdramSelfTest();
@@ -35,6 +36,7 @@ public final class MainActivity extends Activity {
         boolean tlbProtectionPassed = nativeCpuTlbProtectionSelfTest();
         boolean busPassed = nativeBusSelfTest();
         boolean cpuBusPassed = nativeCpuBusIntegrationSelfTest();
+        boolean miInterruptPassed = nativeCpuMiInterruptSelfTest();
         Log.i(TAG, "RDRAM 8 MiB self-test: " + (memoryPassed ? "PASS" : "FAIL"));
         Log.i(TAG, "MIPS CPU instruction self-test: " + (cpuPassed ? "PASS" : "FAIL"));
         Log.i(TAG, "MIPS branch/delay-slot self-test: " + (branchPassed ? "PASS" : "FAIL"));
@@ -46,6 +48,7 @@ public final class MainActivity extends Activity {
         Log.i(TAG, "CPU TLB page-protection self-test: " + (tlbProtectionPassed ? "PASS" : "FAIL"));
         Log.i(TAG, "N64 physical bus / SP memory self-test: " + (busPassed ? "PASS" : "FAIL"));
         Log.i(TAG, "MIPS CPU + physical bus integration self-test: " + (cpuBusPassed ? "PASS" : "FAIL"));
+        Log.i(TAG, "MI hardware interrupt / CP0 delivery self-test: " + (miInterruptPassed ? "PASS" : "FAIL"));
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         glSurfaceView = new GLSurfaceView(this);

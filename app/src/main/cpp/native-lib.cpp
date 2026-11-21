@@ -501,6 +501,65 @@ Java_com_jsr_m64plus_MainActivity_nativeBusSelfTest(JNIEnv*, jclass) {
 }
 
 
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeCpuMiInterruptSelfTest(JNIEnv*, jclass) {
+    using m64plus::n64::Bus;
+    using m64plus::n64::MipsCpu;
+    using m64plus::n64::Cp0;
+
+    // Enable IE + IM2 (MI external interrupt), then verify MI reaches Cause.IP2.
+    Bus bus;
+    const std::uint32_t program[] = {
+        0x24080401U, // ADDIU t0,zero,0x0401: Status.IE | Status.IM2
+        0x40886000U, // MTC0 t0,Status
+        0x24091234U  // ADDIU t1,zero,0x1234 (must be interrupted before execution)
+    };
+    for (std::uint32_t i = 0; i < 3U; ++i)
+        if (!bus.write32(Bus::kSpImemBase + i * 4U, program[i])) return JNI_FALSE;
+    bus.setMiInterrupt(0, true);
+    if (!bus.write32(Bus::kMiInterruptMask, 1U << 1U)) return JNI_FALSE;
+
+    MipsCpu cpu;
+    cpu.reset(Bus::kSpImemBase);
+    if (!cpu.step(bus) || !cpu.step(bus) || !cpu.step(bus)) return JNI_FALSE;
+    const std::uint64_t cause = cpu.cp0().read(Cp0::kCause);
+    if (cpu.pc() != 0xFFFFFFFF80000180ULL ||
+        ((cause >> 2U) & 0x1FULL) != 0U ||
+        (cause & (1ULL << 10U)) == 0 ||
+        cpu.cp0().read(Cp0::kEpc) != Bus::kSpImemBase + 8U ||
+        cpu.reg(9) != 0U || !cpu.cp0().exceptionLevel())
+        return JNI_FALSE;
+
+    // An interrupt asserted after a branch must wait until its delay slot completes.
+    Bus delayBus;
+    const std::uint32_t delayProgram[] = {
+        0x10000001U, // BEQ zero,zero,+1 -> target 8; delay slot at 4
+        0x240A0055U, // ADDIU t2,zero,0x55
+        0x240B0066U  // target instruction, must not execute before interrupt
+    };
+    for (std::uint32_t i = 0; i < 3U; ++i)
+        if (!delayBus.write32(Bus::kSpImemBase + i * 4U, delayProgram[i]))
+            return JNI_FALSE;
+    MipsCpu delayCpu;
+    delayCpu.reset(Bus::kSpImemBase);
+    if (!delayCpu.step(delayBus)) return JNI_FALSE; // branch schedules delay slot
+    delayBus.setMiInterrupt(0, true);
+    if (!delayBus.write32(Bus::kMiInterruptMask, 1U << 1U)) return JNI_FALSE;
+    if (!delayCpu.step(delayBus)) return JNI_FALSE; // delay slot is not interrupted
+    if (delayCpu.reg(10) != 0x55U || delayCpu.pc() != Bus::kSpImemBase + 8U)
+        return JNI_FALSE;
+    if (!delayCpu.step(delayBus)) return JNI_FALSE; // interrupt now accepted
+    const std::uint64_t delayCause = delayCpu.cp0().read(Cp0::kCause);
+    if (delayCpu.pc() != 0xFFFFFFFF80000180ULL ||
+        ((delayCause >> 2U) & 0x1FULL) != 0U ||
+        (delayCause & (1ULL << 31U)) != 0 ||
+        delayCpu.cp0().read(Cp0::kEpc) != Bus::kSpImemBase + 8U ||
+        delayCpu.reg(11) != 0U)
+        return JNI_FALSE;
+    return JNI_TRUE;
+}
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeCpuBusIntegrationSelfTest(JNIEnv*, jclass) {
     using m64plus::n64::Bus;
