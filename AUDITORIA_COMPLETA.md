@@ -336,3 +336,20 @@ A auditoria ainda deve continuar por:
 - Testes cobrem a comparação em duas etapas: limite de sinal igual e caso oposto resolvido por VCE.
 - Commits: `c287a04` (implementação) e `809c5ed` (testes).
 - Validação CI pendente para a sequência VCH/VCL/VCR.
+
+
+### Resultado final da validação — 2026-11-21
+- Correção dos testes VCH/VCR: workflow `44901358345` concluído com sucesso nos dois jobs: `native-host-tests` e `assemble-debug`.
+- Implementação/testes VCL e sequência de clipping: workflow `44901373926` concluído com sucesso nos dois jobs: `native-host-tests` e `assemble-debug`.
+- Portanto, VCH, VCL e VCR estão implementados e a versão atual passou nos testes automatizados disponíveis. Isso não comprova compatibilidade com jogos nem validação em hardware real.
+- Links de evidência:
+  - https://github.com/jovemaprendz55-byte/M64plus/actions/runs/44901358345
+  - https://github.com/jovemaprendz55-byte/M64plus/actions/runs/44901373926
+
+### Próxima etapa técnica — instruções escalares/divisão do RSP
+- Próximo grupo a implementar: VNOP (0x37), VMOV (0x33), VRCP (0x30), VRCPL (0x31), VRCPH (0x32), VRSQ (0x34), VRSQL (0x35) e VRSQH (0x36).
+- Essas instruções não usam o caminho vetorial de oito lanes como as operações anteriores: selecionam um elemento escalar de VT e um elemento de destino de VD, codificado no campo VS.
+- A documentação SGI/Nintendo descreve a seleção escalar, os campos de origem/destino e o protocolo de alta/baixa precisão: VRCPH/VRSQH armazenam a metade alta da entrada e devolvem a metade alta do resultado anterior; VRCPL/VRSQL completam a entrada de 32 bits. VMOV copia um elemento e VNOP não altera registradores.
+- A implementação deve incluir estado explícito DIV_IN/DIV_OUT e indicador de entrada alta pendente, além do efeito colateral de carregar ACC_LO com VT quando especificado.
+- A tabela de aproximação ROM do RSP precisa ser bit-exata; não substituir por divisão ou raiz quadrada de ponto flutuante. Implementar e testar a decodificação escalar/VMOV/VNOP primeiro, depois o cálculo da tabela e os pares H/L.
+- Referências técnicas consultadas: SGI Nintendo 64 RSP Programmer's Guide, seção “VU Divide Instructions”, páginas 75–78; documentação técnica RSP de Dillonb e implementação de referência Project64.
