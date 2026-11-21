@@ -50,3 +50,10 @@ Referência técnica principal: manual do NEC VR4300 (arquitetura MIPS III).
 - TLB miss, invalid-page and modified-page outcomes are routed to the corresponding CP0 exception codes.
 - Sign-extended 32-bit virtual addresses are accepted for MIPS64 execution.
 - Translation mode remains disabled by default to preserve the existing physical-RDRAM bootstrap and legacy self-tests. A later boot/MMU initialization step must explicitly enable it.
+
+
+### CPU TLB translation integration test
+- Added a JNI end-to-end test that programs EntryHi/EntryLo/Index and executes TLBWI while translation is disabled for bootstrap.
+- The test jumps to a mapped virtual address, enables translation, and verifies instruction fetch plus SW/LW resolve to the expected physical RDRAM page.
+- Added a separate unmapped-fetch case that verifies the TLB-load exception code, vector and BadVAddr.
+- Translation remains opt-in; this test does not claim a complete N64 boot/MMU implementation.

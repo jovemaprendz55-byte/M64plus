@@ -18,6 +18,7 @@ public final class MainActivity extends Activity {
     private static native boolean nativeCp0SelfTest();
     private static native boolean nativeCpuExceptionIntegrationSelfTest();
     private static native boolean nativeCpuTlbInstructionSelfTest();
+    private static native boolean nativeCpuTlbTranslationSelfTest();
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         boolean memoryPassed = nativeRdramSelfTest();
@@ -27,6 +28,7 @@ public final class MainActivity extends Activity {
         boolean cp0Passed = nativeCp0SelfTest();
         boolean exceptionIntegrationPassed = nativeCpuExceptionIntegrationSelfTest();
         boolean tlbInstructionsPassed = nativeCpuTlbInstructionSelfTest();
+        boolean tlbTranslationPassed = nativeCpuTlbTranslationSelfTest();
         Log.i(TAG, "RDRAM 8 MiB self-test: " + (memoryPassed ? "PASS" : "FAIL"));
         Log.i(TAG, "MIPS CPU instruction self-test: " + (cpuPassed ? "PASS" : "FAIL"));
         Log.i(TAG, "MIPS branch/delay-slot self-test: " + (branchPassed ? "PASS" : "FAIL"));
@@ -34,6 +36,7 @@ public final class MainActivity extends Activity {
         Log.i(TAG, "CP0 exception/timer self-test: " + (cp0Passed ? "PASS" : "FAIL"));
         Log.i(TAG, "CPU/CP0 exception integration self-test: " + (exceptionIntegrationPassed ? "PASS" : "FAIL"));
         Log.i(TAG, "MIPS TLB instruction self-test: " + (tlbInstructionsPassed ? "PASS" : "FAIL"));
+        Log.i(TAG, "CPU virtual TLB translation self-test: " + (tlbTranslationPassed ? "PASS" : "FAIL"));
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         glSurfaceView = new GLSurfaceView(this);

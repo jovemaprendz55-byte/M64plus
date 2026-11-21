@@ -308,3 +308,62 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuTlbInstructionSelfTest(JNIEnv*, jclas
         return JNI_FALSE;
     return JNI_TRUE;
 }
+
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeCpuTlbTranslationSelfTest(JNIEnv*, jclass) {
+    using m64plus::n64::MipsCpu;
+    using m64plus::n64::Rdram;
+    using m64plus::n64::Cp0;
+    Rdram memory;
+
+    // Bootstrap through physical RDRAM, install an 8 KiB TLB pair, then
+    // jump into the mapped virtual page before enabling address translation.
+    const std::uint32_t bootstrap[] = {
+        0x3C080040U, // LUI t0,0x0040 -> EntryHi VPN2 0x00400000, ASID 0
+        0x40885000U, // MTC0 t0,EntryHi
+        0x24090087U, // ADDIU t1,zero, PFN=2, G/V/D = 1
+        0x40891000U, // MTC0 t1,EntryLo0
+        0x240900C7U, // ADDIU t1,zero, PFN=3, G/V/D = 1
+        0x40891800U, // MTC0 t1,EntryLo1
+        0x240A0000U, // ADDIU t2,zero,0
+        0x40820000U, // MTC0 t2,Index
+        0x42000002U, // TLBWI
+        0x08100010U, // J 0x00400040
+        0x00000000U  // delay slot
+    };
+    for (std::uint32_t i = 0; i < sizeof(bootstrap) / sizeof(bootstrap[0]); ++i)
+        if (!memory.write32(i * 4U, bootstrap[i])) return JNI_FALSE;
+
+    const std::uint32_t virtualProgram[] = {
+        0x24081234U, // ADDIU t0,zero,0x1234
+        0x3C090040U, // LUI t1,0x0040
+        0x35290080U, // ORI t1,t1,0x0080
+        0xAD280000U, // SW t0,0(t1) through TLB
+        0x8D2A0000U  // LW t2,0(t1) through TLB
+    };
+    for (std::uint32_t i = 0; i < sizeof(virtualProgram) / sizeof(virtualProgram[0]); ++i)
+        if (!memory.write32(0x2040U + i * 4U, virtualProgram[i])) return JNI_FALSE;
+
+    MipsCpu cpu;
+    for (unsigned i = 0; i < sizeof(bootstrap) / sizeof(bootstrap[0]); ++i)
+        if (!cpu.step(memory)) return JNI_FALSE;
+    if (cpu.pc() != 0x00400040ULL) return JNI_FALSE;
+    cpu.setTlbEnabled(true);
+    for (unsigned i = 0; i < sizeof(virtualProgram) / sizeof(virtualProgram[0]); ++i)
+        if (!cpu.step(memory)) return JNI_FALSE;
+
+    std::uint32_t stored = 0;
+    if (!memory.read32(0x2080U, stored) || stored != 0x1234U) return JNI_FALSE;
+    if (cpu.reg(10) != 0x1234ULL || cpu.pc() != 0x00400054ULL) return JNI_FALSE;
+
+    // An unmapped virtual instruction fetch must enter the TLB-load vector.
+    MipsCpu missCpu;
+    missCpu.reset(0x00500000ULL);
+    missCpu.setTlbEnabled(true);
+    if (!missCpu.step(memory)) return JNI_FALSE;
+    if (missCpu.pc() != 0xFFFFFFFF80000180ULL) return JNI_FALSE;
+    if (((missCpu.cp0().read(Cp0::kCause) >> 2U) & 0x1FULL) != 2U) return JNI_FALSE;
+    if (missCpu.cp0().read(Cp0::kBadVAddr) != 0x00500000ULL) return JNI_FALSE;
+    return JNI_TRUE;
+}
