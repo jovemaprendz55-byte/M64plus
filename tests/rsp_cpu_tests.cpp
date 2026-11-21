@@ -279,6 +279,44 @@ void testVectorMultiplyDoublePrecision() {
     }
 }
 
+void testVectorMultiplyDoubleAccumulate() {
+    {
+        Bus bus; RspCpu rsp;
+        rsp.setVectorLane(1, 0, 0xFFFFU); rsp.setVectorLane(2, 0, 0xFFFFU);
+        put(bus, 0, vType(0, 2, 1, 3, 0x04)); // VMUDL
+        put(bus, 4, vType(0, 2, 1, 4, 0x0C)); // VMADL
+        put(bus, 8, vType(1, 0, 0, 5, 0x1D)); // ACC_MD
+        require(rsp.step(bus) && rsp.step(bus), "execute VMUDL then VMADL");
+        require(rsp.vectorLane(4, 0) == 0xFFFFU, "VMADL unsigned-saturates accumulated result");
+        require(rsp.step(bus), "read VMADL middle accumulator slice");
+        require(rsp.vectorLane(5, 0) == 1U, "VMADL accumulates product into ACC_MD");
+    }
+    {
+        Bus bus; RspCpu rsp;
+        rsp.setVectorLane(1, 0, 0x4000U); rsp.setVectorLane(2, 0, 0x4000U);
+        put(bus, 0, vType(0, 2, 1, 3, 0x05)); // VMUDM
+        put(bus, 4, vType(0, 2, 1, 4, 0x0D)); // VMADM
+        require(rsp.step(bus) && rsp.step(bus), "execute VMUDM then VMADM");
+        require(rsp.vectorLane(4, 0) == 0x2000U, "VMADM accumulates signed middle product");
+    }
+    {
+        Bus bus; RspCpu rsp;
+        rsp.setVectorLane(1, 0, 2U); rsp.setVectorLane(2, 0, 3U);
+        put(bus, 0, vType(0, 2, 1, 3, 0x06)); // VMUDN
+        put(bus, 4, vType(0, 2, 1, 4, 0x0E)); // VMADN
+        require(rsp.step(bus) && rsp.step(bus), "execute VMUDN then VMADN");
+        require(rsp.vectorLane(4, 0) == 12U, "VMADN accumulates unsigned-by-signed product");
+    }
+    {
+        Bus bus; RspCpu rsp;
+        rsp.setVectorLane(1, 0, 1U); rsp.setVectorLane(2, 0, 2U);
+        put(bus, 0, vType(0, 2, 1, 3, 0x07)); // VMUDH
+        put(bus, 4, vType(0, 2, 1, 4, 0x0F)); // VMADH
+        require(rsp.step(bus) && rsp.step(bus), "execute VMUDH then VMADH");
+        require(rsp.vectorLane(4, 0) == 4U, "VMADH accumulates signed high product");
+    }
+}
+
 void testVectorAccumulatorLowAndVsar() {
     Bus bus;
     RspCpu rsp;
@@ -424,6 +462,7 @@ int main() {
     testVectorMultiplyAccumulateFraction();
     testVectorMultiplyAccumulateUnsigned();
     testVectorMultiplyDoublePrecision();
+    testVectorMultiplyDoubleAccumulate();
     testVectorPairBroadcastSelectors();
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
