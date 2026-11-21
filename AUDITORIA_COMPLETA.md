@@ -377,3 +377,10 @@ A auditoria ainda deve continuar por:
 - Teste de regressão atualizado: com `element=0`, destino na lane 3 e valor 1 na lane 3 de VT, VRCP agora retorna `0xC000` (resultado baixo da ROM RCP) em vez de ler incorretamente a lane 0.
 - Commits dessa correção e teste registrados diretamente em `main`; CI deverá validar ambos antes de considerar esta revisão concluída.
 - Ainda falta ampliar os vetores numéricos de VRCP/RSQ para entradas negativas, limites, valores de 32 bits e reset dos latches. O suporte permanece parcial até essa cobertura adicional e comparação independente bit a bit.
+
+
+### Continuação do RSP — VABS (2026-11-21)
+- Implementada a instrução vetorial VABS (função `0x13`). A operação usa o sinal de VS para copiar, zerar ou negar VT; o caso VT=`0x8000` com VS negativo satura VD em `0x7FFF`, enquanto ACC_LO preserva `0x8000`.
+- VABS preserva VCO e atualiza ACC_LO lane a lane. Testes cobrem sinal positivo, negativo, zero, extremo `-32768`, preservação de VCO e leitura de ACC_LO via VSAR.
+- Referências confrontadas: SGI Nintendo 64 RSP Programmer's Guide (descrição de VABS) e implementação interpretativa do Project64 (`RSPOp::Vector_VABS`).
+- Commits de implementação e teste registrados em `main`; aguardar os workflows de CI antes de aprovar a etapa.
