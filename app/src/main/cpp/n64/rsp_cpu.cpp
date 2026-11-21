@@ -106,12 +106,13 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
     const bool compareNotEqual = function == 0x22U;
     const bool compareGreaterEqual = function == 0x23U;
     const bool clipHigh = function == 0x25U;
+    const bool clipReverse = function == 0x26U;
     const bool merge = function == 0x27U;
     const bool comparison = compareLess || compareEqual || compareNotEqual ||
         compareGreaterEqual;
     const bool logical = function >= 0x28U && function <= 0x2DU;
     if (!multiplyFamily && !add && !sub && !addCarry && !subCarry &&
-        !comparison && !clipHigh && !merge && !logical) return false;
+        !comparison && !clipHigh && !clipReverse && !merge && !logical) return false;
     std::uint16_t nextVco = 0;
     std::uint16_t nextVcc = 0;
     std::uint8_t nextVce = 0;
@@ -208,11 +209,13 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
             if (selected) nextVcc |= static_cast<std::uint16_t>(1U << lane);
             value = selected ? left : right;
             accumulator_[lane].lo = value;
-        } else if (clipHigh) {
+        } else if (clipHigh || clipReverse) {
             const bool oppositeSigns = ((left ^ right) & 0x8000U) != 0U;
-            const std::uint16_t negatedRight = static_cast<std::uint16_t>(0U - right);
+            const std::uint16_t negatedRight = clipReverse
+                ? static_cast<std::uint16_t>(~right)
+                : static_cast<std::uint16_t>(0U - right);
             const std::uint16_t clipBound = oppositeSigns ? negatedRight : right;
-            const bool extensionEqual = oppositeSigns &&
+            const bool extensionEqual = clipHigh && oppositeSigns &&
                 left == static_cast<std::uint16_t>(negatedRight - 1U);
             const bool notEqual = !extensionEqual && left != clipBound;
             const bool lessEqualNegative = static_cast<std::int16_t>(left) <=
@@ -263,9 +266,10 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
         }
         vr_[vd][lane] = value;
     }
-    if (add || sub || addCarry || subCarry || comparison || clipHigh) vco_ = nextVco;
-    if (comparison || clipHigh) vcc_ = nextVcc;
-    if (clipHigh) vce_ = nextVce;
+    if (add || sub || addCarry || subCarry || comparison || clipHigh || clipReverse)
+        vco_ = nextVco;
+    if (comparison || clipHigh || clipReverse) vcc_ = nextVcc;
+    if (clipHigh || clipReverse) vce_ = nextVce;
     return true;
 }
 
