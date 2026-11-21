@@ -226,6 +226,59 @@ void testVectorMultiplyAccumulateUnsigned() {
     require(rsp.vectorLane(4, 2) == 0xFFFFU, "VMACU reports positive overflow as 0xFFFF");
 }
 
+void testVectorMultiplyDoublePrecision() {
+    {
+        Bus bus; RspCpu rsp;
+        rsp.setVectorLane(1, 0, 0xFFFFU);
+        rsp.setVectorLane(2, 0, 0xFFFFU);
+        put(bus, 0, vType(0, 2, 1, 3, 0x04)); // VMUDL
+        put(bus, 4, vType(0, 0, 0, 4, 0x1D)); // ACC_LO
+        put(bus, 8, vType(1, 0, 0, 5, 0x1D)); // ACC_MD
+        require(rsp.step(bus), "execute VMUDL");
+        require(rsp.vectorLane(3, 0) == 0xFFFEU, "VMUDL returns upper unsigned product");
+        require(rsp.step(bus) && rsp.step(bus), "read VMUDL accumulator slices");
+        require(rsp.vectorLane(4, 0) == 0xFFFEU &&
+                rsp.vectorLane(5, 0) == 0U, "VMUDL stores product high half in ACC_LO");
+    }
+    {
+        Bus bus; RspCpu rsp;
+        rsp.setVectorLane(1, 0, 0xFFFEU); // -2 signed
+        rsp.setVectorLane(2, 0, 3U);      // unsigned
+        put(bus, 0, vType(0, 2, 1, 3, 0x05)); // VMUDM
+        put(bus, 4, vType(1, 0, 0, 4, 0x1D)); // ACC_MD
+        put(bus, 8, vType(2, 0, 0, 5, 0x1D)); // ACC_HI
+        require(rsp.step(bus), "execute VMUDM");
+        require(rsp.vectorLane(3, 0) == 0xFFFFU, "VMUDM returns signed middle result");
+        require(rsp.step(bus) && rsp.step(bus), "read VMUDM accumulator slices");
+        require(rsp.vectorLane(4, 0) == 0xFFFFU &&
+                rsp.vectorLane(5, 0) == 0xFFFFU, "VMUDM sign extends product in accumulator");
+    }
+    {
+        Bus bus; RspCpu rsp;
+        rsp.setVectorLane(1, 0, 3U);      // unsigned
+        rsp.setVectorLane(2, 0, 0xFFFEU); // -2 signed
+        put(bus, 0, vType(0, 2, 1, 3, 0x06)); // VMUDN
+        put(bus, 4, vType(0, 0, 0, 4, 0x1D)); // ACC_LO
+        require(rsp.step(bus), "execute VMUDN");
+        require(rsp.vectorLane(3, 0) == 0U, "VMUDN clamps negative unsigned result");
+        require(rsp.step(bus), "read VMUDN accumulator low slice");
+        require(rsp.vectorLane(4, 0) == 0xFFFAU, "VMUDN stores signed product low bits");
+    }
+    {
+        Bus bus; RspCpu rsp;
+        rsp.setVectorLane(1, 0, 2U);
+        rsp.setVectorLane(2, 0, 3U);
+        put(bus, 0, vType(0, 2, 1, 3, 0x07)); // VMUDH
+        put(bus, 4, vType(1, 0, 0, 4, 0x1D)); // ACC_MD
+        put(bus, 8, vType(2, 0, 0, 5, 0x1D)); // ACC_HI
+        require(rsp.step(bus), "execute VMUDH");
+        require(rsp.vectorLane(3, 0) == 6U, "VMUDH returns signed product");
+        require(rsp.step(bus) && rsp.step(bus), "read VMUDH accumulator slices");
+        require(rsp.vectorLane(4, 0) == 6U &&
+                rsp.vectorLane(5, 0) == 0U, "VMUDH places product in upper accumulator bits");
+    }
+}
+
 void testVectorAccumulatorLowAndVsar() {
     Bus bus;
     RspCpu rsp;
@@ -370,6 +423,7 @@ int main() {
     testVectorMultiplyUnsigned();
     testVectorMultiplyAccumulateFraction();
     testVectorMultiplyAccumulateUnsigned();
+    testVectorMultiplyDoublePrecision();
     testVectorPairBroadcastSelectors();
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
