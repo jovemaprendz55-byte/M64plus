@@ -52,7 +52,7 @@ Ainda não é um emulador capaz de executar jogos comerciais de ponta a ponta. F
 - Verificações completas de modos de privilégio e extensões de 64 bits.
 
 ### 3.3 Defeitos e lacunas confirmados
-1. **Mapeamento KSEG condicionado incorretamente:** a CPU só chama a tradução quando `tlbEnabled_` está ativo. Assim, com TLB desabilitado, KSEG0/KSEG1 podem chegar ao barramento como endereços virtuais sem conversão física, apesar de a classe TLB conter o mapeamento direto.
+1. **Mapeamento KSEG0/KSEG1 — CORRIGIDO em 2026-11-21:** a CPU agora aplica a tradução direta desses segmentos mesmo quando `tlbEnabled_` está desativado, tanto na busca de instruções quanto em loads/stores. Foi adicionado teste de regressão que executa código via KSEG0 e grava em memória via KSEG1. Commits: `b71d413` (correção) e `f83f4a0` (teste). O workflow Android foi iniciado; resultado ainda pendente no momento desta atualização.
 2. **JALR verifica alinhamento cedo demais:** o alvo desalinhado gera Address Load antes de executar o delay slot; a exceção pode ter EPC/BD incorretos em relação ao fluxo arquitetural esperado.
 3. **Prioridade de exceções de endereço:** em determinados acessos desalinhados, a tradução é tentada antes da checagem de alinhamento, podendo produzir TLB fault onde deveria ocorrer Address Error.
 4. **Interrupções ignoram ERL:** a verificação de interrupção não considera o bit ERL do Status.
