@@ -256,8 +256,19 @@ bool Bus::writeSpRegister(std::uint32_t address, std::uint32_t value) noexcept {
         if ((value & (1U << 2U)) != 0) spStatus_ &= ~kSpBroke;
         if ((value & (1U << 3U)) != 0) setMiInterrupt(0, false);
         if ((value & (1U << 4U)) != 0) setMiInterrupt(0, true);
-        if ((value & (1U << 5U)) != 0) spStatus_ &= ~kSpInterruptOnBreak;
-        if ((value & (1U << 6U)) != 0) spStatus_ |= kSpInterruptOnBreak;
+        if ((value & kSpClearSingleStep) != 0) spStatus_ &= ~kSpSingleStep;
+        if ((value & kSpSetSingleStep) != 0) spStatus_ |= kSpSingleStep;
+        if ((value & kSpClearInterruptOnBreak) != 0)
+            spStatus_ &= ~kSpInterruptOnBreak;
+        if ((value & kSpSetInterruptOnBreak) != 0)
+            spStatus_ |= kSpInterruptOnBreak;
+        for (unsigned signal = 0; signal < 8U; ++signal) {
+            const std::uint32_t statusBit = kSpSignal0 << signal;
+            const std::uint32_t clearCommand = 1U << (9U + signal * 2U);
+            const std::uint32_t setCommand = 1U << (10U + signal * 2U);
+            if ((value & clearCommand) != 0) spStatus_ &= ~statusBit;
+            if ((value & setCommand) != 0) spStatus_ |= statusBit;
+        }
         return true;
     case kSpDmaFull: return true;
     case kSpDmaBusy: return false;
