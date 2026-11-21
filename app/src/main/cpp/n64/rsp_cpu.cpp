@@ -496,15 +496,16 @@ bool RspCpu::step(Bus& bus) noexcept {
     } else if (opcode == 0x32U || opcode == 0x3AU) {
         // RSP vector memory transfers. Subopcodes 0-5 are LBV..LRV / SBV..SRV.
         const unsigned subOpcode = (instruction >> 11U) & 31U;
-        if (subOpcode > 5U) {
+        const bool load = opcode == 0x32U;
+        if (subOpcode > 7U || (!load && subOpcode > 5U)) {
             halted_ = true; faulted_ = true;
             return false;
         }
         const unsigned element = (instruction >> 7U) & 0x0FU;
-        const bool load = opcode == 0x32U;
         std::int32_t offset = static_cast<std::int32_t>(instruction & 0x7FU);
         if ((offset & 0x40) != 0) offset -= 0x80;
-        const unsigned scale = subOpcode <= 3U ? (1U << subOpcode) : 16U;
+        const unsigned scale = subOpcode <= 3U ? (1U << subOpcode) :
+            (subOpcode <= 5U ? 16U : 8U);
         const std::uint32_t address = static_cast<std::uint32_t>(
             static_cast<std::int64_t>(gpr_[rs]) +
             static_cast<std::int64_t>(offset) * scale) & 0x0FFFU;
@@ -513,7 +514,22 @@ bool RspCpu::step(Bus& bus) noexcept {
         std::uint32_t memoryStart = address;
         bool wrapVector = !load;
 
-        if (subOpcode <= 3U) {
+        if (subOpcode == 6U || subOpcode == 7U) { // LPV / LUV
+            if (!load) {
+                halted_ = true; faulted_ = true;
+                return false;
+            }
+            for (unsigned lane = 0; lane < 8U; ++lane) {
+                std::uint8_t value = 0;
+                if (!bus.read8(Bus::kSpDmemBase + ((address + lane) & 0x0FFFU), value)) {
+                    halted_ = true; faulted_ = true;
+                    return false;
+                }
+                vr_[rt][lane] = static_cast<std::uint16_t>(
+                    static_cast<std::uint16_t>(value) << (subOpcode == 6U ? 8U : 7U));
+            }
+            byteCount = 0U;
+        } else if (subOpcode <= 3U) {
             byteCount = 1U << subOpcode;
         } else if (subOpcode == 4U) { // LQV / SQV
             byteCount = 16U - (address & 0x0FU);
