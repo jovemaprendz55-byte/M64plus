@@ -812,6 +812,76 @@ void testVectorBasicMemoryTransfers() {
     require(!rsp.faulted(), "basic RSP vector memory instructions are supported");
 }
 
+void testVectorTransposeTransfers() {
+    Bus bus;
+    RspCpu rsp;
+    for (unsigned reg = 0; reg < 32U; ++reg)
+        for (unsigned lane = 0; lane < 8U; ++lane)
+            rsp.setVectorLane(reg, lane, 0xDEADU);
+
+    put(bus, 0, iType(0x09, 0, 1, 0x0100)); // LTV source base
+    put(bus, 4, iType(0x09, 0, 2, 0x0400)); // STV destination base
+
+    for (unsigned group = 0; group < 4U; ++group) {
+        for (unsigned diagonal = 0; diagonal < 8U; ++diagonal) {
+            const unsigned transfer = group * 8U + diagonal;
+            for (unsigned slice = 0; slice < 8U; ++slice) {
+                const std::uint16_t value = static_cast<std::uint16_t>(
+                    0x1000U + group * 0x100U + diagonal * 8U + slice);
+                require(bus.write16(Bus::kSpDmemBase + 0x0100U + transfer * 16U +
+                                     slice * 2U, value),
+                        "initialize LTV transpose source word");
+            }
+            put(bus, 8U + transfer * 4U,
+                vectorMemoryType(0x32, 1, group * 8U + 7U, 0x0BU,
+                                 diagonal * 2U, transfer));
+            put(bus, 8U + (32U + transfer) * 4U,
+                vectorMemoryType(0x3A, 2, group * 8U + 7U, 0x0BU,
+                                 diagonal * 2U, transfer));
+        }
+    }
+
+    for (unsigned instruction = 0; instruction < 66U; ++instruction)
+        require(rsp.step(bus), "execute LTV/STV transpose transfer program");
+
+    for (unsigned group = 0; group < 4U; ++group) {
+        for (unsigned diagonal = 0; diagonal < 8U; ++diagonal) {
+            const unsigned transfer = group * 8U + diagonal;
+            for (unsigned slice = 0; slice < 8U; ++slice) {
+                const unsigned vectorRegister =
+                    group * 8U + ((slice + diagonal) & 7U);
+                const std::uint16_t expected = static_cast<std::uint16_t>(
+                    0x1000U + group * 0x100U + diagonal * 8U + slice);
+                require(rsp.vectorLane(vectorRegister, slice) == expected,
+                        "LTV scatters each halfword into the correct diagonal lane");
+                std::uint16_t stored = 0;
+                require(bus.read16(Bus::kSpDmemBase + 0x0400U +
+                                   transfer * 16U + slice * 2U, stored),
+                        "read back STV transpose destination");
+                require(stored == expected,
+                        "STV gathers the same diagonal lane into the memory word");
+            }
+        }
+    }
+    require(!rsp.faulted(), "LTV and STV are supported");
+
+    Bus wrapBus;
+    RspCpu wrapRsp;
+    for (unsigned slice = 0; slice < 8U; ++slice)
+        require(wrapBus.write16(Bus::kSpDmemBase + 0x0FF0U + slice * 2U,
+                                static_cast<std::uint16_t>(0xA000U + slice)),
+                "initialize final aligned DMEM transpose word");
+    put(wrapBus, 0, iType(0x09, 0, 1, 0x0FF0));
+    put(wrapBus, 4, vectorMemoryType(0x32, 1, 7, 0x0BU, 0, 0));
+    require(wrapRsp.step(wrapBus) && wrapRsp.step(wrapBus),
+            "execute LTV at final aligned DMEM word");
+    for (unsigned slice = 0; slice < 8U; ++slice)
+        require(wrapRsp.vectorLane(slice, slice) ==
+                    static_cast<std::uint16_t>(0xA000U + slice),
+                "LTV reads all eight halfwords through the end of DMEM");
+    require(!wrapRsp.faulted(), "aligned final DMEM LTV is valid");
+}
+
 void testVectorAbsolute() {
     Bus bus;
     RspCpu rsp;
@@ -933,6 +1003,7 @@ int main() {
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
     testVectorMoveAndNoop();
+    testVectorTransposeTransfers();
     testVectorAbsolute();
     testVectorBasicMemoryTransfers();
     testVectorQuadMemoryTransfers();
