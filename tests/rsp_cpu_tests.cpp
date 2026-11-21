@@ -29,6 +29,21 @@ std::uint32_t cop2Move(unsigned rs, unsigned rt, unsigned rd, unsigned element) 
 void put(Bus& bus, std::uint32_t pc, std::uint32_t instruction) {
     require(bus.write32(Bus::kSpImemBase + pc, instruction), "write RSP instruction");
 }
+void testUnsupportedInstructionFaultIsLatched() {
+    Bus bus;
+    RspCpu rsp;
+    put(bus, 0x00, 0xFFFFFFFFU); // Unsupported SPECIAL/COP opcode.
+    require(!rsp.step(bus), "unsupported instruction reports failure");
+    require(rsp.halted(), "unsupported instruction halts RSP");
+    require(rsp.faulted(), "unsupported instruction records a fault");
+    require(!rsp.step(bus), "faulted RSP does not retry without restart");
+    require(rsp.instructionsExecuted() == 0U,
+            "unsupported instruction is not counted as executed");
+    rsp.setPc(0x04U);
+    require(!rsp.halted() && !rsp.faulted(),
+            "explicit PC change clears fault state");
+}
+
 void testArithmeticAndMemory() {
     Bus bus;
     RspCpu rsp;
@@ -237,6 +252,7 @@ void testCop2VectorAndControlMoves() {
 } // namespace
 
 int main() {
+    testUnsupportedInstructionFaultIsLatched();
     testArithmeticAndMemory();
     testBranchDelaySlot();
     testByteAndHalfwordMemory();
