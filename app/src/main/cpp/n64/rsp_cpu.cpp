@@ -497,7 +497,7 @@ bool RspCpu::step(Bus& bus) noexcept {
         // RSP vector memory transfers. Subopcodes 0-5 are LBV..LRV / SBV..SRV.
         const unsigned subOpcode = (instruction >> 11U) & 31U;
         const bool load = opcode == 0x32U;
-        if (subOpcode > 7U || (!load && subOpcode > 5U)) {
+        if (subOpcode > 7U) {
             halted_ = true; faulted_ = true;
             return false;
         }
@@ -514,19 +514,26 @@ bool RspCpu::step(Bus& bus) noexcept {
         std::uint32_t memoryStart = address;
         bool wrapVector = !load;
 
-        if (subOpcode == 6U || subOpcode == 7U) { // LPV / LUV
-            if (!load) {
-                halted_ = true; faulted_ = true;
-                return false;
-            }
+        if (subOpcode == 6U || subOpcode == 7U) { // LPV / LUV / SPV / SUV
             for (unsigned lane = 0; lane < 8U; ++lane) {
-                std::uint8_t value = 0;
-                if (!bus.read8(Bus::kSpDmemBase + ((address + lane) & 0x0FFFU), value)) {
-                    halted_ = true; faulted_ = true;
-                    return false;
+                const std::uint32_t dmemAddress = Bus::kSpDmemBase +
+                    ((address + lane) & 0x0FFFU);
+                if (load) {
+                    std::uint8_t value = 0;
+                    if (!bus.read8(dmemAddress, value)) {
+                        halted_ = true; faulted_ = true;
+                        return false;
+                    }
+                    vr_[rt][lane] = static_cast<std::uint16_t>(
+                        static_cast<std::uint16_t>(value) << (subOpcode == 6U ? 8U : 7U));
+                } else {
+                    const std::uint8_t value = static_cast<std::uint8_t>(
+                        vr_[rt][lane] >> (subOpcode == 6U ? 8U : 7U));
+                    if (!bus.write8(dmemAddress, value)) {
+                        halted_ = true; faulted_ = true;
+                        return false;
+                    }
                 }
-                vr_[rt][lane] = static_cast<std::uint16_t>(
-                    static_cast<std::uint16_t>(value) << (subOpcode == 6U ? 8U : 7U));
             }
             byteCount = 0U;
         } else if (subOpcode <= 3U) {
