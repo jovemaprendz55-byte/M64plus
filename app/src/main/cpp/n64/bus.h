@@ -58,6 +58,12 @@ public:
     void setMiInterrupt(unsigned source, bool asserted) noexcept;
     std::uint32_t miInterruptMask() const noexcept;
     bool miInterruptPending() const noexcept;
+    bool spHalted() const noexcept { return (spStatus_ & kSpHalt) != 0U; }
+    bool spBroke() const noexcept { return (spStatus_ & kSpBroke) != 0U; }
+    void signalSpBreak() noexcept {
+        spStatus_ |= kSpHalt | kSpBroke;
+        if ((spStatus_ & kSpInterruptOnBreak) != 0U) setMiInterrupt(0U, true);
+    }
 
 private:
     bool rangeFits(std::uint32_t address, std::size_t width,
