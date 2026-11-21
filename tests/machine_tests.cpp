@@ -63,7 +63,7 @@ void testSharedCpuRspBusAndSpBreak() {
     require(bus.spProgramCounter() == 0x20U, "SP_PC register stores aligned PC");
     require(bus.write32(Bus::kMiInterruptMask, 1U << 1U),
             "enable MI SP interrupt");
-    require(bus.write32(Bus::kSpStatus, Bus::kSpInterruptOnBreak | 1U),
+    require(bus.write32(Bus::kSpStatus, Bus::kSpSetInterruptOnBreak | 1U),
             "configure SP interrupt-on-break and clear HALT");
     require(!bus.spHalted(), "SP HALT clears through MMIO command");
 
