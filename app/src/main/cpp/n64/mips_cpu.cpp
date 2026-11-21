@@ -32,6 +32,7 @@ bool MipsCpu::step(Rdram& memory) {
         pc_ = cp0_.raiseException(code, pc_, inDelaySlot, badAddress);
         pendingBranch_ = false;
         pendingBranchTarget_ = 0;
+        cp0_.tick();
         return true;
     };
     if ((pc_ & 3U) != 0) return takeException(ExceptionCode::AddressLoad, pc_);
@@ -54,6 +55,7 @@ bool MipsCpu::step(Rdram& memory) {
     unsigned destination = 0;
     bool writeRegister = false;
     bool scheduleBranch = false;
+    bool doExceptionReturn = false;
     std::uint64_t branchTarget = sequentialPc + 4U;
     const auto branchRelative = [&]() {
         const auto offset = static_cast<std::int64_t>(static_cast<std::int16_t>(immediate)) * 4;
@@ -69,7 +71,8 @@ bool MipsCpu::step(Rdram& memory) {
             if (inDelaySlot) return takeException(ExceptionCode::ReservedInstruction);
             scheduleBranch = true; branchTarget = a; break;
         case 0x09:
-            if (inDelaySlot || (a & 3U) != 0) return false;
+            if (inDelaySlot) return takeException(ExceptionCode::ReservedInstruction);
+            if ((a & 3U) != 0) return takeException(ExceptionCode::AddressLoad, a);
             destination = rd;
             result = sequentialPc + 4U; writeRegister = true;
             scheduleBranch = true; branchTarget = a; break;
@@ -96,21 +99,21 @@ bool MipsCpu::step(Rdram& memory) {
         case 0x01: take = signedA >= 0; break;
         case 0x10: take = signedA < 0; destination = 31; result = sequentialPc + 4U; writeRegister = true; break;
         case 0x11: take = signedA >= 0; destination = 31; result = sequentialPc + 4U; writeRegister = true; break;
-        default: return false;
+        default: return takeException(ExceptionCode::ReservedInstruction);
         }
         scheduleBranch = true;
         branchTarget = take ? branchRelative() : sequentialPc + 4U;
         break;
     }
     case 0x02: case 0x03:
-        if (inDelaySlot) return false;
+        if (inDelaySlot) return takeException(ExceptionCode::ReservedInstruction);
         if (opcode == 0x03) { destination = 31; result = sequentialPc + 4U; writeRegister = true; }
         scheduleBranch = true;
         branchTarget = ((sequentialPc) & 0xFFFFFFFFF0000000ULL) |
                        (static_cast<std::uint64_t>(instruction & 0x03FFFFFFU) << 2U);
         break;
     case 0x04: case 0x05: case 0x06: case 0x07:
-        if (inDelaySlot) return false;
+        if (inDelaySlot) return takeException(ExceptionCode::ReservedInstruction);
         if (opcode == 0x04 || opcode == 0x05) {
             const bool equal = a == b;
             scheduleBranch = (opcode == 0x04) ? equal : !equal;
@@ -121,6 +124,22 @@ bool MipsCpu::step(Rdram& memory) {
         }
         branchTarget = scheduleBranch ? branchRelative() : sequentialPc + 4U;
         scheduleBranch = true; // even a not-taken branch has a delay slot
+        break;
+    // COP0: MFC0, MTC0 and ERET (register select 0 only).
+    case 0x10:
+        if (inDelaySlot) return takeException(ExceptionCode::ReservedInstruction);
+        if (rs == 0x00) { // MFC0
+            destination = rt;
+            result = signExtend32(static_cast<std::uint32_t>(cp0_.read(rd)));
+            writeRegister = true;
+        } else if (rs == 0x04) { // MTC0
+            if (!cp0_.write(rd, gpr_[rt]))
+                return takeException(ExceptionCode::ReservedInstruction);
+        } else if (rs == 0x10 && function == 0x18) { // ERET
+            doExceptionReturn = true;
+        } else {
+            return takeException(ExceptionCode::ReservedInstruction);
+        }
         break;
     case 0x09:
         destination = rt;
@@ -186,7 +205,12 @@ bool MipsCpu::step(Rdram& memory) {
     }
     if (writeRegister && destination != 0) gpr_[destination] = result;
     gpr_[0] = 0;
-    if (inDelaySlot) {
+    cp0_.tick();
+    if (doExceptionReturn) {
+        pc_ = cp0_.exceptionReturn();
+        pendingBranch_ = false;
+        pendingBranchTarget_ = 0;
+    } else if (inDelaySlot) {
         pendingBranch_ = false;
         pendingBranchTarget_ = 0;
         pc_ = oldBranchTarget;

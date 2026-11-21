@@ -177,3 +177,35 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuExceptionIntegrationSelfTest(JNIEnv*,
     if ((delayCpu.cp0().read(Cp0::kCause) & (1ULL << 31U)) == 0) return JNI_FALSE;
     return JNI_TRUE;
 }
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeCpuCp0InstructionSelfTest(JNIEnv*, jclass) {
+    using m64plus::n64::MipsCpu;
+    using m64plus::n64::Rdram;
+    using m64plus::n64::Cp0;
+    Rdram memory;
+    // Set EPC=0x20, read Count, then set EXL and execute ERET.
+    const std::uint32_t program[] = {
+        0x24090020U, // ADDIU t1,zero,0x20
+        0x40897000U, // MTC0 t1,EPC
+        0x40084800U, // MFC0 t0,Count
+        0x240A0002U, // ADDIU t2,zero,2 (EXL)
+        0x408A6000U, // MTC0 t2,Status
+        0x42000018U  // ERET
+    };
+    for (std::uint32_t i=0;i<sizeof(program)/sizeof(program[0]);++i)
+        if (!memory.write32(i*4U, program[i])) return JNI_FALSE;
+    MipsCpu cpu;
+    for (unsigned i=0;i<6;++i) if (!cpu.step(memory)) return JNI_FALSE;
+    if (cpu.reg(8) != 3U) return JNI_FALSE; // Count advanced once per completed instruction
+    if (cpu.pc() != 0x20U || cpu.cp0().exceptionLevel()) return JNI_FALSE;
+    if (cpu.cp0().read(Cp0::kEpc) != 0x20U) return JNI_FALSE;
+    // ERET in a delay slot is architecturally reserved.
+    Rdram delayMemory;
+    if (!delayMemory.write32(0,0x10000001U) || !delayMemory.write32(4,0x42000018U))
+        return JNI_FALSE;
+    MipsCpu delayCpu;
+    if (!delayCpu.step(delayMemory) || !delayCpu.step(delayMemory)) return JNI_FALSE;
+    if (((delayCpu.cp0().read(Cp0::kCause)>>2U)&0x1FULL) != 10U) return JNI_FALSE;
+    return JNI_TRUE;
+}
