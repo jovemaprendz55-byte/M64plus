@@ -42,6 +42,7 @@ void RspCpu::reset() noexcept {
     vce_ = 0;
     pendingBranch_ = false;
     halted_ = false;
+    faulted_ = false;
 }
 
 std::uint32_t RspCpu::reg(unsigned index) const noexcept {
@@ -54,8 +55,10 @@ void RspCpu::setPc(std::uint32_t pc) noexcept {
     pendingBranch_ = false;
     pendingBranchTarget_ = 0U;
     halted_ = false;
+    faulted_ = false;
 }
 bool RspCpu::halted() const noexcept { return halted_; }
+bool RspCpu::faulted() const noexcept { return faulted_; }
 std::uint64_t RspCpu::instructionsExecuted() const noexcept { return executed_; }
 std::uint16_t RspCpu::vectorLane(unsigned r, unsigned lane) const noexcept {
     return r < vr_.size() && lane < 8U ? vr_[r][lane] : 0U;
@@ -122,7 +125,7 @@ bool RspCpu::step(Bus& bus) noexcept {
     const std::uint32_t oldBranchTarget = pendingBranchTarget_;
     std::uint32_t instruction = 0;
     if (!bus.read32(kImemBase + pc_, instruction)) {
-        halted_ = true;
+        halted_ = true; faulted_ = true;
         return false;
     }
 
