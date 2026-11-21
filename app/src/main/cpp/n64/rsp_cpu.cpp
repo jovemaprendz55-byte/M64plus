@@ -90,9 +90,15 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
     const bool multiplyHigh = function == 0x07U;
     const bool multiplyAccumulateFraction = function == 0x08U;
     const bool multiplyAccumulateUnsigned = function == 0x09U;
+    const bool multiplyAccumulateLow = function == 0x0CU;
+    const bool multiplyAccumulateMidSigned = function == 0x0DU;
+    const bool multiplyAccumulateMidUnsigned = function == 0x0EU;
+    const bool multiplyAccumulateHigh = function == 0x0FU;
     const bool multiplyFamily = multiplyFraction || multiplyUnsigned || multiplyLow ||
         multiplyMidSigned || multiplyMidUnsigned || multiplyHigh ||
-        multiplyAccumulateFraction || multiplyAccumulateUnsigned;
+        multiplyAccumulateFraction || multiplyAccumulateUnsigned ||
+        multiplyAccumulateLow || multiplyAccumulateMidSigned ||
+        multiplyAccumulateMidUnsigned || multiplyAccumulateHigh;
     const bool add = function == 0x10U, sub = function == 0x11U;
     const bool addCarry = function == 0x14U, subCarry = function == 0x15U;
     const bool logical = function >= 0x28U && function <= 0x2DU;
@@ -108,22 +114,24 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
                 (static_cast<std::uint64_t>(accumulator_[lane].hi) << 32U) |
                 (static_cast<std::uint64_t>(accumulator_[lane].md) << 16U) |
                 accumulator_[lane].lo;
-            bool accumulate = multiplyAccumulateFraction || multiplyAccumulateUnsigned;
+            bool accumulate = multiplyAccumulateFraction || multiplyAccumulateUnsigned ||
+                multiplyAccumulateLow || multiplyAccumulateMidSigned ||
+                multiplyAccumulateMidUnsigned || multiplyAccumulateHigh;
             bool unsignedClamp = false;
             std::int64_t accumulatorValue = 0;
-            if (multiplyLow) {
+            if (multiplyLow || multiplyAccumulateLow) {
                 product = (static_cast<std::int64_t>(left) * right) >> 16U;
                 accumulatorValue = product;
                 value = static_cast<std::uint16_t>(product);
-            } else if (multiplyMidSigned) {
+            } else if (multiplyMidSigned || multiplyAccumulateMidSigned) {
                 product = static_cast<std::int64_t>(static_cast<std::int16_t>(left)) * right;
                 accumulatorValue = product;
-            } else if (multiplyMidUnsigned) {
+            } else if (multiplyMidUnsigned || multiplyAccumulateMidUnsigned) {
                 product = static_cast<std::int64_t>(left) *
                     static_cast<std::int16_t>(right);
                 accumulatorValue = product;
                 unsignedClamp = true;
-            } else if (multiplyHigh) {
+            } else if (multiplyHigh || multiplyAccumulateHigh) {
                 product = static_cast<std::int64_t>(static_cast<std::int16_t>(left)) *
                     static_cast<std::int16_t>(right) * 65536;
                 accumulatorValue = product;
@@ -151,17 +159,17 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
             const std::int64_t shifted = signedAccumulator >= 0
                 ? signedAccumulator / 65536
                 : -((-signedAccumulator + 65535) / 65536);
-            if (multiplyLow) {
+            if (multiplyLow || multiplyAccumulateLow) {
                 value = static_cast<std::uint16_t>(raw);
-            } else if (multiplyMidUnsigned) {
+            } else if (multiplyMidUnsigned || multiplyAccumulateMidUnsigned) {
                 if (signedAccumulator < 0) value = 0U;
                 else if (signedAccumulator > 65535) value = 0xFFFFU;
                 else value = static_cast<std::uint16_t>(signedAccumulator);
-            } else if (multiplyMidSigned) {
+            } else if (multiplyMidSigned || multiplyAccumulateMidSigned) {
                 if (shifted < -32768) value = 0x8000U;
                 else if (shifted > 32767) value = 0x7FFFU;
                 else value = static_cast<std::uint16_t>(shifted);
-            } else if (multiplyHigh) {
+            } else if (multiplyHigh || multiplyAccumulateHigh) {
                 if (shifted < -32768) value = 0x8000U;
                 else if (shifted > 32767) value = 0x7FFFU;
                 else value = static_cast<std::uint16_t>(shifted);
