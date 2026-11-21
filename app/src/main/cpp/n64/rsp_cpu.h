@@ -38,6 +38,9 @@ private:
     std::uint16_t vco_ = 0;
     std::uint16_t vcc_ = 0;
     std::uint8_t vce_ = 0;
+    std::uint16_t divIn_ = 0;
+    std::uint16_t divOut_ = 0;
+    bool divInputPending_ = false;
     std::uint32_t pc_ = 0;
     std::uint32_t pendingBranchTarget_ = 0;
     std::uint64_t executed_ = 0;
