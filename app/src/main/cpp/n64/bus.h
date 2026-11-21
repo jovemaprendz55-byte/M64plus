@@ -39,7 +39,13 @@ public:
     static constexpr std::uint32_t kSpSemaphore = kSpRegBase + 0x1CU;
     static constexpr std::uint32_t kSpHalt = 1U;
     static constexpr std::uint32_t kSpBroke = 2U;
+    static constexpr std::uint32_t kSpSingleStep = 1U << 5U;
     static constexpr std::uint32_t kSpInterruptOnBreak = 1U << 6U;
+    static constexpr std::uint32_t kSpSignal0 = 1U << 7U;
+    static constexpr std::uint32_t kSpClearSingleStep = 1U << 5U;
+    static constexpr std::uint32_t kSpSetSingleStep = 1U << 6U;
+    static constexpr std::uint32_t kSpClearInterruptOnBreak = 1U << 7U;
+    static constexpr std::uint32_t kSpSetInterruptOnBreak = 1U << 8U;
 
     Bus();
     void reset() noexcept;
