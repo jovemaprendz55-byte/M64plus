@@ -417,7 +417,7 @@ bool RspCpu::step(Bus& bus) noexcept {
                     divInputPending_ = true;
                     vr_[vd][destinationLane] = divOut_;
                 } else {
-                    const unsigned sourceLane = element & 7U;
+                    const unsigned sourceLane = kElementMap[element][destinationLane];
                     const bool low = function == 0x31U || function == 0x35U;
                     const bool squareRoot = function == 0x34U || function == 0x35U;
                     const std::uint32_t input = low && divInputPending_
