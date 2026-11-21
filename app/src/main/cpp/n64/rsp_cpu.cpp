@@ -493,6 +493,40 @@ bool RspCpu::step(Bus& bus) noexcept {
                 return false;
             }
         }
+    } else if (opcode == 0x32U || opcode == 0x3AU) {
+        // Initial RSP vector memory transfers: byte, short, word, and doubleword.
+        const unsigned subOpcode = (instruction >> 11U) & 31U;
+        if (subOpcode > 3U) {
+            halted_ = true; faulted_ = true;
+            return false;
+        }
+        const unsigned element = (instruction >> 7U) & 0x0FU;
+        const unsigned byteCount = 1U << subOpcode;
+        std::int32_t offset = static_cast<std::int32_t>(instruction & 0x7FU);
+        if ((offset & 0x40) != 0) offset -= 0x80;
+        const std::uint32_t address = static_cast<std::uint32_t>(
+            static_cast<std::int64_t>(gpr_[rs]) +
+            static_cast<std::int64_t>(offset) * byteCount) & 0x0FFFU;
+        const bool load = opcode == 0x32U;
+        for (unsigned byte = 0; byte < byteCount; ++byte) {
+            const unsigned vectorByte = load ? element + byte : (element + byte) & 0x0FU;
+            if (load && vectorByte >= 16U) break;
+            const std::uint32_t dmemAddress = Bus::kSpDmemBase +
+                ((address + byte) & 0x0FFFU);
+            if (load) {
+                std::uint8_t value = 0;
+                if (!bus.read8(dmemAddress, value)) {
+                    halted_ = true; faulted_ = true;
+                    return false;
+                }
+                writeVectorByte(rt, vectorByte, value);
+            } else {
+                if (!bus.write8(dmemAddress, readVectorByte(rt, vectorByte))) {
+                    halted_ = true; faulted_ = true;
+                    return false;
+                }
+            }
+        }
     } else switch (opcode) {
     case 0x00U:
         destination = rd;
