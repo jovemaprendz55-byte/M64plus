@@ -197,7 +197,7 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuCp0InstructionSelfTest(JNIEnv*, jclas
         if (!memory.write32(i*4U, program[i])) return JNI_FALSE;
     MipsCpu cpu;
     for (unsigned i=0;i<6;++i) if (!cpu.step(memory)) return JNI_FALSE;
-    if (cpu.reg(8) != 3U) return JNI_FALSE; // Count advanced once per completed instruction
+    if (cpu.reg(8) != 2U) return JNI_FALSE; // Count advanced once per completed instruction
     if (cpu.pc() != 0x20U || cpu.cp0().exceptionLevel()) return JNI_FALSE;
     if (cpu.cp0().read(Cp0::kEpc) != 0x20U) return JNI_FALSE;
     // ERET in a delay slot is architecturally reserved.

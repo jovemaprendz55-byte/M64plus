@@ -127,7 +127,8 @@ bool MipsCpu::step(Rdram& memory) {
         break;
     // COP0: MFC0, MTC0 and ERET (register select 0 only).
     case 0x10:
-        if (inDelaySlot) return takeException(ExceptionCode::ReservedInstruction);
+        if (inDelaySlot || (instruction & 7U) != 0)
+            return takeException(ExceptionCode::ReservedInstruction);
         if (rs == 0x00) { // MFC0
             destination = rt;
             result = signExtend32(static_cast<std::uint32_t>(cp0_.read(rd)));
@@ -201,7 +202,7 @@ bool MipsCpu::step(Rdram& memory) {
         if (!stored) return takeException(ExceptionCode::BusData, effective);
         break;
     }
-    default: return false;
+    default: return takeException(ExceptionCode::ReservedInstruction);
     }
     if (writeRegister && destination != 0) gpr_[destination] = result;
     gpr_[0] = 0;
