@@ -16,7 +16,12 @@ bool N64Machine::stepCpu() noexcept {
 
 bool N64Machine::stepRsp() noexcept {
     if (bus_.spHalted()) return false;
-    if (rsp_.halted() || rsp_.pc() != bus_.spProgramCounter()) {
+    if (rsp_.pc() != bus_.spProgramCounter()) {
+        rsp_.setPc(bus_.spProgramCounter());
+    } else if (rsp_.halted()) {
+        // A fault is latched until software changes SP_PC or resets the RSP.
+        // A normal BREAK may start a new task after software clears SP HALT.
+        if (rsp_.faulted()) return false;
         rsp_.setPc(bus_.spProgramCounter());
     }
 
