@@ -13,8 +13,6 @@ std::uint64_t signExtend16(std::uint16_t value) {
     return static_cast<std::uint64_t>(static_cast<std::int64_t>(static_cast<std::int16_t>(value)));
 }
 
-bool MipsCpu::step(Rdram& memory) { return stepMemory(memory); }
-bool MipsCpu::step(Bus& memory) { return stepMemory(memory); }
 }
 MipsCpu::MipsCpu() { reset(); }
 void MipsCpu::reset(std::uint64_t pc) {
