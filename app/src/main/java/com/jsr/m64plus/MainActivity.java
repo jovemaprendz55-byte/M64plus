@@ -13,12 +13,15 @@ public final class MainActivity extends Activity {
     private GLSurfaceView glSurfaceView;
     private static native boolean nativeRdramSelfTest();
     private static native boolean nativeCpuSelfTest();
+    private static native boolean nativeCpuBranchSelfTest();
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         boolean memoryPassed = nativeRdramSelfTest();
         boolean cpuPassed = nativeCpuSelfTest();
+        boolean branchPassed = nativeCpuBranchSelfTest();
         Log.i(TAG, "RDRAM 8 MiB self-test: " + (memoryPassed ? "PASS" : "FAIL"));
         Log.i(TAG, "MIPS CPU instruction self-test: " + (cpuPassed ? "PASS" : "FAIL"));
+        Log.i(TAG, "MIPS branch/delay-slot self-test: " + (branchPassed ? "PASS" : "FAIL"));
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         glSurfaceView = new GLSurfaceView(this);
@@ -31,12 +34,6 @@ public final class MainActivity extends Activity {
                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         setContentView(glSurfaceView);
     }
-    @Override protected void onPause() {
-        if (glSurfaceView != null) glSurfaceView.onPause();
-        super.onPause();
-    }
-    @Override protected void onResume() {
-        super.onResume();
-        if (glSurfaceView != null) glSurfaceView.onResume();
-    }
+    @Override protected void onPause() { if (glSurfaceView != null) glSurfaceView.onPause(); super.onPause(); }
+    @Override protected void onResume() { super.onResume(); if (glSurfaceView != null) glSurfaceView.onResume(); }
 }

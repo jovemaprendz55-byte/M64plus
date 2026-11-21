@@ -15,5 +15,7 @@ private:
     std::array<std::uint64_t, 32> gpr_{};
     std::uint64_t pc_ = 0;
     std::uint64_t executed_ = 0;
+    bool pendingBranch_ = false;
+    std::uint64_t pendingBranchTarget_ = 0;
 };
 }
