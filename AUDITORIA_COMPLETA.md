@@ -106,8 +106,8 @@ A conclusão deve ser revalidada contra a árvore completa do repositório antes
 - 32 registradores vetoriais, cada um com 8 lanes de 16 bits.
 - VCO, VCC e VCE parcialmente representados.
 - MFC2/MTC2 e CFC2/CTC2 parciais.
-- Operações vetoriais encontradas: VADD, VSUB, VADDC, VSUBC, VLT, VEQ, VNE, VGE, VMRG, VAND, VNAND, VOR, VNOR, VXOR e VNXOR.
-- VMULF/U, VMACF/U, VMUDL/M/N/H, VMADL/M/N/H e as comparações VLT/VEQ/VNE/VGE com VMRG foram implementadas e receberam testes direcionados; demais instruções COP2 continuam ausentes.
+- Operações vetoriais encontradas: VADD, VSUB, VADDC, VSUBC, VLT, VEQ, VNE, VGE, VCH, VCR, VMRG, VAND, VNAND, VOR, VNOR, VXOR e VNXOR.
+- VMULF/U, VMACF/U, VMUDL/M/N/H, VMADL/M/N/H e as comparações VLT/VEQ/VNE/VGE, os clips VCH/VCR e VMRG foram implementados e receberam testes direcionados; demais instruções COP2 continuam ausentes.
 
 ### 6.2 Acumulador
 O RSP possui oito acumuladores de 48 bits, cada um representado por ACC_HI, ACC_MD e ACC_LO de 16 bits. A representação em três fatias já foi implementada. As operações vetoriais básicas examinadas atualizam ACC_LO sem substituir ACC_MD/HI; VADDC guarda carry em VCO, não como parte do valor de ACC_LO. VMULF/U substituem o acumulador com produto arredondado; VMACF/U somam o produto não arredondado ao acumulador existente, com wrap de 48 bits. VMUDL/M/N/H também foram adicionadas: VMUDL grava o produto unsigned >> 16 em ACC_LO; VMUDM grava produto signed×unsigned com extensão de sinal; VMUDN grava unsigned×signed com extensão de sinal; VMUDH grava signed×signed deslocado 16 bits. VMADL/M/N/H acumulam os respectivos produtos no acumulador de 48 bits; VMADL e VMADN usam saturação unsigned, VMADM e VMADH saturação signed.
@@ -320,3 +320,11 @@ A auditoria ainda deve continuar por:
 - Corrigida a implementação de VEQ/VNE para consultar VCO_HI e garantido que comparações/VMRG atualizam ACC_LO com o valor selecionado.
 - Testes ajustados para preparar explicitamente VCO_HI e validar as condições de empate.
 - Commits: `c4f0a00` (correção) e `98369ee` (teste).
+
+
+### Continuação do RSP — VCH e VCR
+- Implementado VCH (função 0x25): detecta sinais opostos, gera VCO/VCC/VCE, calcula os limites de clipping em complemento de dois e grava o valor selecionado em ACC_LO/VD.
+- Implementado VCR (função 0x26): variante de clipping que usa complemento de um para representar o limite negativo e limpa VCE.
+- Testes direcionados cobrem limites positivos/negativos, sinais opostos, caso especial VCE e flags resultantes.
+- Commits: `d6b70ed` (VCH), `cfb7271` (testes VCH), `0ff54b5` (VCR) e `2f4c43b` (testes VCR).
+- CI das alterações de clipping ainda está em execução; aguardar `native-host-tests` e `assemble-debug` concluírem.
