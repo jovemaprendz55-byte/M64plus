@@ -54,11 +54,55 @@ void testBranchDelaySlot() {
     require(rsp.step(bus), "execute target BREAK");
     require(rsp.halted(), "target BREAK halts");
 }
+void testByteAndHalfwordMemory() {
+    Bus bus;
+    RspCpu rsp;
+    put(bus, 0x00, iType(0x0F, 0, 1, 0xFFFF)); // LUI r1,FFFF
+    put(bus, 0x04, iType(0x09, 0, 2, 0x0100)); // base=0x100
+    put(bus, 0x08, iType(0x28, 2, 1, 1));      // SB r1,1(r2)
+    put(bus, 0x0C, iType(0x20, 2, 3, 1));      // LB r3,1(r2)
+    put(bus, 0x10, iType(0x24, 2, 4, 1));      // LBU r4,1(r2)
+    put(bus, 0x14, iType(0x29, 2, 1, 2));      // SH r1,2(r2)
+    put(bus, 0x18, iType(0x21, 2, 5, 2));      // LH r5,2(r2)
+    put(bus, 0x1C, iType(0x25, 2, 6, 2));      // LHU r6,2(r2)
+    put(bus, 0x20, 0x0000000DU);               // BREAK
+    for (int i = 0; i < 9; ++i) require(rsp.step(bus), "execute byte/halfword program");
+    require(rsp.reg(3) == 0xFFFFFFFFU, "LB sign extends");
+    require(rsp.reg(4) == 0x000000FFU, "LBU zero extends");
+    require(rsp.reg(5) == 0xFFFFFFFFU, "LH sign extends");
+    require(rsp.reg(6) == 0x0000FFFFU, "LHU zero extends");
+    std::uint8_t byte = 0;
+    std::uint16_t half = 0;
+    require(bus.read8(Bus::kSpDmemBase + 0x101U, byte) && byte == 0xFFU,
+            "SB writes one byte");
+    require(bus.read16(Bus::kSpDmemBase + 0x102U, half) && half == 0xFFFFU,
+            "SH writes big-endian halfword");
+}
+void testRegimmBranches() {
+    Bus bus;
+    RspCpu rsp;
+    put(bus, 0x00, iType(0x0F, 0, 1, 0xFFFF)); // r1 = -65536
+    put(bus, 0x04, iType(0x01, 1, 0, 2));      // BLTZ r1,+2 -> 0x10
+    put(bus, 0x08, iType(0x09, 0, 2, 7));      // delay slot
+    put(bus, 0x0C, iType(0x09, 0, 3, 99));     // skipped
+    put(bus, 0x10, iType(0x01, 1, 1, 2));      // BGEZ r1,+2 not taken
+    put(bus, 0x14, iType(0x09, 0, 4, 8));      // not-taken delay slot
+    put(bus, 0x18, iType(0x09, 0, 5, 9));      // fall-through
+    put(bus, 0x1C, 0x0000000DU);               // BREAK
+    for (int i = 0; i < 8; ++i) require(rsp.step(bus), "execute REGIMM program");
+    require(rsp.reg(2) == 7U, "BLTZ delay slot");
+    require(rsp.reg(3) == 0U, "BLTZ target skips sequential instruction");
+    require(rsp.reg(4) == 8U, "not-taken BGEZ delay slot");
+    require(rsp.reg(5) == 9U, "not-taken BGEZ falls through after delay slot");
+    require(rsp.halted(), "REGIMM program reaches BREAK");
+}
 } // namespace
 
 int main() {
     testArithmeticAndMemory();
     testBranchDelaySlot();
+    testByteAndHalfwordMemory();
+    testRegimmBranches();
     std::cout << "All scalar RSP host tests passed.\n";
     return 0;
 }

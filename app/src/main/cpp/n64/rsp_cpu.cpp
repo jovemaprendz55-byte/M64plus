@@ -97,6 +97,17 @@ bool RspCpu::step(Bus& bus) noexcept {
         }
         if (function != 0x08U && function != 0x0DU) writeRegister = true;
         break;
+    case 0x01U: { // REGIMM: BLTZ / BGEZ
+        if (inDelaySlot || (rt != 0U && rt != 1U)) {
+            halted_ = true;
+            return false;
+        }
+        const bool negative = static_cast<std::int32_t>(a) < 0;
+        const bool taken = rt == 0U ? negative : !negative;
+        branchTarget = taken ? relativeTarget() : (nextPc + 4U) & kPcMask;
+        scheduleBranch = true; // Both outcomes execute the delay slot.
+        break;
+    }
     case 0x02U: // J
     case 0x03U: // JAL
         if (inDelaySlot) { halted_ = true; return false; }
@@ -119,7 +130,7 @@ bool RspCpu::step(Bus& bus) noexcept {
             scheduleBranch = static_cast<std::int32_t>(a) <= 0;
         else scheduleBranch = static_cast<std::int32_t>(a) > 0;
         branchTarget = scheduleBranch ? relativeTarget() : (nextPc + 4U) & kPcMask;
-        scheduleBranch = true; // A not-taken branch still has a delay slot.
+        scheduleBranch = true;
         break;
     case 0x09U: // ADDIU
         destination = rt;
@@ -134,15 +145,54 @@ bool RspCpu::step(Bus& bus) noexcept {
         result = static_cast<std::uint32_t>(immediate) << 16U;
         writeRegister = true;
         break;
+    case 0x20U: // LB
+    case 0x21U: // LH
     case 0x23U: // LW
+    case 0x24U: // LBU
+    case 0x25U: // LHU
+    case 0x28U: // SB
+    case 0x29U: // SH
     case 0x2BU: { // SW
         const std::uint32_t address = (a + signExtend16(immediate)) & 0x0FFFU;
-        if ((address & 3U) != 0U) { halted_ = true; return false; }
-        if (opcode == 0x23U) {
-            if (!bus.read32(kDmemBase + address, result)) { halted_ = true; return false; }
-            destination = rt;
+        const std::uint32_t physical = kDmemBase + address;
+        destination = rt;
+        if (opcode == 0x20U || opcode == 0x24U) {
+            std::uint8_t value = 0;
+            if (!bus.read8(physical, value)) { halted_ = true; return false; }
+            result = opcode == 0x20U
+                ? static_cast<std::uint32_t>(static_cast<std::int32_t>(
+                    static_cast<std::int8_t>(value)))
+                : static_cast<std::uint32_t>(value);
             writeRegister = true;
-        } else if (!bus.write32(kDmemBase + address, b)) {
+        } else if (opcode == 0x21U || opcode == 0x25U) {
+            std::uint16_t value = 0;
+            if ((address & 1U) != 0U || !bus.read16(physical, value)) {
+                halted_ = true;
+                return false;
+            }
+            result = opcode == 0x21U
+                ? static_cast<std::uint32_t>(static_cast<std::int32_t>(
+                    static_cast<std::int16_t>(value)))
+                : static_cast<std::uint32_t>(value);
+            writeRegister = true;
+        } else if (opcode == 0x23U) {
+            if ((address & 3U) != 0U || !bus.read32(physical, result)) {
+                halted_ = true;
+                return false;
+            }
+            writeRegister = true;
+        } else if (opcode == 0x28U) {
+            if (!bus.write8(physical, static_cast<std::uint8_t>(b))) {
+                halted_ = true;
+                return false;
+            }
+        } else if (opcode == 0x29U) {
+            if ((address & 1U) != 0U ||
+                !bus.write16(physical, static_cast<std::uint16_t>(b))) {
+                halted_ = true;
+                return false;
+            }
+        } else if ((address & 3U) != 0U || !bus.write32(physical, b)) {
             halted_ = true;
             return false;
         }
