@@ -15,6 +15,31 @@ void require(bool condition, const char* message) {
     }
 }
 
+void testCpuKsegDirectMappingWithoutTlb() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+
+    // Execute from KSEG0 while the software-managed TLB is disabled.
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    const std::uint32_t program[] = {
+        0x3C08A000U, // LUI t0,0xA000 -> KSEG1 base
+        0x35080100U, // ORI t0,t0,0x0100 -> KSEG1 + 0x100
+        0x240955AAU, // ADDIU t1,zero,0x55AA
+        0xAD090000U  // SW t1,0(t0) -> physical 0x100
+    };
+    for (std::uint32_t i = 0; i < 4U; ++i)
+        require(bus.write32(i * 4U, program[i]), "load KSEG direct-map test program");
+
+    for (unsigned i = 0; i < 4U; ++i)
+        require(machine.stepCpu(), "CPU executes through KSEG0 with TLB disabled");
+
+    std::uint32_t stored = 0;
+    require(bus.read32(0x100U, stored), "read physical destination after KSEG1 store");
+    require(stored == 0x000055AAU, "KSEG1 store maps to the corresponding physical address");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000010ULL,
+            "CPU PC remains in canonical KSEG0 after instruction fetches");
+}
+
 void testSharedCpuRspBusAndSpBreak() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -91,6 +116,7 @@ void testSharedCpuRspBusAndSpBreak() {
 } // namespace
 
 int main() {
+    testCpuKsegDirectMappingWithoutTlb();
     testSharedCpuRspBusAndSpBreak();
     std::cout << "N64 machine CPU/RSP integration tests passed.\n";
     return 0;
