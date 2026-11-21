@@ -399,7 +399,7 @@ A auditoria ainda deve continuar por:
 - Ampliado `LWC2`/`SWC2` com LQV/LRV/SQV/SRV (subopcodes 4 e 5), incluindo alinhamento de 16 bytes, seleção de elemento, truncamento dos loads e wrap dos stores.
 - Testes seguem o padrão documentado de pares: LQV em endereço desalinhado seguido de LRV, e SQV seguido de SRV, verificando os bytes exatos transferidos e preservação das partes não afetadas do vetor.
 - Subopcodes 0–5 agora cobrem LBV/LSV/LLV/LDV/LQV/LRV e SBV/SSV/SLV/SDV/SQV/SRV. Permanecem pendentes LPV/LUV/LHV/LFV/LWV/LTV e stores correspondentes.
-- CI pendente para confirmar a implementação e os novos testes.
+- Workflows `44902543882` e `44902547799` concluíram com sucesso em `native-host-tests` e `assemble-debug`, validando LQV/LRV/SQV/SRV e a correção de wrap dos stores.
 
 
 ### Continuação do RSP — LPV/LUV (2026-11-21)
@@ -407,3 +407,10 @@ A auditoria ainda deve continuar por:
 - LPV posiciona o byte em bits 15..8 (`byte << 8`); LUV posiciona em bits 14..7 (`byte << 7`). Os bits não usados são zerados.
 - O elemento legal documentado é zero. A implementação segue esse formato arquitetural; stores SPV/SUV e demais formatos packed ainda não foram incluídos.
 - Testes cobrem os oito lanes, deslocamento e limpeza dos bits não usados. CI pendente.
+
+
+### Continuação do RSP — SPV/SUV (2026-11-21)
+- Implementados SPV e SUV (subopcodes 6 e 7 de SWC2) para o formato legal documentado com element=0: oito bytes consecutivos são armazenados a partir das oito lanes do vetor.
+- SPV extrai bits 15..8; SUV extrai bits 14..7. Testes verificam os oito bytes de cada formato e offset escalado por 8.
+- O tratamento de elemento não zero permanece fora da implementação validada; o guia oficial indica element=0 para esses formatos packed. Ainda faltam LHV/SHV, LFV/SFV e LTV/STV.
+- CI pendente para esta nova implementação.
