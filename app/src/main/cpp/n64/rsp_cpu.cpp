@@ -585,8 +585,10 @@ bool RspCpu::step(Bus& bus) noexcept {
             const unsigned* pattern = element == 0U ? lowerPattern : upperPattern;
             for (unsigned i = 0; i < 4U; ++i) {
                 std::uint8_t value = 0;
+                const std::uint32_t windowBase = address & ~0x07U;
+                const unsigned byteOffset = ((address & 0x07U) + pattern[i]) & 0x0FU;
                 const std::uint32_t dmemAddress = Bus::kSpDmemBase +
-                    ((address + pattern[i]) & 0x0FFFU);
+                    ((windowBase + byteOffset) & 0x0FFFU);
                 if (!bus.read8(dmemAddress, value)) {
                     halted_ = true; faulted_ = true;
                     return false;
@@ -602,7 +604,8 @@ bool RspCpu::step(Bus& bus) noexcept {
             };
             unsigned startElement = element;
             if (startElement >= 8U) startElement = (startElement + 1U) & 0x0FU;
-            const std::uint32_t alignedAddress = address & ~0x0FU;
+            const std::uint32_t windowBase = address & ~0x07U;
+            const unsigned firstMemoryByte = address & 0x07U;
             for (unsigned i = 0; i < 4U; ++i) {
                 const unsigned vectorByte = (startElement + i * 4U) & 0x0FU;
                 const std::uint8_t value = vectorByte == 2U || vectorByte == 3U ||
@@ -612,17 +615,21 @@ bool RspCpu::step(Bus& bus) noexcept {
                     ? 0U
                     : static_cast<std::uint8_t>(vr_[rt][sourceLane[vectorByte]] >> 7U);
                 const std::uint32_t dmemOffset =
-                    (alignedAddress | ((address + i * 4U) & 0x0FU)) & 0x0FFFU;
+                    (windowBase + ((firstMemoryByte + i * 4U) & 0x0FU)) & 0x0FFFU;
                 if (!bus.write8(Bus::kSpDmemBase + dmemOffset, value)) {
                     halted_ = true; faulted_ = true;
                     return false;
                 }
             }
             byteCount = 0U;
-        } else if (subOpcode == 8U) { // LHV / SHV: every second DMEM byte, unsigned packing.
+        } else if (subOpcode == 8U) { // LHV / SHV: every second byte in a wrapped 16-byte window.
+            const std::uint32_t windowBase = address & ~0x07U;
             for (unsigned lane = 0; lane < 8U; ++lane) {
+                const unsigned memoryOffset = load
+                    ? ((address & 0x07U) - element + lane * 2U) & 0x0FU
+                    : ((address & 0x07U) + lane * 2U) & 0x0FU;
                 const std::uint32_t dmemAddress = Bus::kSpDmemBase +
-                    ((address + lane * 2U) & 0x0FFFU);
+                    ((windowBase + memoryOffset) & 0x0FFFU);
                 if (load) {
                     std::uint8_t value = 0;
                     if (!bus.read8(dmemAddress, value)) {
@@ -632,7 +639,11 @@ bool RspCpu::step(Bus& bus) noexcept {
                     vr_[rt][lane] = static_cast<std::uint16_t>(
                         static_cast<std::uint16_t>(value) << 7U);
                 } else {
-                    const std::uint8_t value = static_cast<std::uint8_t>(vr_[rt][lane] >> 7U);
+                    const unsigned vectorByte = (element + lane * 2U) & 0x0FU;
+                    const std::uint8_t high = readVectorByte(rt, vectorByte);
+                    const std::uint8_t low = readVectorByte(rt, (vectorByte + 1U) & 0x0FU);
+                    const std::uint8_t value = static_cast<std::uint8_t>(
+                        (static_cast<unsigned>(high) << 1U) | (low >> 7U));
                     if (!bus.write8(dmemAddress, value)) {
                         halted_ = true; faulted_ = true;
                         return false;
