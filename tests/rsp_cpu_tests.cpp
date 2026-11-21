@@ -562,6 +562,33 @@ void testVectorMoveAndNoop() {
     require(!rsp.faulted(), "VNOP is a supported instruction");
 }
 
+void testPackedVectorStores() {
+    Bus bus;
+    RspCpu rsp;
+    for (unsigned lane = 0; lane < 8U; ++lane) {
+        rsp.setVectorLane(4, lane, static_cast<std::uint16_t>(
+            ((0x20U + lane) << 8U) | 0x0055U));
+        rsp.setVectorLane(5, lane, static_cast<std::uint16_t>(
+            ((0x30U + lane) << 7U) | 0x003FU));
+    }
+    put(bus, 0, iType(0x09, 0, 1, 0x0400));
+    put(bus, 4, vectorMemoryType(0x3A, 1, 4, 6, 0, 1)); // SPV offset * 8
+    put(bus, 8, vectorMemoryType(0x3A, 1, 5, 7, 0, 2)); // SUV offset * 8
+    require(rsp.step(bus), "set packed vector store base");
+    require(rsp.step(bus), "execute SPV");
+    require(rsp.step(bus), "execute SUV");
+    for (unsigned lane = 0; lane < 8U; ++lane) {
+        std::uint8_t value = 0;
+        require(bus.read8(Bus::kSpDmemBase + 0x408U + lane, value) &&
+                value == static_cast<std::uint8_t>(0x20U + lane),
+                "SPV stores vector high byte");
+        require(bus.read8(Bus::kSpDmemBase + 0x410U + lane, value) &&
+                value == static_cast<std::uint8_t>(0x30U + lane),
+                "SUV stores vector bits 14 through 7");
+    }
+    require(!rsp.faulted(), "SPV and SUV are supported RSP memory instructions");
+}
+
 void testPackedVectorLoads() {
     Bus bus;
     RspCpu rsp;
@@ -814,6 +841,7 @@ int main() {
     testVectorBasicMemoryTransfers();
     testVectorQuadMemoryTransfers();
     testPackedVectorLoads();
+    testPackedVectorStores();
     testVectorReciprocalAndDivideLatch();
     testCop2VectorAndControlMoves();
     std::cout << "All scalar and vector RSP host tests passed.\n";
