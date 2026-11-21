@@ -107,7 +107,7 @@ A conclusão deve ser revalidada contra a árvore completa do repositório antes
 - VCO, VCC e VCE parcialmente representados.
 - MFC2/MTC2 e CFC2/CTC2 parciais.
 - Operações vetoriais encontradas: VADD, VSUB, VADDC, VSUBC, VLT, VEQ, VNE, VGE, VCH, VCR, VMRG, VAND, VNAND, VOR, VNOR, VXOR e VNXOR.
-- VMULF/U, VMACF/U, VMUDL/M/N/H, VMADL/M/N/H e as comparações VLT/VEQ/VNE/VGE, os clips VCH/VCR e VMRG foram implementados e receberam testes direcionados; demais instruções COP2 continuam ausentes.
+- VMULF/U, VMACF/U, VMUDL/M/N/H, VMADL/M/N/H e as comparações VLT/VEQ/VNE/VGE, os clips VCH/VCL/VCR e VMRG foram implementados e receberam testes direcionados; demais instruções COP2 continuam ausentes.
 
 ### 6.2 Acumulador
 O RSP possui oito acumuladores de 48 bits, cada um representado por ACC_HI, ACC_MD e ACC_LO de 16 bits. A representação em três fatias já foi implementada. As operações vetoriais básicas examinadas atualizam ACC_LO sem substituir ACC_MD/HI; VADDC guarda carry em VCO, não como parte do valor de ACC_LO. VMULF/U substituem o acumulador com produto arredondado; VMACF/U somam o produto não arredondado ao acumulador existente, com wrap de 48 bits. VMUDL/M/N/H também foram adicionadas: VMUDL grava o produto unsigned >> 16 em ACC_LO; VMUDM grava produto signed×unsigned com extensão de sinal; VMUDN grava unsigned×signed com extensão de sinal; VMUDH grava signed×signed deslocado 16 bits. VMADL/M/N/H acumulam os respectivos produtos no acumulador de 48 bits; VMADL e VMADN usam saturação unsigned, VMADM e VMADH saturação signed.
@@ -328,3 +328,11 @@ A auditoria ainda deve continuar por:
 - Testes direcionados cobrem limites positivos/negativos, sinais opostos, caso especial VCE e flags resultantes.
 - Commits: `d6b70ed` (VCH), `cfb7271` (testes VCH), `0ff54b5` (VCR) e `2f4c43b` (testes VCR).
 - CI das alterações de clipping ainda está em execução; aguardar `native-host-tests` e `assemble-debug` concluírem.
+
+
+### Continuação do RSP — VCL
+- Implementado VCL (função 0x24), etapa baixa do clipping de precisão dupla em conjunto com VCH.
+- Reutiliza VCO/VCE gerados por VCH, atualiza seletivamente VCC_LO/VCC_HI, calcula o limite negativo em complemento de dois e grava o resultado em ACC_LO/VD.
+- Testes cobrem a comparação em duas etapas: limite de sinal igual e caso oposto resolvido por VCE.
+- Commits: `c287a04` (implementação) e `809c5ed` (testes).
+- Validação CI pendente para a sequência VCH/VCL/VCR.
