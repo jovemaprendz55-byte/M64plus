@@ -29,7 +29,12 @@ private:
     bool executeVector(unsigned element, unsigned vt, unsigned vs, unsigned vd, unsigned function) noexcept;
     std::array<std::uint32_t, 32> gpr_{};
     std::array<std::array<std::uint16_t, 8>, 32> vr_{};
-    std::array<std::int64_t, 8> accumulator_{};
+    struct AccumulatorLane {
+        std::uint16_t hi = 0;
+        std::uint16_t md = 0;
+        std::uint16_t lo = 0;
+    };
+    std::array<AccumulatorLane, 8> accumulator_{};
     std::uint16_t vco_ = 0;
     std::uint16_t vcc_ = 0;
     std::uint8_t vce_ = 0;
