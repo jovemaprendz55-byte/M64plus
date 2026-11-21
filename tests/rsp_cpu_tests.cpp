@@ -597,6 +597,38 @@ void testFourthPackedVectorLoad() {
     require(!rsp.faulted(), "LFV is a supported RSP memory instruction");
 }
 
+void testFourthPackedVectorStore() {
+    Bus bus;
+    RspCpu rsp;
+    for (unsigned lane = 0; lane < 8U; ++lane)
+        rsp.setVectorLane(4, lane, static_cast<std::uint16_t>(
+            ((0x20U + lane) << 7U) | 0x003FU));
+    put(bus, 0, iType(0x09, 0, 1, 0x0706)); // deliberately unaligned DMEM address
+    put(bus, 4, vectorMemoryType(0x3A, 1, 4, 9, 5, 0)); // SFV e5
+    require(rsp.step(bus), "set SFV base");
+    require(rsp.step(bus), "execute SFV");
+    constexpr unsigned expectedLane[4] = {7U, 4U, 5U, 6U};
+    constexpr unsigned expectedAddress[4] = {0x706U, 0x70AU, 0x70EU, 0x702U};
+    for (unsigned i = 0; i < 4U; ++i) {
+        std::uint8_t value = 0;
+        require(bus.read8(Bus::kSpDmemBase + expectedAddress[i], value) &&
+                value == static_cast<std::uint8_t>(0x20U + expectedLane[i]),
+                "SFV selects the documented lane pattern and wraps the 16-byte window");
+    }
+
+    put(bus, 8, vectorMemoryType(0x3A, 1, 4, 9, 2, 0));
+    rsp.setPc(8U);
+    require(rsp.step(bus), "execute SFV zero-table element");
+    for (unsigned i = 0; i < 4U; ++i) {
+        std::uint8_t value = 0xFFU;
+        const unsigned address = (0x706U & ~0x0FU) |
+            ((0x706U + i * 4U) & 0x0FU);
+        require(bus.read8(Bus::kSpDmemBase + address, value) && value == 0U,
+                "SFV writes zero for temporary-table X entries");
+    }
+    require(!rsp.faulted(), "SFV is a supported RSP memory instruction");
+}
+
 void testHalfPackedVectorTransfers() {
     Bus bus;
     RspCpu rsp;
@@ -908,6 +940,7 @@ int main() {
     testPackedVectorStores();
     testHalfPackedVectorTransfers();
     testFourthPackedVectorLoad();
+    testFourthPackedVectorStore();
     testVectorReciprocalAndDivideLatch();
     testCop2VectorAndControlMoves();
     std::cout << "All scalar and vector RSP host tests passed.\n";
