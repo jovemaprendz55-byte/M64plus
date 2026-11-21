@@ -141,6 +141,25 @@ void testVectorCarryAndLogic() {
     require(rsp.step(bus), "execute VXOR");
     require(rsp.vectorLane(5, 0) == 0xFFFEU, "VXOR lane result");
 }
+void testVectorInstructionInBranchDelaySlot() {
+    Bus bus;
+    RspCpu rsp;
+    for (unsigned lane = 0; lane < 8U; ++lane) {
+        rsp.setVectorLane(1, lane, 0x00F0U);
+        rsp.setVectorLane(2, lane, 0x000FU);
+    }
+    put(bus, 0, iType(0x04, 0, 0, 2)); // BEQ zero,zero,target 0x0C
+    put(bus, 4, vType(0, 2, 1, 3, 0x2A)); // VOR in delay slot
+    put(bus, 8, iType(0x09, 0, 4, 99)); // skipped
+    put(bus, 12, 0x0000000DU); // BREAK
+    require(rsp.step(bus), "execute branch before vector delay slot");
+    require(rsp.step(bus), "execute vector instruction in delay slot");
+    require(rsp.vectorLane(3, 0) == 0x00FFU, "vector delay slot executes");
+    require(rsp.pc() == 12U, "branch target follows vector delay slot");
+    require(rsp.reg(4) == 0U, "instruction after delay slot is skipped");
+    require(rsp.step(bus), "execute BREAK at branch target");
+    require(rsp.halted(), "branch target BREAK halts");
+}
 void testVectorElementBroadcast() {
     Bus bus;
     RspCpu rsp;
@@ -164,6 +183,7 @@ int main() {
     testVectorArithmetic();
     testVectorCarryAndLogic();
     testVectorElementBroadcast();
+    testVectorInstructionInBranchDelaySlot();
     std::cout << "All scalar and vector RSP host tests passed.\n";
     return 0;
 }
