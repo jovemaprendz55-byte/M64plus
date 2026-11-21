@@ -446,6 +446,7 @@ Java_com_jsr_m64plus_MainActivity_nativeBusSelfTest(JNIEnv*, jclass) {
     if (bus.region(0x00001000U) != BusRegion::Rdram ||
         bus.region(0x04000000U) != BusRegion::SpDmem ||
         bus.region(0x04001000U) != BusRegion::SpImem ||
+        bus.region(Bus::kSpRegBase) != BusRegion::SpRegisters ||
         bus.region(0x04002000U) != BusRegion::Unmapped)
         return JNI_FALSE;
 
@@ -488,6 +489,26 @@ Java_com_jsr_m64plus_MainActivity_nativeBusSelfTest(JNIEnv*, jclass) {
     if (!bus.write32(Bus::kMiInterruptMask, 0xFFFFFFFFU) ||
         bus.miInterruptMask() != 0x3FU)
         return JNI_FALSE;
+
+    // SP MMIO registers: masks, status command bits and semaphore behavior.
+    std::uint32_t sp = 0;
+    if (!bus.write32(Bus::kSpMemAddr, 0xFFFFFFFFU) ||
+        !bus.read32(Bus::kSpMemAddr, sp) || sp != 0x1FFFU) return JNI_FALSE;
+    if (!bus.write32(Bus::kSpDramAddr, 0xFFFFFFFFU) ||
+        !bus.read32(Bus::kSpDramAddr, sp) || sp != 0x00FFFFFFU) return JNI_FALSE;
+    if (!bus.read32(Bus::kSpStatus, sp) || sp != Bus::kSpHalt) return JNI_FALSE;
+    if (!bus.write32(Bus::kSpStatus, 1U) ||
+        !bus.read32(Bus::kSpStatus, sp) || (sp & Bus::kSpHalt) != 0) return JNI_FALSE;
+    if (!bus.write32(Bus::kSpStatus, 2U) ||
+        !bus.read32(Bus::kSpStatus, sp) || (sp & Bus::kSpHalt) == 0) return JNI_FALSE;
+    if (!bus.write32(Bus::kSpSemaphore, 0xFFFFFFFFU) ||
+        !bus.read32(Bus::kSpSemaphore, sp) || sp != 0U ||
+        !bus.read32(Bus::kSpSemaphore, sp) || sp != 1U ||
+        !bus.write32(Bus::kSpSemaphore, 0U) ||
+        !bus.read32(Bus::kSpSemaphore, sp) || sp != 0U) return JNI_FALSE;
+    if (!bus.write32(Bus::kSpReadLength, 0xFFFFFFFFU) ||
+        !bus.read32(Bus::kSpReadLength, sp) || sp != 0x00FFFFFFU ||
+        !bus.read32(Bus::kSpDmaBusy, sp) || sp != 0U) return JNI_FALSE;
     // Accesses crossing a region boundary and unsupported MMIO widths fail safely.
     if (bus.read32(Bus::kSpDmemBase + 0x0FFFU, dmem) ||
         bus.write32(Bus::kMiVersion, 0xFFFFFFFFU) == false ||

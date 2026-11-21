@@ -13,6 +13,12 @@ void Bus::reset() noexcept {
     miMode_ = 0;
     miInterrupt_ = 0;
     miInterruptMask_ = 0;
+    spMemAddr_ = 0;
+    spDramAddr_ = 0;
+    spReadLength_ = 0;
+    spWriteLength_ = 0;
+    spStatus_ = kSpHalt;
+    spSemaphore_ = 0;
 }
 
 BusRegion Bus::region(std::uint32_t address) const noexcept {
@@ -23,6 +29,8 @@ BusRegion Bus::region(std::uint32_t address) const noexcept {
         return BusRegion::SpImem;
     if (address >= kMiBase && address < kMiBase + 0x10U)
         return BusRegion::MiRegisters;
+    if (address >= kSpRegBase && address < kSpRegBase + 0x20U)
+        return BusRegion::SpRegisters;
     return BusRegion::Unmapped;
 }
 
@@ -49,7 +57,8 @@ bool Bus::readByte(std::uint32_t address, std::uint8_t& value) const noexcept {
         value = spImem_[address - kSpImemBase];
         return true;
     case BusRegion::MiRegisters:
-        return false; // MI registers require aligned 32-bit accesses.
+    case BusRegion::SpRegisters:
+        return false; // Device registers require aligned 32-bit accesses.
     case BusRegion::Unmapped:
         return false;
     }
@@ -78,10 +87,12 @@ bool Bus::readBytes(std::uint32_t address, std::uint8_t* output,
                     std::size_t width) const noexcept {
     BusRegion selected = BusRegion::Unmapped;
     if (output == nullptr || !rangeFits(address, width, selected)) return false;
-    if (selected == BusRegion::MiRegisters) {
+    if (selected == BusRegion::MiRegisters || selected == BusRegion::SpRegisters) {
         if (width != 4U || (address & 3U) != 0) return false;
         std::uint32_t value = 0;
-        if (!readMiRegister(address, value)) return false;
+        const bool ok = selected == BusRegion::MiRegisters
+            ? readMiRegister(address, value) : readSpRegister(address, value);
+        if (!ok) return false;
         output[0] = static_cast<std::uint8_t>(value >> 24U);
         output[1] = static_cast<std::uint8_t>(value >> 16U);
         output[2] = static_cast<std::uint8_t>(value >> 8U);
@@ -99,12 +110,13 @@ bool Bus::writeBytes(std::uint32_t address, const std::uint8_t* input,
                      std::size_t width) noexcept {
     BusRegion selected = BusRegion::Unmapped;
     if (input == nullptr || !rangeFits(address, width, selected)) return false;
-    if (selected == BusRegion::MiRegisters) {
+    if (selected == BusRegion::MiRegisters || selected == BusRegion::SpRegisters) {
         if (width != 4U || (address & 3U) != 0) return false;
         const std::uint32_t value = (static_cast<std::uint32_t>(input[0]) << 24U) |
             (static_cast<std::uint32_t>(input[1]) << 16U) |
             (static_cast<std::uint32_t>(input[2]) << 8U) | input[3];
-        return writeMiRegister(address, value);
+        return selected == BusRegion::MiRegisters
+            ? writeMiRegister(address, value) : writeSpRegister(address, value);
     }
     for (std::size_t i = 0; i < width; ++i) {
         if (!writeByte(address + static_cast<std::uint32_t>(i), input[i]))
@@ -201,6 +213,46 @@ bool Bus::writeMiRegister(std::uint32_t address, std::uint32_t value) noexcept {
         return true;
     default:
         return false;
+    }
+}
+
+
+bool Bus::readSpRegister(std::uint32_t address, std::uint32_t& value) noexcept {
+    switch (address) {
+    case kSpMemAddr: value = spMemAddr_; return true;
+    case kSpDramAddr: value = spDramAddr_; return true;
+    case kSpReadLength: value = spReadLength_; return true;
+    case kSpWriteLength: value = spWriteLength_; return true;
+    case kSpStatus: value = spStatus_; return true;
+    case kSpDmaFull: value = 0; return true;
+    case kSpDmaBusy: value = 0; return true;
+    case kSpSemaphore:
+        value = spSemaphore_;
+        spSemaphore_ = 1U;
+        return true;
+    default: return false;
+    }
+}
+
+bool Bus::writeSpRegister(std::uint32_t address, std::uint32_t value) noexcept {
+    switch (address) {
+    case kSpMemAddr: spMemAddr_ = value & 0x1FFFU; return true;
+    case kSpDramAddr: spDramAddr_ = value & 0x00FFFFFFU; return true;
+    case kSpReadLength: spReadLength_ = value & 0x00FFFFFFU; return true;
+    case kSpWriteLength: spWriteLength_ = value & 0x00FFFFFFU; return true;
+    case kSpStatus:
+        if ((value & (1U << 0U)) != 0) spStatus_ &= ~kSpHalt;
+        if ((value & (1U << 1U)) != 0) spStatus_ |= kSpHalt;
+        if ((value & (1U << 2U)) != 0) spStatus_ &= ~kSpBroke;
+        if ((value & (1U << 3U)) != 0) setMiInterrupt(0, false);
+        if ((value & (1U << 4U)) != 0) setMiInterrupt(0, true);
+        if ((value & (1U << 5U)) != 0) spStatus_ &= ~kSpInterruptOnBreak;
+        if ((value & (1U << 6U)) != 0) spStatus_ |= kSpInterruptOnBreak;
+        return true;
+    case kSpDmaFull:
+    case kSpDmaBusy: return true;
+    case kSpSemaphore: spSemaphore_ = 0; return true;
+    default: return false;
     }
 }
 

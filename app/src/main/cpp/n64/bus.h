@@ -11,6 +11,7 @@ enum class BusRegion : std::uint8_t {
     SpDmem,
     SpImem,
     MiRegisters,
+    SpRegisters,
     Unmapped
 };
 
@@ -26,6 +27,18 @@ public:
     static constexpr std::uint32_t kMiInterrupt = kMiBase + 0x08U;
     static constexpr std::uint32_t kMiInterruptMask = kMiBase + 0x0CU;
     static constexpr std::uint32_t kMiVersionValue = 0x01010101U;
+    static constexpr std::uint32_t kSpRegBase = 0x04040000U;
+    static constexpr std::uint32_t kSpMemAddr = kSpRegBase + 0x00U;
+    static constexpr std::uint32_t kSpDramAddr = kSpRegBase + 0x04U;
+    static constexpr std::uint32_t kSpReadLength = kSpRegBase + 0x08U;
+    static constexpr std::uint32_t kSpWriteLength = kSpRegBase + 0x0CU;
+    static constexpr std::uint32_t kSpStatus = kSpRegBase + 0x10U;
+    static constexpr std::uint32_t kSpDmaFull = kSpRegBase + 0x14U;
+    static constexpr std::uint32_t kSpDmaBusy = kSpRegBase + 0x18U;
+    static constexpr std::uint32_t kSpSemaphore = kSpRegBase + 0x1CU;
+    static constexpr std::uint32_t kSpHalt = 1U;
+    static constexpr std::uint32_t kSpBroke = 2U;
+    static constexpr std::uint32_t kSpInterruptOnBreak = 1U << 6U;
 
     Bus();
     void reset() noexcept;
@@ -56,6 +69,8 @@ private:
     bool readByte(std::uint32_t address, std::uint8_t& value) const noexcept;
     bool readMiRegister(std::uint32_t address, std::uint32_t& value) const noexcept;
     bool writeMiRegister(std::uint32_t address, std::uint32_t value) noexcept;
+    bool readSpRegister(std::uint32_t address, std::uint32_t& value) noexcept;
+    bool writeSpRegister(std::uint32_t address, std::uint32_t value) noexcept;
     bool writeByte(std::uint32_t address, std::uint8_t value) noexcept;
 
     Rdram rdram_{};
@@ -64,6 +79,12 @@ private:
     std::uint32_t miMode_ = 0;
     std::uint32_t miInterrupt_ = 0;
     std::uint32_t miInterruptMask_ = 0;
+    std::uint32_t spMemAddr_ = 0;
+    std::uint32_t spDramAddr_ = 0;
+    std::uint32_t spReadLength_ = 0;
+    std::uint32_t spWriteLength_ = 0;
+    std::uint32_t spStatus_ = kSpHalt;
+    std::uint32_t spSemaphore_ = 0;
 };
 
 } // namespace m64plus::n64
