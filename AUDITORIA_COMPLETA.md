@@ -383,7 +383,7 @@ A auditoria ainda deve continuar por:
 - Implementada a instrução vetorial VABS (função `0x13`). A operação usa o sinal de VS para copiar, zerar ou negar VT; o caso VT=`0x8000` com VS negativo satura VD em `0x7FFF`, enquanto ACC_LO preserva `0x8000`.
 - VABS preserva VCO e atualiza ACC_LO lane a lane. Testes cobrem sinal positivo, negativo, zero, extremo `-32768`, preservação de VCO e leitura de ACC_LO via VSAR.
 - Referências confrontadas: SGI Nintendo 64 RSP Programmer's Guide (descrição de VABS) e implementação interpretativa do Project64 (`RSPOp::Vector_VABS`).
-- Commits de implementação e teste registrados em `main`; aguardar os workflows de CI antes de aprovar a etapa.
+- Commits de implementação e teste registrados em `main`; workflow `44902372095` concluiu com sucesso em `native-host-tests` e `assemble-debug`, validando VABS.
 
 
 ### Continuação do RSP — transferências vetoriais básicas de memória (2026-11-21)
