@@ -367,3 +367,65 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuTlbTranslationSelfTest(JNIEnv*, jclas
     if (missCpu.cp0().read(Cp0::kBadVAddr) != 0x00500000ULL) return JNI_FALSE;
     return JNI_TRUE;
 }
+
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeCpuTlbProtectionSelfTest(JNIEnv*, jclass) {
+    using m64plus::n64::MipsCpu;
+    using m64plus::n64::Rdram;
+    using m64plus::n64::Cp0;
+
+    const auto runFault = [](bool store, std::uint32_t evenEntryLo,
+                             std::uint32_t expectedException) -> bool {
+        Rdram memory;
+        const std::uint32_t bootstrap[] = {
+            0x3C080040U, // LUI t0,0x0040: EntryHi VPN2
+            0x40885000U, // MTC0 t0,EntryHi
+            evenEntryLo, // ADDIU t1,zero,EntryLo0 value
+            0x40891000U, // MTC0 t1,EntryLo0
+            0x240900C7U, // ADDIU t1,zero, valid/dirty/global odd page
+            0x40891800U, // MTC0 t1,EntryLo1
+            0x240A0000U, // ADDIU t2,zero,0
+            0x40820000U, // MTC0 t2,Index
+            0x42000002U, // TLBWI
+            0x3C0B8000U, // LUI t3,0x8000
+            0x256B0040U, // ADDIU t3,t3,0x40
+            0x01600008U, // JR t3 -> sign-extended KSEG0
+            0x00000000U  // delay slot
+        };
+        for (std::uint32_t i = 0; i < sizeof(bootstrap) / sizeof(bootstrap[0]); ++i)
+            if (!memory.write32(i * 4U, bootstrap[i])) return false;
+
+        const std::uint32_t code[] = {
+            0x3C090040U,                         // LUI t1,0x0040
+            store ? 0x240A0055U : 0x8D2A0000U,   // ADDIU t2,zero,0x55 / LW t2,0(t1)
+            0xAD2A0000U                          // SW t2,0(t1)
+        };
+        // For the invalid-page case, the second instruction faults on LW.
+        // For the modified-page case, ADDIU completes and SW faults.
+        if (!memory.write32(0x40U, code[0]) ||
+            !memory.write32(0x44U, code[1]) ||
+            !memory.write32(0x48U, code[2])) return false;
+
+        MipsCpu cpu;
+        for (unsigned i = 0; i < sizeof(bootstrap) / sizeof(bootstrap[0]); ++i)
+            if (!cpu.step(memory)) return false;
+        if (cpu.pc() != 0xFFFFFFFF80000040ULL) return false;
+        cpu.setTlbEnabled(true);
+
+        const unsigned maxSteps = store ? 3U : 2U;
+        for (unsigned i = 0; i < maxSteps; ++i)
+            if (!cpu.step(memory)) return false;
+        const std::uint64_t cause = cpu.cp0().read(Cp0::kCause);
+        return cpu.pc() == 0xFFFFFFFF80000180ULL &&
+               ((cause >> 2U) & 0x1FULL) == expectedException &&
+               cpu.cp0().read(Cp0::kBadVAddr) == 0x00400000ULL &&
+               cpu.cp0().exceptionLevel();
+    };
+
+    // V=0 on the even page must raise TLBL (ExcCode 2).
+    if (!runFault(false, 0x00000085U, 2U)) return JNI_FALSE;
+    // V=1,D=0 on the even page must raise TLB Modification (ExcCode 1).
+    if (!runFault(true, 0x00000083U, 1U)) return JNI_FALSE;
+    return JNI_TRUE;
+}
