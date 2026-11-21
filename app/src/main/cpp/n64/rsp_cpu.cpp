@@ -351,8 +351,19 @@ bool RspCpu::step(Bus& bus) noexcept {
 
     if (opcode == 0x12U) {
         if (rs >= 0x10U) {
-            if (!executeVector(rs & 0x0FU, rt, rd,
-                               (instruction >> 6U) & 31U, function)) {
+            const unsigned element = rs & 0x0FU;
+            const unsigned vd = (instruction >> 6U) & 31U;
+            if (function == 0x37U) { // VNOP has no architectural side effects.
+                // Deliberately do nothing.
+            } else if (function == 0x33U) { // VMOV: scalar VT element to VD[VS].
+                const unsigned sourceLane = element >> 1U;
+                const unsigned destinationLane = rd & 7U;
+                const std::uint16_t moved = vr_[rt][sourceLane];
+                const auto sourceVector = vr_[rt];
+                for (unsigned lane = 0; lane < 8U; ++lane)
+                    accumulator_[lane].lo = sourceVector[lane];
+                vr_[vd][destinationLane] = moved;
+            } else if (!executeVector(element, rt, rd, vd, function)) {
                 halted_ = true; faulted_ = true;
                 return false;
             }
