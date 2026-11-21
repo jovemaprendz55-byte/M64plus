@@ -181,6 +181,51 @@ void testVectorMultiplyUnsigned() {
     require(rsp.vectorLane(3, 2) == 0xFFFFU, "VMULU reports positive overflow");
 }
 
+
+void testVectorMultiplyAccumulateFraction() {
+    Bus bus;
+    RspCpu rsp;
+    rsp.setVectorLane(1, 0, 0x4000U);
+    rsp.setVectorLane(2, 0, 0x4000U);
+    rsp.setVectorLane(1, 1, 0xC000U);
+    rsp.setVectorLane(2, 1, 0x4000U);
+    rsp.setVectorLane(1, 2, 0x8000U);
+    rsp.setVectorLane(2, 2, 0x8000U);
+    put(bus, 0, vType(0, 2, 1, 3, 0x00)); // VMULF initializes ACC.
+    put(bus, 4, vType(0, 2, 1, 4, 0x08)); // VMACF accumulates without rounding.
+    put(bus, 8, vType(0, 0, 0, 5, 0x1D)); // VSAR ACC_LO
+    put(bus, 12, vType(1, 0, 0, 6, 0x1D)); // VSAR ACC_MD
+    require(rsp.step(bus), "initialize accumulator with VMULF");
+    require(rsp.step(bus), "execute VMACF");
+    require(rsp.vectorLane(4, 0) == 0x4000U, "VMACF accumulates positive fraction");
+    require(rsp.vectorLane(4, 1) == 0xC000U, "VMACF accumulates negative fraction");
+    require(rsp.vectorLane(4, 2) == 0x7FFFU, "VMACF saturates positive overflow");
+    require(rsp.step(bus), "read VMACF accumulator low slice");
+    require(rsp.vectorLane(5, 0) == 0x8000U,
+            "VMACF preserves accumulator low precision without rounding");
+    require(rsp.step(bus), "read VMACF accumulator middle slice");
+    require(rsp.vectorLane(6, 0) == 0x4000U,
+            "VMACF carries accumulation into middle accumulator slice");
+}
+
+void testVectorMultiplyAccumulateUnsigned() {
+    Bus bus;
+    RspCpu rsp;
+    rsp.setVectorLane(1, 0, 0x4000U);
+    rsp.setVectorLane(2, 0, 0x4000U);
+    rsp.setVectorLane(1, 1, 0xC000U);
+    rsp.setVectorLane(2, 1, 0x4000U);
+    rsp.setVectorLane(1, 2, 0x8000U);
+    rsp.setVectorLane(2, 2, 0x8000U);
+    put(bus, 0, vType(0, 2, 1, 3, 0x00)); // VMULF initializes ACC.
+    put(bus, 4, vType(0, 2, 1, 4, 0x09)); // VMACU
+    require(rsp.step(bus), "initialize accumulator before VMACU");
+    require(rsp.step(bus), "execute VMACU");
+    require(rsp.vectorLane(4, 0) == 0x4000U, "VMACU returns accumulated positive fraction");
+    require(rsp.vectorLane(4, 1) == 0U, "VMACU clips accumulated negative result to zero");
+    require(rsp.vectorLane(4, 2) == 0xFFFFU, "VMACU reports positive overflow as 0xFFFF");
+}
+
 void testVectorAccumulatorLowAndVsar() {
     Bus bus;
     RspCpu rsp;
@@ -323,6 +368,8 @@ int main() {
     testVectorAccumulatorLowAndVsar();
     testVectorMultiplyFraction();
     testVectorMultiplyUnsigned();
+    testVectorMultiplyAccumulateFraction();
+    testVectorMultiplyAccumulateUnsigned();
     testVectorPairBroadcastSelectors();
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
