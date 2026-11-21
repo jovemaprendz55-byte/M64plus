@@ -1,6 +1,7 @@
 #include "n64/rsp_cpu.h"
 
 #include "n64/bus.h"
+#include "n64/rsp_divide_tables.h"
 
 #include <algorithm>
 #include <array>
@@ -26,6 +27,50 @@ std::uint32_t signExtend16(std::uint16_t value) noexcept {
     return static_cast<std::uint32_t>(static_cast<std::int32_t>(
         static_cast<std::int16_t>(value)));
 }
+
+std::uint32_t countLeadingZeros(std::uint32_t value) noexcept {
+    std::uint32_t count = 0;
+    for (std::uint32_t mask = 0x80000000U; mask != 0U && (value & mask) == 0U; mask >>= 1U)
+        ++count;
+    return count;
+}
+
+std::uint32_t normalizedMagnitude(std::uint32_t raw, std::int64_t& signedValue) noexcept {
+    signedValue = (raw & 0x80000000U) != 0U
+        ? static_cast<std::int64_t>(raw) - 0x100000000LL
+        : static_cast<std::int64_t>(raw);
+    const std::uint32_t mask = signedValue < 0 ? 0xFFFFFFFFU : 0U;
+    std::uint32_t magnitude = raw ^ mask;
+    if (signedValue > -32768) magnitude -= mask;
+    return magnitude;
+}
+
+std::uint32_t reciprocalLookup(std::uint32_t raw) noexcept {
+    std::int64_t input = 0;
+    const std::uint32_t magnitude = normalizedMagnitude(raw, input);
+    const std::uint32_t mask = input < 0 ? 0xFFFFFFFFU : 0U;
+    if (magnitude == 0U) return 0x7FFFFFFFU;
+    if (input == -32768) return 0xFFFF0000U;
+    const std::uint32_t shift = countLeadingZeros(magnitude);
+    const std::uint32_t index = static_cast<std::uint32_t>(
+        (static_cast<std::uint64_t>(magnitude) << shift & 0x7FC00000ULL) >> 22U);
+    const std::uint32_t mantissa = 0x10000U | detail::kReciprocalTable[index];
+    return ((mantissa << 14U) >> (31U - shift)) ^ mask;
+}
+
+std::uint32_t inverseSquareRootLookup(std::uint32_t raw) noexcept {
+    std::int64_t input = 0;
+    const std::uint32_t magnitude = normalizedMagnitude(raw, input);
+    const std::uint32_t mask = input < 0 ? 0xFFFFFFFFU : 0U;
+    if (magnitude == 0U) return 0x7FFFFFFFU;
+    if (input == -32768) return 0xFFFF0000U;
+    const std::uint32_t shift = countLeadingZeros(magnitude);
+    const std::uint32_t index = static_cast<std::uint32_t>(
+        (static_cast<std::uint64_t>(magnitude) << shift & 0x7FC00000ULL) >> 22U);
+    const std::uint32_t tableIndex = (index & 0x1FEU) | (shift & 1U);
+    const std::uint32_t mantissa = 0x10000U | detail::kInverseSquareRootTable[tableIndex];
+    return ((mantissa << 14U) >> ((31U - shift) >> 1U)) ^ mask;
+}
 } // namespace
 
 RspCpu::RspCpu() { reset(); }
@@ -40,6 +85,9 @@ void RspCpu::reset() noexcept {
     vco_ = 0;
     vcc_ = 0;
     vce_ = 0;
+    divIn_ = 0;
+    divOut_ = 0;
+    divInputPending_ = false;
     pendingBranch_ = false;
     halted_ = false;
     faulted_ = false;
@@ -355,14 +403,32 @@ bool RspCpu::step(Bus& bus) noexcept {
             const unsigned vd = (instruction >> 6U) & 31U;
             if (function == 0x37U) { // VNOP has no architectural side effects.
                 // Deliberately do nothing.
-            } else if (function == 0x33U) { // VMOV: scalar VT element to VD[VS].
-                const unsigned sourceLane = element >> 1U;
+            } else if (function >= 0x30U && function <= 0x36U) {
                 const unsigned destinationLane = rd & 7U;
-                const std::uint16_t moved = vr_[rt][sourceLane];
                 const auto sourceVector = vr_[rt];
                 for (unsigned lane = 0; lane < 8U; ++lane)
-                    accumulator_[lane].lo = sourceVector[lane];
-                vr_[vd][destinationLane] = moved;
+                    accumulator_[lane].lo = sourceVector[kElementMap[element][lane]];
+
+                if (function == 0x33U) { // VMOV
+                    const unsigned sourceLane = kElementMap[element][destinationLane];
+                    vr_[vd][destinationLane] = sourceVector[sourceLane];
+                } else if (function == 0x32U || function == 0x36U) { // VRCPH / VRSQH
+                    divIn_ = sourceVector[kElementMap[element][destinationLane]];
+                    divInputPending_ = true;
+                    vr_[vd][destinationLane] = divOut_;
+                } else {
+                    const unsigned sourceLane = element & 7U;
+                    const bool low = function == 0x31U || function == 0x35U;
+                    const bool squareRoot = function == 0x34U || function == 0x35U;
+                    const std::uint32_t input = low && divInputPending_
+                        ? (static_cast<std::uint32_t>(divIn_) << 16U) | sourceVector[sourceLane]
+                        : signExtend16(sourceVector[sourceLane]);
+                    const std::uint32_t result = squareRoot
+                        ? inverseSquareRootLookup(input) : reciprocalLookup(input);
+                    divOut_ = static_cast<std::uint16_t>(result >> 16U);
+                    divInputPending_ = false;
+                    vr_[vd][destinationLane] = static_cast<std::uint16_t>(result);
+                }
             } else if (!executeVector(element, rt, rd, vd, function)) {
                 halted_ = true; faulted_ = true;
                 return false;
