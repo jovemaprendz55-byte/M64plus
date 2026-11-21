@@ -128,18 +128,22 @@ void testVectorCarryAndLogic() {
     rsp.setVectorLane(1, 1, 0U);
     rsp.setVectorLane(2, 1, 1U);
     put(bus, 0, vType(0, 2, 1, 3, 0x14)); // VADDC
-    put(bus, 4, vType(0, 2, 1, 4, 0x15)); // VSUBC
-    put(bus, 8, vType(0, 2, 1, 5, 0x2C)); // VXOR
+    put(bus, 4, vType(0, 2, 1, 4, 0x10)); // VADD consumes VCO_LO
+    put(bus, 8, vType(0, 2, 1, 5, 0x15)); // VSUBC
+    put(bus, 12, vType(0, 2, 1, 6, 0x2C)); // VXOR
     require(rsp.step(bus), "execute VADDC");
     require(rsp.vectorLane(3, 0) == 0U, "VADDC low result");
-    require((rsp.vectorCarryFlags() & (1U << 8U)) != 0U, "VADDC carry flag");
+    require((rsp.vectorCarryFlags() & 1U) != 0U, "VADDC records carry in VCO_LO");
+    require(rsp.step(bus), "execute VADD with carry input");
+    require(rsp.vectorLane(4, 0) == 1U, "VADD consumes VCO_LO carry");
+    require(rsp.vectorCarryFlags() == 0U, "VADD clears both VCO fields");
     require(rsp.step(bus), "execute VSUBC");
-    require(rsp.vectorLane(4, 0) == 0xFFFEU, "VSUBC subtraction result");
-    require(rsp.vectorLane(4, 1) == 0xFFFFU, "VSUBC underflow result");
+    require(rsp.vectorLane(5, 0) == 0xFFFEU, "VSUBC subtraction result");
+    require(rsp.vectorLane(5, 1) == 0xFFFFU, "VSUBC underflow result");
     require((rsp.vectorCarryFlags() & (1U << 1U)) != 0U, "VSUBC borrow flag");
     require((rsp.vectorCarryFlags() & (1U << 9U)) != 0U, "VSUBC unequal flag");
     require(rsp.step(bus), "execute VXOR");
-    require(rsp.vectorLane(5, 0) == 0xFFFEU, "VXOR lane result");
+    require(rsp.vectorLane(6, 0) == 0xFFFEU, "VXOR lane result");
 }
 void testVectorInstructionInBranchDelaySlot() {
     Bus bus;
@@ -159,6 +163,23 @@ void testVectorInstructionInBranchDelaySlot() {
     require(rsp.reg(4) == 0U, "instruction after delay slot is skipped");
     require(rsp.step(bus), "execute BREAK at branch target");
     require(rsp.halted(), "branch target BREAK halts");
+}
+void testVectorPairBroadcastSelectors() {
+    Bus bus;
+    RspCpu rsp;
+    for (unsigned lane = 0; lane < 8U; ++lane) {
+        rsp.setVectorLane(1, lane, 0x0100U);
+        rsp.setVectorLane(2, lane, static_cast<std::uint16_t>(lane + 1U));
+    }
+    put(bus, 0, vType(2, 2, 1, 3, 0x2A)); // e2: lanes 0,0,2,2,4,4,6,6
+    require(rsp.step(bus), "execute paired-lane broadcast VOR");
+    const std::uint16_t expected[8] = {
+        0x0101U, 0x0101U, 0x0103U, 0x0103U,
+        0x0105U, 0x0105U, 0x0107U, 0x0107U
+    };
+    for (unsigned lane = 0; lane < 8U; ++lane)
+        require(rsp.vectorLane(3, lane) == expected[lane],
+                "element 2 selects paired even lanes");
 }
 void testVectorElementBroadcast() {
     Bus bus;
@@ -182,6 +203,7 @@ int main() {
     testRegimmBranches();
     testVectorArithmetic();
     testVectorCarryAndLogic();
+    testVectorPairBroadcastSelectors();
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
     std::cout << "All scalar and vector RSP host tests passed.\n";
