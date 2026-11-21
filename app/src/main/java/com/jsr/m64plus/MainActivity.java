@@ -12,10 +12,13 @@ public final class MainActivity extends Activity {
     static { System.loadLibrary("m64plus_native"); }
     private GLSurfaceView glSurfaceView;
     private static native boolean nativeRdramSelfTest();
+    private static native boolean nativeCpuSelfTest();
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        boolean passed = nativeRdramSelfTest();
-        Log.i(TAG, "RDRAM 8 MiB self-test: " + (passed ? "PASS" : "FAIL"));
+        boolean memoryPassed = nativeRdramSelfTest();
+        boolean cpuPassed = nativeCpuSelfTest();
+        Log.i(TAG, "RDRAM 8 MiB self-test: " + (memoryPassed ? "PASS" : "FAIL"));
+        Log.i(TAG, "MIPS CPU instruction self-test: " + (cpuPassed ? "PASS" : "FAIL"));
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         glSurfaceView = new GLSurfaceView(this);
