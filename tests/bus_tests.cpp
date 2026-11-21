@@ -78,6 +78,41 @@ void testImemBankAndWrapping() {
     }
 }
 
+void testSpStatusCommandBits() {
+    Bus bus;
+    std::uint32_t status = 0;
+
+    require(bus.write32(Bus::kSpStatus, Bus::kSpSetSingleStep),
+            "set SP single-step");
+    require(bus.read32(Bus::kSpStatus, status), "read SP status after SSTEP set");
+    require((status & Bus::kSpSingleStep) != 0U, "SSTEP status bit is set");
+
+    require(bus.write32(Bus::kSpStatus, Bus::kSpClearSingleStep),
+            "clear SP single-step");
+    require(bus.read32(Bus::kSpStatus, status), "read SP status after SSTEP clear");
+    require((status & Bus::kSpSingleStep) == 0U, "SSTEP status bit is cleared");
+
+    require(bus.write32(Bus::kSpStatus, Bus::kSpSetInterruptOnBreak),
+            "set SP interrupt-on-break");
+    require(bus.read32(Bus::kSpStatus, status), "read SP status after INTR_BREAK set");
+    require((status & Bus::kSpInterruptOnBreak) != 0U,
+            "interrupt-on-break status bit is set");
+
+    require(bus.write32(Bus::kSpStatus, 1U << 10U), "set SP SIG0");
+    require(bus.read32(Bus::kSpStatus, status), "read SP status after SIG0 set");
+    require((status & Bus::kSpSignal0) != 0U, "SIG0 status bit is set");
+
+    require(bus.write32(Bus::kSpStatus, 1U << 9U), "clear SP SIG0");
+    require(bus.read32(Bus::kSpStatus, status), "read SP status after SIG0 clear");
+    require((status & Bus::kSpSignal0) == 0U, "SIG0 status bit is cleared");
+
+    require(bus.write32(Bus::kMiInterruptMask, 1U << 1U),
+            "enable MI SP interrupt for BREAK test");
+    require(bus.write32(Bus::kSpStatus, 1U), "clear SP HALT");
+    bus.signalSpBreak();
+    require(bus.miInterruptPending(), "BREAK raises SP interrupt when INTR_BREAK is enabled");
+}
+
 void testOutOfRangeIsRejectedBeforeCopy() {
     Bus bus;
     require(bus.write32(Bus::kSpMemAddr, 0x80U), "set failure-test SP address");
@@ -96,6 +131,7 @@ int main() {
     testRowsAndSkip();
     testImemBankAndWrapping();
     testOutOfRangeIsRejectedBeforeCopy();
+    testSpStatusCommandBits();
     std::cout << "All SP DMA host tests passed.\n";
     return 0;
 }
