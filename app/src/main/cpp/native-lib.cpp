@@ -73,10 +73,36 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuMemorySelfTest(JNIEnv*, jclass) {
     if(cpu.reg(13)!=0x81234567ULL) return JNI_FALSE;
     if(cpu.reg(15)!=0x1234ULL) return JNI_FALSE;
     if(cpu.reg(16)!=0xFFFFFFFF81234567ULL) return JNI_FALSE;
-    // Misaligned word access and out-of-RDRAM access must fail safely.
+    // Misaligned word access must fail safely.
     Rdram badMemory;
     if(!badMemory.write32(0,0x8D080001U)) return JNI_FALSE; // LW t0,1(zero)
     MipsCpu badCpu;
     if(badCpu.step(badMemory)) return JNI_FALSE;
+
+    // Exercise 64-bit LD/SD and byte/halfword stores with big-endian data.
+    Rdram wideMemory;
+    constexpr std::uint64_t wideValue = 0x1122334455667788ULL;
+    if(!wideMemory.write64(0x200, wideValue)) return JNI_FALSE;
+    const std::uint32_t wideProgram[] = {
+        0x24080200U, // ADDIU t0,zero,0x200
+        0xDD090000U, // LD t1,0(t0)
+        0xFD090008U, // SD t1,8(t0)
+        0xDD0A0008U, // LD t2,8(t0)
+        0x3C0BAABBU, // LUI t3,0xAABB
+        0x356BCCDDU, // ORI t3,t3,0xCCDD
+        0xA10B0010U, // SB t3,16(t0)
+        0xA50B0012U, // SH t3,18(t0)
+        0x910C0010U, // LBU t4,16(t0)
+        0x950D0012U  // LHU t5,18(t0)
+    };
+    for(std::uint32_t i=0;i<sizeof(wideProgram)/sizeof(wideProgram[0]);++i)
+        if(!wideMemory.write32(i*4U,wideProgram[i])) return JNI_FALSE;
+    MipsCpu wideCpu;
+    for(unsigned i=0;i<sizeof(wideProgram)/sizeof(wideProgram[0]);++i)
+        if(!wideCpu.step(wideMemory)) return JNI_FALSE;
+    if(wideCpu.reg(9)!=wideValue || wideCpu.reg(10)!=wideValue) return JNI_FALSE;
+    if(wideCpu.reg(12)!=0xDDULL || wideCpu.reg(13)!=0xCCDDULL) return JNI_FALSE;
+    std::uint64_t copiedValue = 0;
+    if(!wideMemory.read64(0x208,copiedValue) || copiedValue!=wideValue) return JNI_FALSE;
     return JNI_TRUE;
 }
