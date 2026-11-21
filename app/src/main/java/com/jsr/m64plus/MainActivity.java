@@ -14,14 +14,17 @@ public final class MainActivity extends Activity {
     private static native boolean nativeRdramSelfTest();
     private static native boolean nativeCpuSelfTest();
     private static native boolean nativeCpuBranchSelfTest();
+    private static native boolean nativeCpuMemorySelfTest();
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         boolean memoryPassed = nativeRdramSelfTest();
         boolean cpuPassed = nativeCpuSelfTest();
         boolean branchPassed = nativeCpuBranchSelfTest();
+        boolean memoryCpuPassed = nativeCpuMemorySelfTest();
         Log.i(TAG, "RDRAM 8 MiB self-test: " + (memoryPassed ? "PASS" : "FAIL"));
         Log.i(TAG, "MIPS CPU instruction self-test: " + (cpuPassed ? "PASS" : "FAIL"));
         Log.i(TAG, "MIPS branch/delay-slot self-test: " + (branchPassed ? "PASS" : "FAIL"));
+        Log.i(TAG, "MIPS load/store self-test: " + (memoryCpuPassed ? "PASS" : "FAIL"));
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         glSurfaceView = new GLSurfaceView(this);

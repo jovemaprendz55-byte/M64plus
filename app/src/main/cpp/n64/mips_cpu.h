@@ -7,7 +7,7 @@ class MipsCpu final {
 public:
     MipsCpu();
     void reset(std::uint64_t pc = 0);
-    bool step(const Rdram& memory);
+    bool step(Rdram& memory);
     std::uint64_t reg(unsigned index) const noexcept;
     std::uint64_t pc() const noexcept;
     std::uint64_t instructionsExecuted() const noexcept;

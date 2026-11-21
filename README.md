@@ -8,7 +8,7 @@ Emulador Nintendo 64 para Android. Alvo inicial: Android 16 ARM64 e testes no Po
 
 **RDRAM:** memória principal de 8 MiB em C++17, com acesso big-endian de 8, 16, 32 e 64 bits, reset e proteção de limites. Autoteste JNI na inicialização.
 
-**CPU MIPS inicial:** 32 GPRs de 64 bits (r0 sempre zero), PC de 64 bits, subconjunto aritmético/lógico inicial e agora saltos/desvios: BEQ, BNE, BLEZ, BGTZ, BLTZ, BGEZ, J, JAL, JR e JALR. A CPU modela uma instrução de delay slot; o autoteste verifica BEQ tomado, JAL/JR e execução do delay slot.
+**CPU MIPS inicial:** 32 GPRs de 64 bits (r0 sempre zero), PC de 64 bits, subconjunto aritmético/lógico inicial e agora saltos/desvios: BEQ, BNE, BLEZ, BGTZ, BLTZ, BGEZ, J, JAL, JR e JALR, além de LB, LBU, LH, LHU, LW, LWU, LD, SB, SH, SW e SD. A CPU modela uma instrução de delay slot. Os acessos de dados usam offsets diretos da RDRAM de 8 MiB, com checagem de alinhamento e limites; MMU/TLB e exceções ainda não estão implementados. Autotestes cobrem desvios, delay slot, leitura e escrita.
 
 **Limitações:** ainda não há loads/stores, exceções completas, CP0/TLB, FPU, caches, barramento completo, RSP, RDP, áudio ou carregador de ROM. Ainda não executa jogos comerciais. Instruções de branch-likely e algumas variantes não estão implementadas.
 

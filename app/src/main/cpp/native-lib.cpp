@@ -50,3 +50,33 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuBranchSelfTest(JNIEnv*, jclass) {
     if(jumpCpu.pc()!=8 || jumpCpu.reg(31)!=8 || jumpCpu.reg(8)!=1 || jumpCpu.reg(9)!=3) return JNI_FALSE;
     return JNI_TRUE;
 }
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeCpuMemorySelfTest(JNIEnv*, jclass) {
+    using m64plus::n64::MipsCpu; using m64plus::n64::Rdram;
+    Rdram memory;
+    // t0=0x100; t1=0x81234567; SW; signed/unsigned byte and word loads.
+    const std::uint32_t program[] = {
+        0x24080100U, 0x3C098123U, 0x35294567U, 0xAD090000U,
+        0x810A0000U, 0x910B0000U, 0x8D0C0000U, 0x9D0D0000U,
+        0x240E1234U, 0xA50E0004U, 0x950F0004U,
+        0xAC090008U, 0x8C100008U
+    };
+    for (std::uint32_t i=0;i<sizeof(program)/sizeof(program[0]);++i)
+        if(!memory.write32(i*4U,program[i])) return JNI_FALSE;
+    MipsCpu cpu;
+    for(unsigned i=0;i<sizeof(program)/sizeof(program[0]);++i)
+        if(!cpu.step(memory)) return JNI_FALSE;
+    if(cpu.reg(10)!=0xFFFFFFFFFFFFFF81ULL) return JNI_FALSE;
+    if(cpu.reg(11)!=0x81ULL) return JNI_FALSE;
+    if(cpu.reg(12)!=0xFFFFFFFF81234567ULL) return JNI_FALSE;
+    if(cpu.reg(13)!=0x81234567ULL) return JNI_FALSE;
+    if(cpu.reg(15)!=0x1234ULL) return JNI_FALSE;
+    if(cpu.reg(16)!=0xFFFFFFFF81234567ULL) return JNI_FALSE;
+    // Misaligned word access and out-of-RDRAM access must fail safely.
+    Rdram badMemory;
+    if(!badMemory.write32(0,0x8D080001U)) return JNI_FALSE; // LW t0,1(zero)
+    MipsCpu badCpu;
+    if(badCpu.step(badMemory)) return JNI_FALSE;
+    return JNI_TRUE;
+}

@@ -23,7 +23,7 @@ std::uint64_t MipsCpu::reg(unsigned index) const noexcept {
 }
 std::uint64_t MipsCpu::pc() const noexcept { return pc_; }
 std::uint64_t MipsCpu::instructionsExecuted() const noexcept { return executed_; }
-bool MipsCpu::step(const Rdram& memory) {
+bool MipsCpu::step(Rdram& memory) {
     if ((pc_ & 3U) != 0 || pc_ > 0xFFFFFFFFULL) return false;
     std::uint32_t instruction = 0;
     if (!memory.read32(static_cast<std::uint32_t>(pc_), instruction)) return false;
@@ -125,6 +125,52 @@ bool MipsCpu::step(const Rdram& memory) {
     case 0x0D: destination = rt; result = a | immediate; writeRegister = true; break;
     case 0x0E: destination = rt; result = a ^ immediate; writeRegister = true; break;
     case 0x0F: destination = rt; result = signExtend32(static_cast<std::uint32_t>(immediate) << 16U); writeRegister = true; break;
+    // Integer loads. Effective addresses are currently direct RDRAM offsets;
+    // virtual-to-physical translation and exception delivery come later.
+    case 0x20: case 0x21: case 0x23: case 0x24: case 0x25: case 0x27: case 0x37: {
+        const std::uint64_t effective = a + signExtend16(immediate);
+        if (effective > 0xFFFFFFFFULL) return false;
+        const auto address = static_cast<std::uint32_t>(effective);
+        if ((opcode == 0x21 || opcode == 0x25) && (address & 1U)) return false;
+        if ((opcode == 0x23 || opcode == 0x27) && (address & 3U)) return false;
+        if (opcode == 0x37 && (address & 7U)) return false;
+        if (opcode == 0x20 || opcode == 0x24) {
+            std::uint8_t value = 0;
+            if (!memory.read8(address, value)) return false;
+            result = opcode == 0x20
+                ? static_cast<std::uint64_t>(static_cast<std::int64_t>(static_cast<std::int8_t>(value)))
+                : value;
+        } else if (opcode == 0x21 || opcode == 0x25) {
+            std::uint16_t value = 0;
+            if (!memory.read16(address, value)) return false;
+            result = opcode == 0x21 ? signExtend16(value) : value;
+        } else if (opcode == 0x23 || opcode == 0x27) {
+            std::uint32_t value = 0;
+            if (!memory.read32(address, value)) return false;
+            result = opcode == 0x23 ? signExtend32(value) : value;
+        } else {
+            if (!memory.read64(address, result)) return false;
+        }
+        destination = rt;
+        writeRegister = true;
+        break;
+    }
+    // Integer stores.
+    case 0x28: case 0x29: case 0x2B: case 0x3F: {
+        const std::uint64_t effective = a + signExtend16(immediate);
+        if (effective > 0xFFFFFFFFULL) return false;
+        const auto address = static_cast<std::uint32_t>(effective);
+        if (opcode == 0x29 && (address & 1U)) return false;
+        if (opcode == 0x2B && (address & 3U)) return false;
+        if (opcode == 0x3F && (address & 7U)) return false;
+        bool stored = false;
+        if (opcode == 0x28) stored = memory.write8(address, static_cast<std::uint8_t>(b));
+        else if (opcode == 0x29) stored = memory.write16(address, static_cast<std::uint16_t>(b));
+        else if (opcode == 0x2B) stored = memory.write32(address, static_cast<std::uint32_t>(b));
+        else stored = memory.write64(address, b);
+        if (!stored) return false;
+        break;
+    }
     default: return false;
     }
     if (writeRegister && destination != 0) gpr_[destination] = result;
