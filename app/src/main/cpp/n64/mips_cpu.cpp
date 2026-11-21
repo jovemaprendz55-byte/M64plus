@@ -42,6 +42,9 @@ bool MipsCpu::stepMemory(Memory& memory) {
         cp0_.tick();
         return true;
     };
+    // MIPS accepts an interrupt only between instructions, never in a branch delay slot.
+    if (!inDelaySlot && cp0_.interruptRequested())
+        return takeException(ExceptionCode::Interrupt);
     if ((pc_ & 3U) != 0) return takeException(ExceptionCode::AddressLoad, pc_);
     std::uint32_t instructionAddress = static_cast<std::uint32_t>(pc_);
     if (pc_ > 0xFFFFFFFFULL &&
@@ -311,5 +314,8 @@ bool MipsCpu::stepMemory(Memory& memory) {
     return true;
 }
 bool MipsCpu::step(Rdram& memory) { return stepMemory(memory); }
-bool MipsCpu::step(Bus& memory) { return stepMemory(memory); }
+bool MipsCpu::step(Bus& memory) {
+    cp0_.setExternalInterrupt(memory.miInterruptPending());
+    return stepMemory(memory);
+}
 }

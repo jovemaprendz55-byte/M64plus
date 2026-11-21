@@ -213,6 +213,10 @@ void Bus::setMiInterrupt(unsigned source, bool asserted) noexcept {
 
 std::uint32_t Bus::miInterruptMask() const noexcept { return miInterruptMask_; }
 
+bool Bus::miInterruptPending() const noexcept {
+    return (miInterrupt_ & miInterruptMask_) != 0;
+}
+
 Rdram& Bus::rdram() noexcept { return rdram_; }
 const Rdram& Bus::rdram() const noexcept { return rdram_; }
 

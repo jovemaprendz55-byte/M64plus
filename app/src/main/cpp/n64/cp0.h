@@ -30,12 +30,15 @@ public:
     static constexpr unsigned kXContext = 20;
     static constexpr std::uint64_t kStatusExl = 1ULL << 1U;
     static constexpr std::uint64_t kStatusBev = 1ULL << 22U;
+    static constexpr std::uint64_t kStatusIe = 1ULL;
 
     Cp0();
     void reset() noexcept;
     std::uint64_t read(unsigned index) const noexcept;
     bool write(unsigned index, std::uint64_t value) noexcept;
     void tick() noexcept;
+    void setExternalInterrupt(bool asserted) noexcept;
+    bool interruptRequested() const noexcept;
     std::uint64_t raiseException(ExceptionCode code, std::uint64_t instructionPc,
                                  bool inDelaySlot = false,
                                  std::uint64_t badAddress = 0,

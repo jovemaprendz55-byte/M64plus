@@ -44,6 +44,7 @@ public:
     const Rdram& rdram() const noexcept;
     void setMiInterrupt(unsigned source, bool asserted) noexcept;
     std::uint32_t miInterruptMask() const noexcept;
+    bool miInterruptPending() const noexcept;
 
 private:
     bool rangeFits(std::uint32_t address, std::size_t width,

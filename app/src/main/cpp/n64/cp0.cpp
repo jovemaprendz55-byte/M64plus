@@ -6,6 +6,8 @@ constexpr std::uint64_t kCauseBd = 1ULL << 31U;
 constexpr std::uint64_t kCauseExcCodeMask = 0x1FULL << 2U;
 constexpr std::uint64_t kCauseSoftwareInterruptMask = 0x3ULL << 8U;
 constexpr std::uint64_t kCauseTimerInterrupt = 1ULL << 15U;
+constexpr std::uint64_t kCauseMiInterrupt = 1ULL << 10U;
+constexpr std::uint64_t kCauseInterruptPendingMask = 0xFFULL << 8U;
 constexpr std::uint64_t kStatusWritableMask = 0xFFFFFFFFULL;
 constexpr std::uint64_t kEntryLoMask = 0x03FFFFFFULL;
 constexpr std::uint64_t kEntryHiMask = 0xFFFFE0FFULL;
@@ -74,6 +76,17 @@ bool Cp0::write(unsigned index, std::uint64_t value) noexcept {
     default:
         return false;
     }
+}
+
+void Cp0::setExternalInterrupt(bool asserted) noexcept {
+    if (asserted) registers_[kCause] |= kCauseMiInterrupt;
+    else registers_[kCause] &= ~kCauseMiInterrupt;
+}
+
+bool Cp0::interruptRequested() const noexcept {
+    const std::uint64_t status = registers_[kStatus];
+    const std::uint64_t pending = registers_[kCause] & status & kCauseInterruptPendingMask;
+    return (status & kStatusIe) != 0 && (status & kStatusExl) == 0 && pending != 0;
 }
 
 void Cp0::tick() noexcept {
