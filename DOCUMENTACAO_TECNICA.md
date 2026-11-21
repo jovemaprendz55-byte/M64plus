@@ -323,3 +323,19 @@ Ao retomar este projeto em outra conversa:
 4. Não importar/copiar código do Mupen64Plus AE sem avaliar dependências, licença e integração.
 5. Antes de modificar o código de M64plus, apresentar o plano e aguardar autorização explícita do usuário.
 6. Atualizar este documento quando uma investigação ou teste produzir resultado verificável, registrando arquivo, commit, dispositivo, versão Android e logs relevantes.
+
+
+## 17. Barramento físico inicial (M64plus)
+
+Commit inicial desta etapa: o barramento foi separado da RDRAM e possui decodificação explícita das regiões:
+
+| Região | Endereço físico | Tamanho | Estado |
+|---|---:|---:|---|
+| RDRAM | `0x00000000` | 8 MiB | Implementada, big-endian |
+| SP DMEM | `0x04000000` | 4 KiB | Implementada como memória independente |
+| SP IMEM | `0x04001000` | 4 KiB | Implementada como memória independente |
+| Demais endereços | — | — | Ainda não mapeados; leitura/escrita retorna falha |
+
+A classe `Bus` oferece acessos de 8, 16, 32 e 64 bits, valida que cada acesso permaneça dentro de uma única região e expõe a RDRAM para inspeção/testes. O autoteste JNI valida decodificação, big-endian, independência DMEM/IMEM, limites e reset.
+
+**Limite desta entrega:** a CPU ainda executa diretamente sobre `Rdram`; esta classe é uma fundação isolada e ainda não substitui o caminho de memória do processador. Também não existem ainda registradores MMIO do SP, MI, VI, AI, PI, RI ou SI, interrupções por dispositivos, DMA ou mapeamento de cartucho. O próximo passo é implementar os blocos de registradores e então migrar a CPU para o barramento sem quebrar os testes existentes.

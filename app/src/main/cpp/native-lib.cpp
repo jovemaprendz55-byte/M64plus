@@ -436,3 +436,45 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuTlbProtectionSelfTest(JNIEnv*, jclass
     if (!runFault(true, 0x00000083U, 1U)) return JNI_FALSE;
     return JNI_TRUE;
 }
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeBusSelfTest(JNIEnv*, jclass) {
+    using m64plus::n64::Bus;
+    using m64plus::n64::BusRegion;
+    Bus bus;
+    if (bus.region(0x00001000U) != BusRegion::Rdram ||
+        bus.region(0x04000000U) != BusRegion::SpDmem ||
+        bus.region(0x04001000U) != BusRegion::SpImem ||
+        bus.region(0x04002000U) != BusRegion::Unmapped)
+        return JNI_FALSE;
+
+    constexpr std::uint32_t rdramAddress = 0x00000100U;
+    constexpr std::uint64_t pattern = 0x1122334455667788ULL;
+    std::uint64_t actual = 0;
+    if (!bus.write64(rdramAddress, pattern) ||
+        !bus.read64(rdramAddress, actual) || actual != pattern)
+        return JNI_FALSE;
+
+    constexpr std::uint32_t dmemAddress = Bus::kSpDmemBase + 0x20U;
+    constexpr std::uint32_t imemAddress = Bus::kSpImemBase + 0x20U;
+    if (!bus.write32(dmemAddress, 0xA1B2C3D4U) ||
+        !bus.write32(imemAddress, 0x10203040U))
+        return JNI_FALSE;
+    std::uint32_t dmem = 0;
+    std::uint32_t imem = 0;
+    if (!bus.read32(dmemAddress, dmem) || dmem != 0xA1B2C3D4U ||
+        !bus.read32(imemAddress, imem) || imem != 0x10203040U)
+        return JNI_FALSE;
+
+    // Adjacent SP memories must remain independent.
+    if (!bus.read32(dmemAddress, dmem) || dmem == imem) return JNI_FALSE;
+    // Accesses crossing a region boundary and unmapped MMIO must fail safely.
+    if (bus.read32(Bus::kSpDmemBase + 0x0FFFU, dmem) ||
+        bus.write32(0x04300000U, 0xFFFFFFFFU))
+        return JNI_FALSE;
+    bus.reset();
+    if (!bus.read64(rdramAddress, actual) || actual != 0 ||
+        !bus.read32(dmemAddress, dmem) || dmem != 0)
+        return JNI_FALSE;
+    return JNI_TRUE;
+}
