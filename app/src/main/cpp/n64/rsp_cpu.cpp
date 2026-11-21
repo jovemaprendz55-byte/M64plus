@@ -148,6 +148,7 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
         multiplyAccumulateLow || multiplyAccumulateMidSigned ||
         multiplyAccumulateMidUnsigned || multiplyAccumulateHigh;
     const bool add = function == 0x10U, sub = function == 0x11U;
+    const bool absolute = function == 0x13U;
     const bool addCarry = function == 0x14U, subCarry = function == 0x15U;
     const bool compareLess = function == 0x20U;
     const bool compareEqual = function == 0x21U;
@@ -160,7 +161,7 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
     const bool comparison = compareLess || compareEqual || compareNotEqual ||
         compareGreaterEqual;
     const bool logical = function >= 0x28U && function <= 0x2DU;
-    if (!multiplyFamily && !add && !sub && !addCarry && !subCarry &&
+    if (!multiplyFamily && !add && !sub && !absolute && !addCarry && !subCarry &&
         !comparison && !clipLow && !clipHigh && !clipReverse && !merge && !logical) return false;
     std::uint16_t nextVco = 0;
     std::uint16_t nextVcc = clipLow ? vcc_ : 0U;
@@ -314,6 +315,24 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
             const std::int32_t sum = add ? a + b + carry : a - b - carry;
             accumulator_[lane].lo = static_cast<std::uint16_t>(sum);
             value = static_cast<std::uint16_t>(std::max(-32768, std::min(32767, sum)));
+        } else if (absolute) {
+            const std::int16_t sign = static_cast<std::int16_t>(left);
+            if (sign > 0) {
+                value = right;
+                accumulator_[lane].lo = value;
+            } else if (sign < 0) {
+                if (right == 0x8000U) {
+                    value = 0x7FFFU;
+                    accumulator_[lane].lo = 0x8000U;
+                } else {
+                    value = static_cast<std::uint16_t>(
+                        -static_cast<std::int16_t>(right));
+                    accumulator_[lane].lo = value;
+                }
+            } else {
+                value = 0U;
+                accumulator_[lane].lo = 0U;
+            }
         } else if (addCarry) {
             const std::uint32_t sum = static_cast<std::uint32_t>(left) + right;
             accumulator_[lane].lo = static_cast<std::uint16_t>(sum);
