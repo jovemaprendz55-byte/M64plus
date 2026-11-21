@@ -497,7 +497,7 @@ bool RspCpu::step(Bus& bus) noexcept {
         // RSP vector memory transfers. Subopcodes 0-5 are LBV..LRV / SBV..SRV.
         const unsigned subOpcode = (instruction >> 11U) & 31U;
         const bool load = opcode == 0x32U;
-        if (subOpcode > 7U) {
+        if (subOpcode > 8U) {
             halted_ = true; faulted_ = true;
             return false;
         }
@@ -505,7 +505,7 @@ bool RspCpu::step(Bus& bus) noexcept {
         std::int32_t offset = static_cast<std::int32_t>(instruction & 0x7FU);
         if ((offset & 0x40) != 0) offset -= 0x80;
         const unsigned scale = subOpcode <= 3U ? (1U << subOpcode) :
-            (subOpcode <= 5U ? 16U : 8U);
+            (subOpcode <= 5U || subOpcode == 8U ? 16U : 8U);
         const std::uint32_t address = static_cast<std::uint32_t>(
             static_cast<std::int64_t>(gpr_[rs]) +
             static_cast<std::int64_t>(offset) * scale) & 0x0FFFU;
@@ -514,7 +514,28 @@ bool RspCpu::step(Bus& bus) noexcept {
         std::uint32_t memoryStart = address;
         bool wrapVector = !load;
 
-        if (subOpcode == 6U || subOpcode == 7U) { // LPV / LUV / SPV / SUV
+        if (subOpcode == 8U) { // LHV / SHV: every second DMEM byte, unsigned packing.
+            for (unsigned lane = 0; lane < 8U; ++lane) {
+                const std::uint32_t dmemAddress = Bus::kSpDmemBase +
+                    ((address + lane * 2U) & 0x0FFFU);
+                if (load) {
+                    std::uint8_t value = 0;
+                    if (!bus.read8(dmemAddress, value)) {
+                        halted_ = true; faulted_ = true;
+                        return false;
+                    }
+                    vr_[rt][lane] = static_cast<std::uint16_t>(
+                        static_cast<std::uint16_t>(value) << 7U);
+                } else {
+                    const std::uint8_t value = static_cast<std::uint8_t>(vr_[rt][lane] >> 7U);
+                    if (!bus.write8(dmemAddress, value)) {
+                        halted_ = true; faulted_ = true;
+                        return false;
+                    }
+                }
+            }
+            byteCount = 0U;
+        } else if (subOpcode == 6U || subOpcode == 7U) { // LPV / LUV / SPV / SUV
             for (unsigned lane = 0; lane < 8U; ++lane) {
                 const std::uint32_t dmemAddress = Bus::kSpDmemBase +
                     ((address + lane) & 0x0FFFU);
