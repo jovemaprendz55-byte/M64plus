@@ -38,7 +38,8 @@ public:
     void tick() noexcept;
     std::uint64_t raiseException(ExceptionCode code, std::uint64_t instructionPc,
                                  bool inDelaySlot = false,
-                                 std::uint64_t badAddress = 0,\n                                 bool tlbRefill = false) noexcept;
+                                 std::uint64_t badAddress = 0,
+                                 bool tlbRefill = false) noexcept;
     std::uint64_t exceptionReturn() noexcept;
     bool exceptionLevel() const noexcept;
 private:
