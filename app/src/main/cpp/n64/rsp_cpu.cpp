@@ -84,31 +84,64 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
     }
     const bool multiplyFraction = function == 0x00U;
     const bool multiplyUnsigned = function == 0x01U;
+    const bool multiplyLow = function == 0x04U;
+    const bool multiplyMidSigned = function == 0x05U;
+    const bool multiplyMidUnsigned = function == 0x06U;
+    const bool multiplyHigh = function == 0x07U;
     const bool multiplyAccumulateFraction = function == 0x08U;
     const bool multiplyAccumulateUnsigned = function == 0x09U;
+    const bool multiplyFamily = multiplyFraction || multiplyUnsigned || multiplyLow ||
+        multiplyMidSigned || multiplyMidUnsigned || multiplyHigh ||
+        multiplyAccumulateFraction || multiplyAccumulateUnsigned;
     const bool add = function == 0x10U, sub = function == 0x11U;
     const bool addCarry = function == 0x14U, subCarry = function == 0x15U;
     const bool logical = function >= 0x28U && function <= 0x2DU;
-    if (!multiplyFraction && !multiplyUnsigned && !multiplyAccumulateFraction &&
-        !multiplyAccumulateUnsigned && !add && !sub && !addCarry && !subCarry && !logical) return false;
+    if (!multiplyFamily && !add && !sub && !addCarry && !subCarry && !logical) return false;
     std::uint16_t nextVco = 0;
     for (unsigned lane = 0; lane < 8U; ++lane) {
         const std::uint16_t left = vr_[vs][lane];
         const std::uint16_t right = vr_[vt][kElementMap[element][lane]];
         std::uint16_t value = 0;
-        if (multiplyFraction || multiplyUnsigned ||
-            multiplyAccumulateFraction || multiplyAccumulateUnsigned) {
-            const std::int64_t product =
-                static_cast<std::int64_t>(static_cast<std::int16_t>(left)) *
-                static_cast<std::int16_t>(right) * 2 +
-                ((multiplyFraction || multiplyUnsigned) ? 0x8000 : 0);
-            const std::uint64_t previous =
+        if (multiplyFamily) {
+            std::int64_t product = 0;
+            std::uint64_t previous =
                 (static_cast<std::uint64_t>(accumulator_[lane].hi) << 32U) |
                 (static_cast<std::uint64_t>(accumulator_[lane].md) << 16U) |
                 accumulator_[lane].lo;
-            const std::uint64_t raw = (multiplyAccumulateFraction || multiplyAccumulateUnsigned)
-                ? (previous + static_cast<std::uint64_t>(product)) & 0x0000FFFFFFFFFFFFULL
-                : static_cast<std::uint64_t>(product) & 0x0000FFFFFFFFFFFFULL;
+            bool accumulate = multiplyAccumulateFraction || multiplyAccumulateUnsigned;
+            bool unsignedClamp = false;
+            std::int64_t accumulatorValue = 0;
+            if (multiplyLow) {
+                product = (static_cast<std::int64_t>(left) * right) >> 16U;
+                accumulatorValue = product;
+                value = static_cast<std::uint16_t>(product);
+            } else if (multiplyMidSigned) {
+                product = static_cast<std::int64_t>(static_cast<std::int16_t>(left)) * right;
+                accumulatorValue = product;
+            } else if (multiplyMidUnsigned) {
+                product = static_cast<std::int64_t>(left) *
+                    static_cast<std::int16_t>(right);
+                accumulatorValue = product;
+                unsignedClamp = true;
+            } else if (multiplyHigh) {
+                product = static_cast<std::int64_t>(static_cast<std::int16_t>(left)) *
+                    static_cast<std::int16_t>(right) * 65536;
+                accumulatorValue = product;
+            } else {
+                product = static_cast<std::int64_t>(static_cast<std::int16_t>(left)) *
+                    static_cast<std::int16_t>(right) * 2 +
+                    ((multiplyFraction || multiplyUnsigned) ? 0x8000 : 0);
+                accumulate = multiplyAccumulateFraction || multiplyAccumulateUnsigned;
+                accumulatorValue = product;
+                unsignedClamp = multiplyUnsigned || multiplyAccumulateUnsigned;
+            }
+            if (multiplyLow || multiplyMidSigned || multiplyMidUnsigned || multiplyHigh) {
+                // VMUD* clears the accumulator before storing its partial product.
+                accumulate = false;
+            }
+            const std::uint64_t raw = accumulate
+                ? (previous + static_cast<std::uint64_t>(accumulatorValue)) & 0x0000FFFFFFFFFFFFULL
+                : static_cast<std::uint64_t>(accumulatorValue) & 0x0000FFFFFFFFFFFFULL;
             accumulator_[lane].lo = static_cast<std::uint16_t>(raw);
             accumulator_[lane].md = static_cast<std::uint16_t>(raw >> 16U);
             accumulator_[lane].hi = static_cast<std::uint16_t>(raw >> 32U);
@@ -118,7 +151,21 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
             const std::int64_t shifted = signedAccumulator >= 0
                 ? signedAccumulator / 65536
                 : -((-signedAccumulator + 65535) / 65536);
-            if (multiplyUnsigned || multiplyAccumulateUnsigned) {
+            if (multiplyLow) {
+                value = static_cast<std::uint16_t>(raw);
+            } else if (multiplyMidUnsigned) {
+                if (signedAccumulator < 0) value = 0U;
+                else if (signedAccumulator > 65535) value = 0xFFFFU;
+                else value = static_cast<std::uint16_t>(signedAccumulator);
+            } else if (multiplyMidSigned) {
+                if (shifted < -32768) value = 0x8000U;
+                else if (shifted > 32767) value = 0x7FFFU;
+                else value = static_cast<std::uint16_t>(shifted);
+            } else if (multiplyHigh) {
+                if (shifted < -32768) value = 0x8000U;
+                else if (shifted > 32767) value = 0x7FFFU;
+                else value = static_cast<std::uint16_t>(shifted);
+            } else if (unsignedClamp) {
                 if (shifted < 0) value = 0U;
                 else if (shifted > 32767) value = 0xFFFFU;
                 else value = static_cast<std::uint16_t>(shifted);
