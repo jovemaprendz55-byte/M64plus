@@ -400,6 +400,25 @@ void testVectorClipHigh() {
             "VCH records VCC_HI for positive clamp");
 }
 
+void testVectorClipReverse() {
+    Bus bus; RspCpu rsp;
+    rsp.setVectorLane(1, 0, 0xFFFDU); // -2 in one's-complement representation
+    rsp.setVectorLane(2, 0, 5U);
+    rsp.setVectorLane(1, 1, 0xFFF9U); // -6 in one's-complement representation
+    rsp.setVectorLane(2, 1, 5U);
+    rsp.setVectorLane(1, 2, 6U);
+    rsp.setVectorLane(2, 2, 5U);
+    put(bus, 0, vType(0, 2, 1, 3, 0x26)); // VCR
+    require(rsp.step(bus), "execute VCR");
+    require(rsp.vectorLane(3, 0) == 0xFFFDU,
+            "VCR leaves value above one's-complement negative bound unchanged");
+    require(rsp.vectorLane(3, 1) == 0xFFFAU,
+            "VCR clamps to one's-complement negative bound");
+    require(rsp.vectorLane(3, 2) == 5U,
+            "VCR clamps same-sign value to positive bound");
+    require(rsp.vectorClipFlags() == 0U, "VCR clears VCE");
+}
+
 void testVectorAccumulatorLowAndVsar() {
     Bus bus;
     RspCpu rsp;
@@ -548,6 +567,7 @@ int main() {
     testVectorMultiplyDoubleAccumulate();
     testVectorComparisonsAndMerge();
     testVectorClipHigh();
+    testVectorClipReverse();
     testVectorPairBroadcastSelectors();
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
