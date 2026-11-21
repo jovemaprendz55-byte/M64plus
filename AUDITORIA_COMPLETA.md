@@ -120,7 +120,7 @@ VSAR (função 0x1D) está implementada: elemento 0 lê ACC_LO, elemento 1 lê A
 - **Falha de instrução RSP — CORRIGIDA em 2026-11-21:** `RspCpu` agora expõe estado de falha latched; instruções não suportadas e erros de execução não são repetidos automaticamente. `N64Machine::stepRsp()` mantém a falha enquanto o SP_PC não mudar; uma alteração explícita de SP_PC permite iniciar nova tarefa. BREAK normal permanece distinto de falha. Testes adicionados em `tests/rsp_cpu_tests.cpp` e `tests/machine_tests.cpp`. Commits: `2b40c00`, `185aeb3`, `44857a0`, `c627de9`, `c9b20c2`, `7ab4bee`, `209f004`.
 
 ### 6.5 Multiplicação vetorial pendente
-VMULF/U, VMACF/U, VMUDL/M/N/H e VMADL/M/N/H foram implementadas. Permanecem pendentes a ampliação de testes de limites/saturação para todos os formatos e a validação CI da etapa VMAD, com semântica de produto, acumulação e fatias do acumulador conforme documentação oficial.
+VMULF/U, VMACF/U, VMUDL/M/N/H e VMADL/M/N/H foram implementadas. Permanecem pendentes a ampliação de testes de limites/saturação para todos os formatos, com semântica de produto, acumulação e fatias do acumulador conforme documentação oficial.
 
 ## 7. Barramento, memória e periféricos
 
@@ -308,8 +308,15 @@ A auditoria ainda deve continuar por:
 
 ### Continuação do RSP — comparações e seleção vetorial
 - Implementadas VLT (0x20), VEQ (0x21), VNE (0x22), VGE (0x23) e VMRG (0x27).
-- VLT trata empate usando VCO_LO e VCO_HI; VEQ/VNE consideram VCO_LO para os casos de empate; VGE aplica a regra complementar de VLT.
+- VLT trata empate usando VCO_LO e VCO_HI; VEQ/VNE consideram VCO_HI para os casos de empate; VGE aplica a regra complementar de VLT.
 - As comparações escrevem as seleções em VCC_LO e limpam VCO; VMRG seleciona VS ou VT conforme VCC_LO.
 - Adicionados testes para comparação signed, empates com flags VCO, VCC e seleção VMRG.
 - Commits: `86d7d6a` (implementação), `9f8eda1` e `4325988` (testes/ajustes).
 - CI do commit de testes `4325988` ainda deve concluir antes de marcar a etapa como aprovada.
+
+
+### Revisão das comparações VLT/VEQ/VNE/VGE
+- Revisada a semântica de flags com referência técnica: VLT usa VCO_LO e VCO_HI no empate; VEQ e VNE usam VCO_HI (não VCO_LO) no caso de igualdade.
+- Corrigida a implementação de VEQ/VNE para consultar VCO_HI e garantido que comparações/VMRG atualizam ACC_LO com o valor selecionado.
+- Testes ajustados para preparar explicitamente VCO_HI e validar as condições de empate.
+- Commits: `c4f0a00` (correção) e `98369ee` (teste).
