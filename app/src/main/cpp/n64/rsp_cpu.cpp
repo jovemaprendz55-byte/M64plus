@@ -145,7 +145,7 @@ bool RspCpu::step(Bus& bus) noexcept {
     };
 
     if (opcode == 0x12U && rs >= 0x10U) {
-        if (inDelaySlot || !executeVector(rs & 0x0FU, rt, rd,
+        if (!executeVector(rs & 0x0FU, rt, rd,
                                           (instruction >> 6U) & 31U, function)) {
             halted_ = true;
             return false;
