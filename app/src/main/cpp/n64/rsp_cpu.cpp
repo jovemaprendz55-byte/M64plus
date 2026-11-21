@@ -36,7 +36,7 @@ void RspCpu::reset() noexcept {
     pendingBranchTarget_ = 0;
     executed_ = 0;
     for (auto& vector : vr_) vector.fill(0);
-    accumulator_.fill(0);
+    accumulator_.fill({});
     vco_ = 0;
     vcc_ = 0;
     vce_ = 0;
