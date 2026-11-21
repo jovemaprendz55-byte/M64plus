@@ -165,6 +165,22 @@ void testVectorMultiplyFraction() {
             "VMULF stores high product bits in ACC_MD");
 }
 
+void testVectorMultiplyUnsigned() {
+    Bus bus;
+    RspCpu rsp;
+    rsp.setVectorLane(1, 0, 0x4000U);
+    rsp.setVectorLane(2, 0, 0x4000U);
+    rsp.setVectorLane(1, 1, 0xC000U);
+    rsp.setVectorLane(2, 1, 0x4000U);
+    rsp.setVectorLane(1, 2, 0x8000U);
+    rsp.setVectorLane(2, 2, 0x8000U);
+    put(bus, 0, vType(0, 2, 1, 3, 0x01)); // VMULU
+    require(rsp.step(bus), "execute VMULU");
+    require(rsp.vectorLane(3, 0) == 0x2000U, "VMULU positive product");
+    require(rsp.vectorLane(3, 1) == 0U, "VMULU clips negative product to zero");
+    require(rsp.vectorLane(3, 2) == 0xFFFFU, "VMULU reports positive overflow");
+}
+
 void testVectorAccumulatorLowAndVsar() {
     Bus bus;
     RspCpu rsp;
@@ -306,6 +322,7 @@ int main() {
     testVectorCarryAndLogic();
     testVectorAccumulatorLowAndVsar();
     testVectorMultiplyFraction();
+    testVectorMultiplyUnsigned();
     testVectorPairBroadcastSelectors();
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
