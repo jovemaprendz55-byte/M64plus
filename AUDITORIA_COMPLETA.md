@@ -421,3 +421,12 @@ A auditoria ainda deve continuar por:
 - LHV coloca cada byte em bits 14..7 do elemento vetorial e zera os demais bits; SHV extrai os mesmos bits para gravar na memória.
 - Testes verificam os oito elementos, stride de dois bytes, escalonamento do offset e transformação dos valores. Workflow `44902784631` concluiu `native-host-tests` com sucesso; `assemble-debug` permanece em andamento.
 - A seleção por alinhamento e valores de elemento fora do padrão documentado ainda exige comparação mais ampla com testes de hardware/referência.
+
+
+### Continuação do RSP — LFV (2026-11-21)
+- Implementado LFV (subopcode 9 de LWC2), com offset escalado por 16 bytes.
+- A instrução lê quatro bytes espaçados por quatro posições em DMEM e os posiciona em bits 14..7 de quatro lanes do vetor.
+- O campo element é tratado como índice em bytes e seleciona o grupo inferior (element=0) ou superior (element=8) de quatro lanes; valores intermediários/fora desses dois grupos são rejeitados como codificação não suportada pela implementação atual.
+- Testes verificam as quatro amostras espaçadas, os dois grupos de destino e a preservação das lanes não afetadas.
+- SFV ainda não foi implementada: seu mapeamento de lanes e bytes precisa de validação independente antes de habilitar SWC2 subopcode 9.
+- Commits: `a30566a` (implementação) e `b7cb188` (testes). Aguardando CI dos dois commits; não marcar LFV como validado até ambos os jobs terminarem.
