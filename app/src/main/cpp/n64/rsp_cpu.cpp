@@ -73,6 +73,15 @@ std::uint8_t RspCpu::vectorClipFlags() const noexcept { return vce_; }
 bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
                            unsigned vd, unsigned function) noexcept {
     if (vt >= 32U || vs >= 32U || vd >= 32U || element >= 16U) return false;
+    if (function == 0x1DU) { // VSAR: read one 16-bit accumulator slice.
+        if (element > 2U) return false;
+        for (unsigned lane = 0; lane < 8U; ++lane) {
+            const AccumulatorLane& acc = accumulator_[lane];
+            vr_[vd][lane] = element == 0U ? acc.lo
+                : (element == 1U ? acc.md : acc.hi);
+        }
+        return true;
+    }
     const bool add = function == 0x10U, sub = function == 0x11U;
     const bool addCarry = function == 0x14U, subCarry = function == 0x15U;
     const bool logical = function >= 0x28U && function <= 0x2DU;
@@ -87,16 +96,16 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
             const std::int32_t b = static_cast<std::int16_t>(right);
             const std::int32_t carry = (vco_ & (1U << lane)) != 0U ? 1 : 0;
             const std::int32_t sum = add ? a + b + carry : a - b - carry;
-            accumulator_[lane] = sum;
+            accumulator_[lane].lo = static_cast<std::uint16_t>(sum);
             value = static_cast<std::uint16_t>(std::max(-32768, std::min(32767, sum)));
         } else if (addCarry) {
             const std::uint32_t sum = static_cast<std::uint32_t>(left) + right;
-            accumulator_[lane] = sum;
+            accumulator_[lane].lo = static_cast<std::uint16_t>(sum);
             value = static_cast<std::uint16_t>(sum);
             if (sum > 0xFFFFU) nextVco |= static_cast<std::uint16_t>(1U << lane);
         } else if (subCarry) {
             const std::uint32_t diff = static_cast<std::uint32_t>(left) - right;
-            accumulator_[lane] = static_cast<std::int16_t>(static_cast<std::uint16_t>(diff));
+            accumulator_[lane].lo = static_cast<std::uint16_t>(diff);
             value = static_cast<std::uint16_t>(diff);
             if (left < right) nextVco |= static_cast<std::uint16_t>(1U << lane);
             if (left != right) nextVco |= static_cast<std::uint16_t>(1U << (lane + 8U));
@@ -110,7 +119,7 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
             case 0x2DU: value = static_cast<std::uint16_t>(~(left ^ right)); break;
             default: return false;
             }
-            accumulator_[lane] = static_cast<std::int16_t>(value);
+            accumulator_[lane].lo = value;
         }
         vr_[vd][lane] = value;
     }
