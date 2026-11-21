@@ -562,6 +562,36 @@ void testVectorMoveAndNoop() {
     require(!rsp.faulted(), "VNOP is a supported instruction");
 }
 
+void testFourthPackedVectorLoad() {
+    Bus bus;
+    RspCpu rsp;
+    for (unsigned i = 0; i < 4U; ++i)
+        require(bus.write8(Bus::kSpDmemBase + 0x610U + i * 4U,
+                           static_cast<std::uint8_t>(0x20U + i * 3U)),
+                "initialize LFV source bytes");
+    for (unsigned lane = 0; lane < 8U; ++lane) {
+        rsp.setVectorLane(2, lane, 0xFFFFU);
+        rsp.setVectorLane(3, lane, 0xEEEEU);
+    }
+    put(bus, 0, iType(0x09, 0, 1, 0x0600));
+    put(bus, 4, vectorMemoryType(0x32, 1, 2, 9, 0, 1)); // LFV lower half
+    put(bus, 8, vectorMemoryType(0x32, 1, 3, 9, 8, 1)); // LFV upper half
+    require(rsp.step(bus), "set LFV base");
+    require(rsp.step(bus), "execute LFV lower half");
+    require(rsp.step(bus), "execute LFV upper half");
+    for (unsigned i = 0; i < 4U; ++i) {
+        const std::uint16_t expected = static_cast<std::uint16_t>((0x20U + i * 3U) << 7U);
+        require(rsp.vectorLane(2, i) == expected,
+                "LFV loads every fourth DMEM byte into lower vector lanes");
+        require(rsp.vectorLane(3, i + 4U) == expected,
+                "LFV element eight selects upper vector lanes");
+    }
+    require(rsp.vectorLane(2, 4) == 0xFFFFU &&
+            rsp.vectorLane(3, 3) == 0xEEEEU,
+            "LFV preserves lanes outside its selected half");
+    require(!rsp.faulted(), "LFV is a supported RSP memory instruction");
+}
+
 void testHalfPackedVectorTransfers() {
     Bus bus;
     RspCpu rsp;
@@ -872,6 +902,7 @@ int main() {
     testPackedVectorLoads();
     testPackedVectorStores();
     testHalfPackedVectorTransfers();
+    testFourthPackedVectorLoad();
     testVectorReciprocalAndDivideLatch();
     testCop2VectorAndControlMoves();
     std::cout << "All scalar and vector RSP host tests passed.\n";
