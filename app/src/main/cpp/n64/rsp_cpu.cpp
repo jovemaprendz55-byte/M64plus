@@ -125,7 +125,7 @@ bool RspCpu::step(Bus& bus) noexcept {
     const std::uint32_t oldBranchTarget = pendingBranchTarget_;
     std::uint32_t instruction = 0;
     if (!bus.read32(kImemBase + pc_, instruction)) {
-        halted_ = true; faulted_ = true;
+        halted_ = true; faulted_ = true; faulted_ = true;
         return false;
     }
 
@@ -173,7 +173,7 @@ bool RspCpu::step(Bus& bus) noexcept {
         if (rs >= 0x10U) {
             if (!executeVector(rs & 0x0FU, rt, rd,
                                (instruction >> 6U) & 31U, function)) {
-                halted_ = true;
+                halted_ = true; faulted_ = true;
                 return false;
             }
         } else {
@@ -194,7 +194,7 @@ bool RspCpu::step(Bus& bus) noexcept {
                 else if (rd == 2U) {
                     result = static_cast<std::uint32_t>(static_cast<std::int32_t>(
                         static_cast<std::int8_t>(vce_)));
-                } else { halted_ = true; return false; }
+                } else { halted_ = true; faulted_ = true; return false; }
                 destination = rt;
                 writeRegister = true;
                 break;
@@ -210,10 +210,10 @@ bool RspCpu::step(Bus& bus) noexcept {
                 if (rd == 0U) vco_ = static_cast<std::uint16_t>(gpr_[rt]);
                 else if (rd == 1U) vcc_ = static_cast<std::uint16_t>(gpr_[rt]);
                 else if (rd == 2U) vce_ = static_cast<std::uint8_t>(gpr_[rt]);
-                else { halted_ = true; return false; }
+                else { halted_ = true; faulted_ = true; return false; }
                 break;
             default:
-                halted_ = true;
+                halted_ = true; faulted_ = true;
                 return false;
             }
         }
@@ -224,13 +224,13 @@ bool RspCpu::step(Bus& bus) noexcept {
         case 0x00U: result = b << shift; break; // SLL
         case 0x02U: result = b >> shift; break; // SRL
         case 0x08U: // JR
-            if (inDelaySlot) { halted_ = true; return false; }
+            if (inDelaySlot) { halted_ = true; faulted_ = true; return false; }
             scheduleBranch = true;
             branchTarget = a & kPcMask;
             writeRegister = false;
             break;
         case 0x0DU: // BREAK
-            if (inDelaySlot) { halted_ = true; return false; }
+            if (inDelaySlot) { halted_ = true; faulted_ = true; return false; }
             breakAfterDelay = true;
             writeRegister = false;
             break;
@@ -240,13 +240,13 @@ bool RspCpu::step(Bus& bus) noexcept {
         case 0x25U: result = a | b; break;
         case 0x26U: result = a ^ b; break;
         case 0x27U: result = ~(a | b); break;
-        default: halted_ = true; return false;
+        default: halted_ = true; faulted_ = true; return false;
         }
         if (function != 0x08U && function != 0x0DU) writeRegister = true;
         break;
     case 0x01U: { // REGIMM: BLTZ / BGEZ
         if (inDelaySlot || (rt != 0U && rt != 1U)) {
-            halted_ = true;
+            halted_ = true; faulted_ = true;
             return false;
         }
         const bool negative = static_cast<std::int32_t>(a) < 0;
@@ -257,7 +257,7 @@ bool RspCpu::step(Bus& bus) noexcept {
     }
     case 0x02U: // J
     case 0x03U: // JAL
-        if (inDelaySlot) { halted_ = true; return false; }
+        if (inDelaySlot) { halted_ = true; faulted_ = true; return false; }
         scheduleBranch = true;
         branchTarget = (instruction & 0x03FFFFFFU) << 2U;
         if (opcode == 0x03U) {
@@ -270,7 +270,7 @@ bool RspCpu::step(Bus& bus) noexcept {
     case 0x05U: // BNE
     case 0x06U: // BLEZ
     case 0x07U: // BGTZ
-        if (inDelaySlot) { halted_ = true; return false; }
+        if (inDelaySlot) { halted_ = true; faulted_ = true; return false; }
         if (opcode == 0x04U) scheduleBranch = a == b;
         else if (opcode == 0x05U) scheduleBranch = a != b;
         else if (opcode == 0x06U)
@@ -305,7 +305,7 @@ bool RspCpu::step(Bus& bus) noexcept {
         destination = rt;
         if (opcode == 0x20U || opcode == 0x24U) {
             std::uint8_t value = 0;
-            if (!bus.read8(physical, value)) { halted_ = true; return false; }
+            if (!bus.read8(physical, value)) { halted_ = true; faulted_ = true; return false; }
             result = opcode == 0x20U
                 ? static_cast<std::uint32_t>(static_cast<std::int32_t>(
                     static_cast<std::int8_t>(value)))
@@ -314,7 +314,7 @@ bool RspCpu::step(Bus& bus) noexcept {
         } else if (opcode == 0x21U || opcode == 0x25U) {
             std::uint16_t value = 0;
             if ((address & 1U) != 0U || !bus.read16(physical, value)) {
-                halted_ = true;
+                halted_ = true; faulted_ = true;
                 return false;
             }
             result = opcode == 0x21U
@@ -324,29 +324,29 @@ bool RspCpu::step(Bus& bus) noexcept {
             writeRegister = true;
         } else if (opcode == 0x23U) {
             if ((address & 3U) != 0U || !bus.read32(physical, result)) {
-                halted_ = true;
+                halted_ = true; faulted_ = true;
                 return false;
             }
             writeRegister = true;
         } else if (opcode == 0x28U) {
             if (!bus.write8(physical, static_cast<std::uint8_t>(b))) {
-                halted_ = true;
+                halted_ = true; faulted_ = true;
                 return false;
             }
         } else if (opcode == 0x29U) {
             if ((address & 1U) != 0U ||
                 !bus.write16(physical, static_cast<std::uint16_t>(b))) {
-                halted_ = true;
+                halted_ = true; faulted_ = true;
                 return false;
             }
         } else if ((address & 3U) != 0U || !bus.write32(physical, b)) {
-            halted_ = true;
+            halted_ = true; faulted_ = true;
             return false;
         }
         break;
     }
     default:
-        halted_ = true;
+        halted_ = true; faulted_ = true;
         return false;
     }
 
@@ -365,7 +365,7 @@ bool RspCpu::step(Bus& bus) noexcept {
             pendingBranch_ = true;
             pendingBranchTarget_ = branchTarget;
         } else if (breakAfterDelay) {
-            halted_ = true;
+            halted_ = true; faulted_ = true;
         }
     }
     return true;
