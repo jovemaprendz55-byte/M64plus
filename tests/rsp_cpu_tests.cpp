@@ -562,6 +562,63 @@ void testVectorMoveAndNoop() {
     require(!rsp.faulted(), "VNOP is a supported instruction");
 }
 
+void testVectorQuadMemoryTransfers() {
+    Bus bus;
+    RspCpu rsp;
+    rsp.setVectorLane(8, 0, 0xEEEEU);
+    rsp.setVectorLane(8, 1, 0xEEEEU);
+    rsp.setVectorLane(8, 2, 0xEEEEU);
+    rsp.setVectorLane(8, 3, 0xEEEEU);
+    rsp.setVectorLane(8, 4, 0xEEEEU);
+    rsp.setVectorLane(8, 5, 0xEEEEU);
+    rsp.setVectorLane(8, 6, 0xEEEEU);
+    rsp.setVectorLane(8, 7, 0xEEEEU);
+    rsp.setVectorLane(9, 0, 0xEEEEU);
+    rsp.setVectorLane(9, 1, 0xEEEEU);
+    for (unsigned i = 0; i < 32U; ++i)
+        require(bus.write8(Bus::kSpDmemBase + 0x200U + i,
+                           static_cast<std::uint8_t>(i)),
+                "initialize quad-load DMEM");
+    rsp.setVectorLane(7, 0, 0xACADU);
+    rsp.setVectorLane(7, 1, 0xAEAFU);
+    rsp.setVectorLane(7, 2, 0xA0A1U);
+    rsp.setVectorLane(7, 3, 0xA2A3U);
+    rsp.setVectorLane(7, 4, 0xA4A5U);
+    rsp.setVectorLane(7, 5, 0xA6A7U);
+    rsp.setVectorLane(7, 6, 0xA8A9U);
+    rsp.setVectorLane(7, 7, 0xAAABU);
+    put(bus, 0, iType(0x09, 0, 1, 0x0208)); // address 0x208
+    put(bus, 4, iType(0x09, 0, 2, 0x0218)); // address 0x218
+    put(bus, 8, vectorMemoryType(0x32, 1, 8, 4, 4, 0)); // LQV
+    put(bus, 12, vectorMemoryType(0x32, 2, 9, 5, 4, 0)); // LRV
+    put(bus, 16, vectorMemoryType(0x3A, 1, 7, 4, 4, 0)); // SQV
+    put(bus, 20, vectorMemoryType(0x3A, 2, 7, 5, 4, 0)); // SRV
+    for (unsigned i = 0; i < 6U; ++i)
+        require(rsp.step(bus), "execute RSP quad memory transfer program");
+
+    require(rsp.vectorLane(8, 0) == 0xEEEEU && rsp.vectorLane(8, 1) == 0xEEEEU,
+            "LQV preserves vector bytes before element");
+    require(rsp.vectorLane(8, 2) == 0x0809U && rsp.vectorLane(8, 5) == 0x0E0FU,
+            "LQV loads through the next 16-byte boundary");
+    require(rsp.vectorLane(9, 6) == 0x1011U && rsp.vectorLane(9, 7) == 0x1213U,
+            "LRV loads right-aligned bytes into the vector tail");
+
+    std::uint8_t value = 0;
+    require(bus.read8(Bus::kSpDmemBase + 0x208U, value) && value == 0xA0U,
+            "SQV stores from the selected vector element");
+    require(bus.read8(Bus::kSpDmemBase + 0x20FU, value) && value == 0xA7U,
+            "SQV stops at the next 16-byte boundary");
+    require(bus.read8(Bus::kSpDmemBase + 0x210U, value) && value == 0xA8U,
+            "SRV stores right-aligned vector tail");
+    require(bus.read8(Bus::kSpDmemBase + 0x213U, value) && value == 0xABU,
+            "SRV stores remaining tail bytes");
+    require(bus.read8(Bus::kSpDmemBase + 0x214U, value) && value == 0xACU,
+            "SRV wraps vector selection to byte zero");
+    require(bus.read8(Bus::kSpDmemBase + 0x217U, value) && value == 0xAFU,
+            "SRV completes wrapped vector store");
+    require(!rsp.faulted(), "LQV/LRV/SQV/SRV are supported");
+}
+
 void testVectorBasicMemoryTransfers() {
     Bus bus;
     RspCpu rsp;
@@ -732,6 +789,7 @@ int main() {
     testVectorMoveAndNoop();
     testVectorAbsolute();
     testVectorBasicMemoryTransfers();
+    testVectorQuadMemoryTransfers();
     testVectorReciprocalAndDivideLatch();
     testCop2VectorAndControlMoves();
     std::cout << "All scalar and vector RSP host tests passed.\n";
