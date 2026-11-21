@@ -10,9 +10,9 @@ Emulador Nintendo 64 para Android. Alvo inicial: Android 16 ARM64 e testes no Po
 
 **CPU MIPS inicial:** 32 GPRs de 64 bits (r0 sempre zero), PC de 64 bits, subconjunto aritmético/lógico inicial e agora saltos/desvios: BEQ, BNE, BLEZ, BGTZ, BLTZ, BGEZ, J, JAL, JR e JALR, além de LB, LBU, LH, LHU, LW, LWU, LD, SB, SH, SW e SD. A CPU modela uma instrução de delay slot. Os acessos de dados usam offsets diretos da RDRAM de 8 MiB, com checagem de alinhamento e limites; MMU/TLB e exceções ainda não estão implementados. Autotestes cobrem desvios, delay slot, leitura e escrita.
 
-**CP0 inicial:** registradores BadVAddr, Count, Compare, Status, Cause e EPC; captura de exceção, bit EXL, indicação de delay slot (BD), vetor normal/BEV, retorno ERET e temporizador Count/Compare. Este CP0 inicial ainda não está ligado ao fluxo de execução da CPU MIPS; TLB, modos de privilégio completos e arbitragem real de interrupções ainda faltam.
+**CP0 inicial:** registradores BadVAddr, Count, Compare, Status, Cause e EPC; captura de exceção, bit EXL, indicação de delay slot (BD), vetor normal/BEV, retorno ERET e temporizador Count/Compare. O CP0 agora está conectado ao passo da CPU para exceções de instrução reservada, busca inválida, endereços de dados desalinhados e falhas de acesso à RDRAM. A CPU registra EPC/Cause/BadVAddr e desvia para o vetor de exceção. TLB, modos de privilégio completos e arbitragem real de interrupções ainda faltam.
 
-**Limitações:** ainda não há exceções completas integradas à CPU, TLB, FPU, caches, barramento completo, RSP, RDP, áudio ou carregador de ROM. Ainda não executa jogos comerciais. Instruções de branch-likely e algumas variantes não estão implementadas.
+**Limitações:** ainda não há exceções completas para todos os casos, TLB, FPU, caches, barramento completo, RSP, RDP, áudio ou carregador de ROM. Ainda não executa jogos comerciais. Instruções de branch-likely e algumas variantes não estão implementadas.
 
 ## Build e testes
 

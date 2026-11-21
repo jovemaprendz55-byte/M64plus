@@ -78,7 +78,10 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuMemorySelfTest(JNIEnv*, jclass) {
     Rdram badMemory;
     if(!badMemory.write32(0,0x8D080001U)) return JNI_FALSE; // LW t0,1(zero)
     MipsCpu badCpu;
-    if(badCpu.step(badMemory)) return JNI_FALSE;
+    if(!badCpu.step(badMemory)) return JNI_FALSE;
+    if(badCpu.pc()!=0xFFFFFFFF80000180ULL) return JNI_FALSE;
+    if(((badCpu.cp0().read(m64plus::n64::Cp0::kCause)>>2U)&0x1FULL)!=4U) return JNI_FALSE;
+    if(badCpu.cp0().read(m64plus::n64::Cp0::kBadVAddr)!=1U) return JNI_FALSE;
 
     // Exercise 64-bit LD/SD and byte/halfword stores with big-endian data.
     Rdram wideMemory;
@@ -139,5 +142,38 @@ Java_com_jsr_m64plus_MainActivity_nativeCp0SelfTest(JNIEnv*, jclass) {
     if (!cp0.write(Cp0::kStatus, Cp0::kStatusBev)) return JNI_FALSE;
     if (cp0.raiseException(ExceptionCode::Syscall, 0xFFFFFFFF80003000ULL) !=
         0xFFFFFFFFBFC00380ULL) return JNI_FALSE;
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeCpuExceptionIntegrationSelfTest(JNIEnv*, jclass) {
+    using m64plus::n64::MipsCpu;
+    using m64plus::n64::Rdram;
+    using m64plus::n64::Cp0;
+    Rdram memory;
+    // Reserved opcode is delivered to the general exception vector.
+    if (!memory.write32(0, 0xFC000000U)) return JNI_FALSE;
+    MipsCpu cpu;
+    if (!cpu.step(memory)) return JNI_FALSE;
+    if (cpu.pc() != 0xFFFFFFFF80000180ULL || !cpu.cp0().exceptionLevel()) return JNI_FALSE;
+    if (((cpu.cp0().read(Cp0::kCause) >> 2U) & 0x1FULL) != 10U) return JNI_FALSE;
+    if (cpu.cp0().read(Cp0::kEpc) != 0U) return JNI_FALSE;
+
+    // Misaligned fetch raises AdEL and records the bad virtual address.
+    MipsCpu fetchCpu;
+    fetchCpu.reset(2);
+    if (!fetchCpu.step(memory)) return JNI_FALSE;
+    if (fetchCpu.pc() != 0xFFFFFFFF80000180ULL) return JNI_FALSE;
+    if (fetchCpu.cp0().read(Cp0::kBadVAddr) != 2U) return JNI_FALSE;
+
+    // Fault in a branch delay slot records the branch PC and BD flag.
+    Rdram delayMemory;
+    const std::uint32_t delayProgram[] = {0x10000001U, 0xFC000000U};
+    if (!delayMemory.write32(0, delayProgram[0]) || !delayMemory.write32(4, delayProgram[1]))
+        return JNI_FALSE;
+    MipsCpu delayCpu;
+    if (!delayCpu.step(delayMemory) || !delayCpu.step(delayMemory)) return JNI_FALSE;
+    if (delayCpu.cp0().read(Cp0::kEpc) != 0U) return JNI_FALSE;
+    if ((delayCpu.cp0().read(Cp0::kCause) & (1ULL << 31U)) == 0) return JNI_FALSE;
     return JNI_TRUE;
 }
