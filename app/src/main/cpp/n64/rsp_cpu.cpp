@@ -497,7 +497,7 @@ bool RspCpu::step(Bus& bus) noexcept {
         // RSP vector memory transfers. Subopcodes 0-5 are LBV..LRV / SBV..SRV.
         const unsigned subOpcode = (instruction >> 11U) & 31U;
         const bool load = opcode == 0x32U;
-        if (subOpcode > 9U && subOpcode != 0x0BU) {
+        if (subOpcode > 9U && subOpcode != 0x0AU && subOpcode != 0x0BU) {
             halted_ = true; faulted_ = true;
             return false;
         }
