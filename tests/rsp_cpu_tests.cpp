@@ -626,6 +626,18 @@ void testFourthPackedVectorStore() {
         require(bus.read8(Bus::kSpDmemBase + address, value) && value == 0U,
                 "SFV writes zero for temporary-table X entries");
     }
+
+    put(bus, 12, iType(0x09, 0, 2, 0x070E)); // bit 3 set within the 16-byte window
+    put(bus, 16, vectorMemoryType(0x3A, 2, 4, 9, 5, 0));
+    rsp.setPc(12U);
+    require(rsp.step(bus) && rsp.step(bus), "execute SFV with address bit 3 set");
+    constexpr unsigned wrappedAddresses[4] = {0x70EU, 0x712U, 0x716U, 0x70AU};
+    for (unsigned i = 0; i < 4U; ++i) {
+        std::uint8_t value = 0;
+        require(bus.read8(Bus::kSpDmemBase + wrappedAddresses[i], value) &&
+                value == static_cast<std::uint8_t>(0x20U + expectedLane[i]),
+                "SFV wraps from an 8-byte-aligned window when address bit 3 is set");
+    }
     require(!rsp.faulted(), "SFV is a supported RSP memory instruction");
 }
 
