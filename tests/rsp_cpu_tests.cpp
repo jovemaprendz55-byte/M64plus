@@ -18,6 +18,10 @@ void require(bool condition, const char* message) {
 std::uint32_t iType(unsigned op, unsigned rs, unsigned rt, std::uint16_t imm) {
     return (op << 26U) | (rs << 21U) | (rt << 16U) | imm;
 }
+std::uint32_t vType(unsigned element, unsigned vt, unsigned vs, unsigned vd, unsigned function) {
+    return (0x12U << 26U) | ((0x10U | element) << 21U) |
+        (vt << 16U) | (vs << 11U) | (vd << 6U) | function;
+}
 void put(Bus& bus, std::uint32_t pc, std::uint32_t instruction) {
     require(bus.write32(Bus::kSpImemBase + pc, instruction), "write RSP instruction");
 }
@@ -97,6 +101,58 @@ void testRegimmBranches() {
     require(rsp.reg(5) == 9U, "not-taken BGEZ falls through after delay slot");
     require(rsp.halted(), "REGIMM program reaches BREAK");
 }
+void testVectorArithmetic() {
+    Bus bus;
+    RspCpu rsp;
+    for (unsigned lane = 0; lane < 8U; ++lane) {
+        rsp.setVectorLane(1, lane, 30000U);
+        rsp.setVectorLane(2, lane, 10000U);
+    }
+    rsp.setVectorLane(1, 1, 0x8AD0U);
+    rsp.setVectorLane(2, 1, 0xD8F0U);
+    put(bus, 0, vType(0, 2, 1, 3, 0x10)); // VADD
+    put(bus, 4, vType(0, 2, 1, 4, 0x11)); // VSUB
+    require(rsp.step(bus), "execute VADD");
+    require(rsp.vectorLane(3, 0) == 32767U, "VADD positive saturation");
+    require(rsp.vectorLane(3, 1) == 0x8000U, "VADD negative saturation");
+    require(rsp.vectorCarryFlags() == 0U, "VADD clears VCO");
+    require(rsp.step(bus), "execute VSUB");
+    require(rsp.vectorLane(4, 0) == 20000U, "VSUB positive difference");
+    require(rsp.vectorLane(4, 1) == static_cast<std::uint16_t>(-20000), "VSUB negative difference");
+}
+void testVectorCarryAndLogic() {
+    Bus bus;
+    RspCpu rsp;
+    rsp.setVectorLane(1, 0, 0xFFFFU);
+    rsp.setVectorLane(2, 0, 1U);
+    rsp.setVectorLane(1, 1, 0U);
+    rsp.setVectorLane(2, 1, 1U);
+    put(bus, 0, vType(0, 2, 1, 3, 0x14)); // VADDC
+    put(bus, 4, vType(0, 2, 1, 4, 0x15)); // VSUBC
+    put(bus, 8, vType(0, 2, 1, 5, 0x2C)); // VXOR
+    require(rsp.step(bus), "execute VADDC");
+    require(rsp.vectorLane(3, 0) == 0U, "VADDC low result");
+    require((rsp.vectorCarryFlags() & (1U << 8U)) != 0U, "VADDC carry flag");
+    require(rsp.step(bus), "execute VSUBC");
+    require(rsp.vectorLane(4, 0) == 0xFFFEU, "VSUBC subtraction result");
+    require(rsp.vectorLane(4, 1) == 0xFFFFU, "VSUBC underflow result");
+    require((rsp.vectorCarryFlags() & (1U << 1U)) != 0U, "VSUBC borrow flag");
+    require((rsp.vectorCarryFlags() & (1U << 9U)) != 0U, "VSUBC unequal flag");
+    require(rsp.step(bus), "execute VXOR");
+    require(rsp.vectorLane(5, 0) == 0xFFFEU, "VXOR lane result");
+}
+void testVectorElementBroadcast() {
+    Bus bus;
+    RspCpu rsp;
+    for (unsigned lane = 0; lane < 8U; ++lane) {
+        rsp.setVectorLane(1, lane, static_cast<std::uint16_t>(lane + 1U));
+        rsp.setVectorLane(2, lane, 10U);
+    }
+    put(bus, 0, vType(15, 2, 1, 3, 0x2A));
+    require(rsp.step(bus), "execute broadcast-element VOR");
+    for (unsigned lane = 0; lane < 8U; ++lane)
+        require(rsp.vectorLane(3, lane) == 18U, "element 15 broadcasts lane 7");
+}
 } // namespace
 
 int main() {
@@ -104,6 +160,9 @@ int main() {
     testBranchDelaySlot();
     testByteAndHalfwordMemory();
     testRegimmBranches();
-    std::cout << "All scalar RSP host tests passed.\n";
+    testVectorArithmetic();
+    testVectorCarryAndLogic();
+    testVectorElementBroadcast();
+    std::cout << "All scalar and vector RSP host tests passed.\n";
     return 0;
 }
