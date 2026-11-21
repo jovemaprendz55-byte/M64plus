@@ -129,14 +129,16 @@ bool MipsCpu::step(Rdram& memory) {
         break;
     // COP0: MFC0, MTC0 and ERET (register select 0 only).
     case 0x10:
-        if (inDelaySlot || (instruction & 7U) != 0)
+        if (inDelaySlot)
             return takeException(ExceptionCode::ReservedInstruction);
-        if (rs == 0x00) { // MFC0
+        if (rs == 0x00) { // MFC0, select 0 only
+            if ((instruction & 7U) != 0)
+                return takeException(ExceptionCode::ReservedInstruction);
             destination = rt;
             result = signExtend32(static_cast<std::uint32_t>(cp0_.read(rd)));
             writeRegister = true;
-        } else if (rs == 0x04) { // MTC0
-            if (!cp0_.write(rd, gpr_[rt]))
+        } else if (rs == 0x04) { // MTC0, select 0 only
+            if ((instruction & 7U) != 0 || !cp0_.write(rd, gpr_[rt]))
                 return takeException(ExceptionCode::ReservedInstruction);
         } else if (rs == 0x10) { // COP0 privileged operations
             if (function == 0x18) { // ERET
