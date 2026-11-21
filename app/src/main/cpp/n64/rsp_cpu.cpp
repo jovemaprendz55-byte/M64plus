@@ -82,16 +82,35 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
         }
         return true;
     }
+    const bool multiplyFraction = function == 0x00U;
     const bool add = function == 0x10U, sub = function == 0x11U;
     const bool addCarry = function == 0x14U, subCarry = function == 0x15U;
     const bool logical = function >= 0x28U && function <= 0x2DU;
-    if (!add && !sub && !addCarry && !subCarry && !logical) return false;
+    if (!multiplyFraction && !add && !sub && !addCarry && !subCarry && !logical) return false;
     std::uint16_t nextVco = 0;
     for (unsigned lane = 0; lane < 8U; ++lane) {
         const std::uint16_t left = vr_[vs][lane];
         const std::uint16_t right = vr_[vt][kElementMap[element][lane]];
         std::uint16_t value = 0;
-        if (add || sub) {
+        if (multiplyFraction) {
+            const std::int64_t product =
+                static_cast<std::int64_t>(static_cast<std::int16_t>(left)) *
+                static_cast<std::int16_t>(right) * 2 + 0x8000;
+            const std::uint64_t raw = static_cast<std::uint64_t>(product) &
+                0x0000FFFFFFFFFFFFULL;
+            accumulator_[lane].lo = static_cast<std::uint16_t>(raw);
+            accumulator_[lane].md = static_cast<std::uint16_t>(raw >> 16U);
+            accumulator_[lane].hi = static_cast<std::uint16_t>(raw >> 32U);
+            const std::int64_t signedAccumulator = (raw & (1ULL << 47U)) != 0U
+                ? static_cast<std::int64_t>(raw) - (1LL << 48U)
+                : static_cast<std::int64_t>(raw);
+            const std::int64_t shifted = signedAccumulator >= 0
+                ? signedAccumulator / 65536
+                : -((-signedAccumulator + 65535) / 65536);
+            if (shifted < -32768) value = 0x8000U;
+            else if (shifted > 32767) value = 0x7FFFU;
+            else value = static_cast<std::uint16_t>(shifted);
+        } else if (add || sub) {
             const std::int32_t a = static_cast<std::int16_t>(left);
             const std::int32_t b = static_cast<std::int16_t>(right);
             const std::int32_t carry = (vco_ & (1U << lane)) != 0U ? 1 : 0;
