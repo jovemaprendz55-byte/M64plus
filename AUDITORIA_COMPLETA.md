@@ -107,7 +107,7 @@ A conclusão deve ser revalidada contra a árvore completa do repositório antes
 - VCO, VCC e VCE parcialmente representados.
 - MFC2/MTC2 e CFC2/CTC2 parciais.
 - Operações vetoriais encontradas: VADD, VSUB, VADDC, VSUBC, VAND, VNAND, VOR, VNOR, VXOR e VNXOR.
-- Multiplicação vetorial e outras instruções COP2 ainda ausentes.
+- VMULF e VMULU foram implementadas nesta etapa; VMACF/U, VMUDL/M/N/H, VMADL/M/N/H e demais instruções COP2 continuam ausentes.
 
 ### 6.2 Acumulador
 O RSP precisa de oito acumuladores de 48 bits, divididos em ACC_HI, ACC_MD e ACC_LO. A implementação atual usa valores de 64 bits, mas as operações examinadas substituem o acumulador inteiro em casos nos quais deveriam atualizar apenas ACC_LO e preservar as demais fatias. VADDC também não deve guardar o carry como parte do valor de ACC_LO.
@@ -267,3 +267,9 @@ A auditoria ainda deve continuar por:
 - Testar preservação não-zero de ACC_HI e ACC_MD por meio de instruções que escrevam essas fatias.
 - Implementar VMULF/U, VMACF/U, VMUDL/M/N/H e VMADL/M/N/H com semântica de 48 bits e saturação.
 - Confirmar seletores VSAR contra a documentação de referência e testes direcionados.
+
+
+### Continuação do RSP — VMULF/VMULU
+- `VMULF` (função 0x00): produto fracionário assinado, arredondamento por 0x8000, acumulador de 48 bits e saturação assinada.
+- `VMULU` (função 0x01): mesmo produto/accumulator, com saturação de saída sem sinal (negativo para zero e overflow positivo para 0xFFFF).
+- Testes de regressão adicionados para produto positivo/negativo, caso extremo 0x8000 × 0x8000, saturação e leitura das fatias via VSAR.
