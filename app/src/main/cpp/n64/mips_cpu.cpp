@@ -211,8 +211,8 @@ bool MipsCpu::stepMemory(Memory& memory) {
     case 0x0D: destination = rt; result = a | immediate; writeRegister = true; break;
     case 0x0E: destination = rt; result = a ^ immediate; writeRegister = true; break;
     case 0x0F: destination = rt; result = signExtend32(static_cast<std::uint32_t>(immediate) << 16U); writeRegister = true; break;
-    // Integer loads. Effective addresses are currently direct RDRAM offsets;
-    // virtual-to-physical translation and exception delivery come later.
+    // Integer loads use the selected physical memory interface; optional TLB
+    // translation is applied before the bus or RDRAM access.
     case 0x20: case 0x21: case 0x23: case 0x24: case 0x25: case 0x27: case 0x37: {
         const std::uint64_t effective = a + signExtend16(immediate);
         std::uint32_t address = static_cast<std::uint32_t>(effective);

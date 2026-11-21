@@ -4,7 +4,6 @@
 #include "n64/rdram.h"
 #include "n64/tlb.h"
 #include "n64/bus.h"
-#include "n64/bus.h"
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeRdramSelfTest(JNIEnv*, jclass) {
     m64plus::n64::Rdram memory;
@@ -486,23 +485,53 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeCpuBusIntegrationSelfTest(JNIEnv*, jclass) {
     using m64plus::n64::Bus;
     using m64plus::n64::MipsCpu;
+    using m64plus::n64::Cp0;
+
+    // Fetch instructions from SP IMEM; access SP DMEM and RDRAM as data.
     Bus bus;
     const std::uint32_t program[] = {
         0x3C080400U, // LUI t0,0x0400 -> SP DMEM base
         0x24091234U, // ADDIU t1,zero,0x1234
-        0xAD090000U, // SW t1,0(t0) through physical bus
-        0x8D0A0000U  // LW t2,0(t0) through physical bus
+        0xAD090000U, // SW t1,0(t0) -> SP DMEM
+        0x8D0A0000U, // LW t2,0(t0) <- SP DMEM
+        0xAC0A0100U, // SW t2,0x100(zero) -> RDRAM
+        0x8C0B0100U  // LW t3,0x100(zero) <- RDRAM
     };
-    for (std::uint32_t i = 0; i < 4U; ++i)
+    for (std::uint32_t i = 0; i < 6U; ++i)
         if (!bus.write32(Bus::kSpImemBase + i * 4U, program[i]))
             return JNI_FALSE;
+
     MipsCpu cpu;
     cpu.reset(Bus::kSpImemBase);
-    for (unsigned i = 0; i < 4U; ++i)
+    for (unsigned i = 0; i < 6U; ++i)
         if (!cpu.step(bus)) return JNI_FALSE;
-    std::uint32_t stored = 0;
-    if (!bus.read32(Bus::kSpDmemBase, stored) || stored != 0x1234U ||
-        cpu.reg(10) != 0x1234ULL || cpu.instructionsExecuted() != 4U)
+
+    std::uint32_t dmem = 0;
+    std::uint32_t rdram = 0;
+    if (!bus.read32(Bus::kSpDmemBase, dmem) || dmem != 0x1234U ||
+        !bus.read32(0x100U, rdram) || rdram != 0x1234U ||
+        cpu.reg(10) != 0x1234ULL || cpu.reg(11) != 0x1234ULL ||
+        cpu.instructionsExecuted() != 6U)
+        return JNI_FALSE;
+
+    // An unmapped data access must be delivered as a Bus Data exception.
+    Bus faultBus;
+    const std::uint32_t faultProgram[] = {
+        0x3C080430U, // LUI t0,0x0430 -> unmapped physical region
+        0x8D090000U  // LW t1,0(t0)
+    };
+    if (!faultBus.write32(Bus::kSpImemBase, faultProgram[0]) ||
+        !faultBus.write32(Bus::kSpImemBase + 4U, faultProgram[1]))
+        return JNI_FALSE;
+    MipsCpu faultCpu;
+    faultCpu.reset(Bus::kSpImemBase);
+    if (!faultCpu.step(faultBus) || !faultCpu.step(faultBus))
+        return JNI_FALSE;
+    const std::uint64_t cause = faultCpu.cp0().read(Cp0::kCause);
+    if (faultCpu.pc() != 0xFFFFFFFF80000180ULL ||
+        ((cause >> 2U) & 0x1FULL) != 7U ||
+        faultCpu.cp0().read(Cp0::kBadVAddr) != 0x04300000ULL ||
+        !faultCpu.cp0().exceptionLevel())
         return JNI_FALSE;
     return JNI_TRUE;
 }
