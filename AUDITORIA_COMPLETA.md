@@ -400,3 +400,10 @@ A auditoria ainda deve continuar por:
 - Testes seguem o padrão documentado de pares: LQV em endereço desalinhado seguido de LRV, e SQV seguido de SRV, verificando os bytes exatos transferidos e preservação das partes não afetadas do vetor.
 - Subopcodes 0–5 agora cobrem LBV/LSV/LLV/LDV/LQV/LRV e SBV/SSV/SLV/SDV/SQV/SRV. Permanecem pendentes LPV/LUV/LHV/LFV/LWV/LTV e stores correspondentes.
 - CI pendente para confirmar a implementação e os novos testes.
+
+
+### Continuação do RSP — LPV/LUV (2026-11-21)
+- Implementadas as cargas packed LPV (subopcode 6) e LUV (subopcode 7). Cada instrução lê oito bytes consecutivos de DMEM com offset escalado por 8 e grava um byte por lane nos oito elementos de 16 bits.
+- LPV posiciona o byte em bits 15..8 (`byte << 8`); LUV posiciona em bits 14..7 (`byte << 7`). Os bits não usados são zerados.
+- O elemento legal documentado é zero. A implementação segue esse formato arquitetural; stores SPV/SUV e demais formatos packed ainda não foram incluídos.
+- Testes cobrem os oito lanes, deslocamento e limpeza dos bits não usados. CI pendente.
