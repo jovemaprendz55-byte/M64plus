@@ -362,7 +362,7 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuTlbTranslationSelfTest(JNIEnv*, jclas
     missCpu.reset(0x00500000ULL);
     missCpu.setTlbEnabled(true);
     if (!missCpu.step(memory)) return JNI_FALSE;
-    if (missCpu.pc() != 0xFFFFFFFF80000180ULL) return JNI_FALSE;
+    if (missCpu.pc() != 0xFFFFFFFF80000000ULL) return JNI_FALSE;
     if (((missCpu.cp0().read(Cp0::kCause) >> 2U) & 0x1FULL) != 2U) return JNI_FALSE;
     if (missCpu.cp0().read(Cp0::kBadVAddr) != 0x00500000ULL) return JNI_FALSE;
     return JNI_TRUE;
