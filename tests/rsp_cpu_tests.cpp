@@ -562,6 +562,35 @@ void testVectorMoveAndNoop() {
     require(!rsp.faulted(), "VNOP is a supported instruction");
 }
 
+void testHalfPackedVectorTransfers() {
+    Bus bus;
+    RspCpu rsp;
+    for (unsigned lane = 0; lane < 8U; ++lane) {
+        require(bus.write8(Bus::kSpDmemBase + 0x510U + lane * 2U,
+                           static_cast<std::uint8_t>(0x40U + lane)),
+                "initialize half-packed vector load bytes");
+        rsp.setVectorLane(6, lane, static_cast<std::uint16_t>(
+            ((0x50U + lane) << 7U) | 0x003FU));
+    }
+    put(bus, 0, iType(0x09, 0, 1, 0x0500));
+    put(bus, 4, vectorMemoryType(0x32, 1, 2, 8, 0, 1)); // LHV offset * 16
+    put(bus, 8, vectorMemoryType(0x3A, 1, 6, 8, 0, 2)); // SHV offset * 16
+    require(rsp.step(bus), "set half-packed vector base");
+    require(rsp.step(bus), "execute LHV");
+    require(rsp.step(bus), "execute SHV");
+    for (unsigned lane = 0; lane < 8U; ++lane) {
+        const std::uint16_t loaded = static_cast<std::uint16_t>(
+            static_cast<std::uint16_t>(0x40U + lane) << 7U);
+        require(rsp.vectorLane(2, lane) == loaded,
+                "LHV packs every second byte into bits 14 through 7");
+        std::uint8_t value = 0;
+        require(bus.read8(Bus::kSpDmemBase + 0x520U + lane * 2U, value) &&
+                value == static_cast<std::uint8_t>(0x50U + lane),
+                "SHV stores every second byte from bits 14 through 7");
+    }
+    require(!rsp.faulted(), "LHV and SHV are supported RSP memory instructions");
+}
+
 void testPackedVectorStores() {
     Bus bus;
     RspCpu rsp;
@@ -842,6 +871,7 @@ int main() {
     testVectorQuadMemoryTransfers();
     testPackedVectorLoads();
     testPackedVectorStores();
+    testHalfPackedVectorTransfers();
     testVectorReciprocalAndDivideLatch();
     testCop2VectorAndControlMoves();
     std::cout << "All scalar and vector RSP host tests passed.\n";
