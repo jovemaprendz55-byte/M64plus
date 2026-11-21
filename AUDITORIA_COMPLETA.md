@@ -393,3 +393,10 @@ A auditoria ainda deve continuar por:
 - Teste de integração cobre os quatro tamanhos, offsets escalados e leitura/escrita de bytes no DMEM.
 - Ainda não estão implementados LQV/LRV, LPV/LUV/LHV/LFV/LWV/LTV nem os stores correspondentes; este é apenas o primeiro grupo.
 - CI pendente para implementação e testes antes da aprovação.
+
+
+### Continuação do RSP — LQV/LRV/SQV/SRV (2026-11-21)
+- Ampliado `LWC2`/`SWC2` com LQV/LRV/SQV/SRV (subopcodes 4 e 5), incluindo alinhamento de 16 bytes, seleção de elemento, truncamento dos loads e wrap dos stores.
+- Testes seguem o padrão documentado de pares: LQV em endereço desalinhado seguido de LRV, e SQV seguido de SRV, verificando os bytes exatos transferidos e preservação das partes não afetadas do vetor.
+- Subopcodes 0–5 agora cobrem LBV/LSV/LLV/LDV/LQV/LRV e SBV/SSV/SLV/SDV/SQV/SRV. Permanecem pendentes LPV/LUV/LHV/LFV/LWV/LTV e stores correspondentes.
+- CI pendente para confirmar a implementação e os novos testes.
