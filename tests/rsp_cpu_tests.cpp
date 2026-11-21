@@ -565,10 +565,10 @@ void testVectorMoveAndNoop() {
 void testFourthPackedVectorLoad() {
     Bus bus;
     RspCpu rsp;
-    for (unsigned i = 0; i < 4U; ++i)
-        require(bus.write8(Bus::kSpDmemBase + 0x610U + i * 4U,
-                           static_cast<std::uint8_t>(0x20U + i * 3U)),
-                "initialize LFV source bytes");
+    for (unsigned i = 0; i < 16U; ++i)
+        require(bus.write8(Bus::kSpDmemBase + 0x610U + i,
+                           static_cast<std::uint8_t>(0x20U + i)),
+                "initialize LFV 16-byte source quadword");
     for (unsigned lane = 0; lane < 8U; ++lane) {
         rsp.setVectorLane(2, lane, 0xFFFFU);
         rsp.setVectorLane(3, lane, 0xEEEEU);
@@ -579,12 +579,17 @@ void testFourthPackedVectorLoad() {
     require(rsp.step(bus), "set LFV base");
     require(rsp.step(bus), "execute LFV lower half");
     require(rsp.step(bus), "execute LFV upper half");
+    constexpr unsigned lowerPattern[4] = {0U, 4U, 8U, 12U};
+    constexpr unsigned upperPattern[4] = {8U, 12U, 0U, 4U};
     for (unsigned i = 0; i < 4U; ++i) {
-        const std::uint16_t expected = static_cast<std::uint16_t>((0x20U + i * 3U) << 7U);
-        require(rsp.vectorLane(2, i) == expected,
-                "LFV loads every fourth DMEM byte into lower vector lanes");
-        require(rsp.vectorLane(3, i + 4U) == expected,
-                "LFV element eight selects upper vector lanes");
+        const std::uint16_t lower = static_cast<std::uint16_t>(
+            (0x20U + lowerPattern[i]) << 7U);
+        const std::uint16_t upper = static_cast<std::uint16_t>(
+            (0x20U + upperPattern[i]) << 7U);
+        require(rsp.vectorLane(2, i) == lower,
+                "LFV lower half follows the 0,4,8,12 byte pattern");
+        require(rsp.vectorLane(3, i + 4U) == upper,
+                "LFV upper half follows the 8,12,0,4 byte pattern");
     }
     require(rsp.vectorLane(2, 4) == 0xFFFFU &&
             rsp.vectorLane(3, 3) == 0xEEEEU,
