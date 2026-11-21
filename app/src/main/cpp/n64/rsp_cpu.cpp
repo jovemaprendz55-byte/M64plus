@@ -528,7 +528,8 @@ bool RspCpu::step(Bus& bus) noexcept {
         std::int32_t offset = static_cast<std::int32_t>(instruction & 0x7FU);
         if ((offset & 0x40) != 0) offset -= 0x80;
         const unsigned scale = subOpcode <= 3U ? (1U << subOpcode) :
-            (subOpcode <= 5U || subOpcode == 8U || subOpcode == 9U ? 16U : 8U);
+            (subOpcode <= 5U || subOpcode == 8U || subOpcode == 9U ||
+             subOpcode == 0x0BU ? 16U : 8U);
         const std::uint32_t address = static_cast<std::uint32_t>(
             static_cast<std::int64_t>(gpr_[rs]) +
             static_cast<std::int64_t>(offset) * scale) & 0x0FFFU;
