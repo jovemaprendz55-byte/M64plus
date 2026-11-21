@@ -141,6 +141,30 @@ void testVectorArithmetic() {
     require(rsp.vectorLane(4, 0) == 20000U, "VSUB positive difference");
     require(rsp.vectorLane(4, 1) == static_cast<std::uint16_t>(-20000), "VSUB negative difference");
 }
+void testVectorMultiplyFraction() {
+    Bus bus;
+    RspCpu rsp;
+    rsp.setVectorLane(1, 0, 0x4000U);
+    rsp.setVectorLane(2, 0, 0x4000U);
+    rsp.setVectorLane(1, 1, 0xC000U);
+    rsp.setVectorLane(2, 1, 0x4000U);
+    rsp.setVectorLane(1, 2, 0x8000U);
+    rsp.setVectorLane(2, 2, 0x8000U);
+    put(bus, 0, vType(0, 2, 1, 3, 0x00)); // VMULF
+    put(bus, 4, vType(0, 0, 0, 4, 0x1D)); // VSAR ACC_LO
+    put(bus, 8, vType(1, 0, 0, 5, 0x1D)); // VSAR ACC_MD
+    require(rsp.step(bus), "execute VMULF");
+    require(rsp.vectorLane(3, 0) == 0x2000U, "VMULF positive fractional product");
+    require(rsp.vectorLane(3, 1) == 0xE000U, "VMULF negative fractional product");
+    require(rsp.vectorLane(3, 2) == 0x7FFFU, "VMULF saturates positive overflow");
+    require(rsp.step(bus), "read VMULF accumulator low slice");
+    require(rsp.vectorLane(4, 0) == 0x8000U,
+            "VMULF stores rounded product in ACC_LO");
+    require(rsp.step(bus), "read VMULF accumulator middle slice");
+    require(rsp.vectorLane(5, 0) == 0x2000U,
+            "VMULF stores high product bits in ACC_MD");
+}
+
 void testVectorAccumulatorLowAndVsar() {
     Bus bus;
     RspCpu rsp;
@@ -281,6 +305,7 @@ int main() {
     testVectorArithmetic();
     testVectorCarryAndLogic();
     testVectorAccumulatorLowAndVsar();
+    testVectorMultiplyFraction();
     testVectorPairBroadcastSelectors();
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
