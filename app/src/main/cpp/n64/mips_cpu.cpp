@@ -312,7 +312,6 @@ bool MipsCpu::stepMemory(Memory& memory) {
     ++executed_;
     return true;
 }
-}
 bool MipsCpu::step(Rdram& memory) { return stepMemory(memory); }
 bool MipsCpu::step(Bus& memory) { return stepMemory(memory); }
-
+}
