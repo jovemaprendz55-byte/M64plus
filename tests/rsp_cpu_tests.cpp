@@ -542,20 +542,43 @@ void testVectorMoveAndNoop() {
     RspCpu rsp;
     for (unsigned lane = 0; lane < 8U; ++lane)
         rsp.setVectorLane(2, lane, static_cast<std::uint16_t>(0x1100U + lane));
-    // VMOV uses the encoded scalar source element (byte selector / 2)
-    // and the VS field as the destination lane.
-    put(bus, 0, vType(10, 2, 5, 3, 0x33)); // VT lane 5 -> VD3 lane 5
+    // VMOV uses the element broadcast map and VS as the destination lane.
+    put(bus, 0, vType(10, 2, 5, 3, 0x33)); // element 10 selects VT lane 2 -> VD3 lane 5
     put(bus, 4, vType(0, 2, 0, 4, 0x37));  // VNOP
     put(bus, 8, vType(0, 0, 0, 0, 0x1D));  // VSAR ACC_LO
     require(rsp.step(bus), "execute VMOV");
-    require(rsp.vectorLane(3, 5) == 0x1105U, "VMOV copies selected scalar lane");
+    require(rsp.vectorLane(3, 5) == 0x1102U, "VMOV copies selected scalar lane");
     require(rsp.vectorLane(3, 4) == 0U, "VMOV leaves other destination lanes unchanged");
     require(rsp.step(bus), "execute VNOP");
     require(rsp.step(bus), "read ACC_LO after VMOV");
     for (unsigned lane = 0; lane < 8U; ++lane)
-        require(rsp.vectorLane(0, lane) == static_cast<std::uint16_t>(0x1100U + lane),
-                "VMOV loads ACC_LO from all VT lanes");
+        require(rsp.vectorLane(0, lane) == static_cast<std::uint16_t>(0x1102U),
+                "VMOV loads ACC_LO using the element broadcast map");
     require(!rsp.faulted(), "VNOP is a supported instruction");
+}
+
+void testVectorReciprocalAndDivideLatch() {
+    Bus bus;
+    RspCpu rsp;
+    rsp.setVectorLane(2, 0, 0U);
+    rsp.setVectorLane(2, 1, 0U);
+    rsp.setVectorLane(2, 2, 0U);
+    put(bus, 0, vType(0, 2, 3, 4, 0x30)); // VRCP zero -> 0x7fffffff
+    put(bus, 4, vType(0, 2, 5, 4, 0x32)); // VRCPH reads prior DIV_OUT
+    put(bus, 8, vType(0, 2, 6, 4, 0x31)); // VRCPL combines staged high + low
+    put(bus, 12, vType(0, 2, 7, 4, 0x31)); // no pending high: sign-extended low
+    put(bus, 16, vType(0, 2, 1, 4, 0x34)); // VRSQ zero
+    require(rsp.step(bus), "execute VRCP");
+    require(rsp.vectorLane(4, 3) == 0xFFFFU, "VRCP zero low result is all ones");
+    require(rsp.step(bus), "execute VRCPH");
+    require(rsp.vectorLane(4, 5) == 0x7FFFU, "VRCPH returns prior result high half");
+    require(rsp.step(bus), "execute VRCPL with staged high half");
+    require(rsp.vectorLane(4, 6) == 0xFFFFU, "VRCPL zero 32-bit input low result");
+    require(rsp.step(bus), "execute VRCPL without staged high half");
+    require(rsp.vectorLane(4, 7) == 0xFFFFU, "VRCPL without high half uses signed 16-bit input");
+    require(rsp.step(bus), "execute VRSQ");
+    require(rsp.vectorLane(4, 1) == 0xFFFFU, "VRSQ zero low result is all ones");
+    require(!rsp.faulted(), "reciprocal instructions are supported");
 }
 
 void testCop2VectorAndControlMoves() {
@@ -619,6 +642,7 @@ int main() {
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
     testVectorMoveAndNoop();
+    testVectorReciprocalAndDivideLatch();
     testCop2VectorAndControlMoves();
     std::cout << "All scalar and vector RSP host tests passed.\n";
     return 0;
