@@ -125,7 +125,7 @@ bool RspCpu::step(Bus& bus) noexcept {
     const std::uint32_t oldBranchTarget = pendingBranchTarget_;
     std::uint32_t instruction = 0;
     if (!bus.read32(kImemBase + pc_, instruction)) {
-        halted_ = true; faulted_ = true; faulted_ = true;
+        halted_ = true; faulted_ = true;
         return false;
     }
 
@@ -365,7 +365,7 @@ bool RspCpu::step(Bus& bus) noexcept {
             pendingBranch_ = true;
             pendingBranchTarget_ = branchTarget;
         } else if (breakAfterDelay) {
-            halted_ = true; faulted_ = true;
+            halted_ = true;
         }
     }
     return true;
