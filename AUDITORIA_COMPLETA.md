@@ -384,3 +384,12 @@ A auditoria ainda deve continuar por:
 - VABS preserva VCO e atualiza ACC_LO lane a lane. Testes cobrem sinal positivo, negativo, zero, extremo `-32768`, preservação de VCO e leitura de ACC_LO via VSAR.
 - Referências confrontadas: SGI Nintendo 64 RSP Programmer's Guide (descrição de VABS) e implementação interpretativa do Project64 (`RSPOp::Vector_VABS`).
 - Commits de implementação e teste registrados em `main`; aguardar os workflows de CI antes de aprovar a etapa.
+
+
+### Continuação do RSP — transferências vetoriais básicas de memória (2026-11-21)
+- Implementado o primeiro subconjunto de `LWC2`/`SWC2`: LBV/SBV, LSV/SSV, LLV/SLV e LDV/SDV (subopcodes 0–3).
+- Endereço efetivo usa offset de 7 bits com sinal, escalado pelo tamanho da transferência, e wrap de 4 KiB no DMEM.
+- Loads preservam bytes não afetados e truncam no fim do registrador vetorial; stores fazem wrap da seleção de bytes do vetor, conforme a regra desses formatos.
+- Teste de integração cobre os quatro tamanhos, offsets escalados e leitura/escrita de bytes no DMEM.
+- Ainda não estão implementados LQV/LRV, LPV/LUV/LHV/LFV/LWV/LTV nem os stores correspondentes; este é apenas o primeiro grupo.
+- CI pendente para implementação e testes antes da aprovação.
