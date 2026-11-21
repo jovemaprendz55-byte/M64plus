@@ -584,7 +584,7 @@ void testVectorBasicMemoryTransfers() {
     put(bus, 16, vectorMemoryType(0x32, 1, 5, 3, 8, 0)); // LDV v5[e8]
     put(bus, 20, vectorMemoryType(0x3A, 1, 6, 0, 0, 0)); // SBV
     put(bus, 24, vectorMemoryType(0x3A, 1, 6, 1, 14, 1)); // SSV at base + 2
-    put(bus, 28, vectorMemoryType(0x3A, 1, 6, 2, 12, 2)); // SLV at base + 8
+    put(bus, 28, vectorMemoryType(0x3A, 1, 6, 2, 14, 2)); // SLV at base + 8, wraps vector bytes
     put(bus, 32, vectorMemoryType(0x3A, 1, 6, 3, 8, 3)); // SDV at base + 24
     for (unsigned i = 0; i < 9U; ++i)
         require(rsp.step(bus), "execute RSP vector memory transfer program");
@@ -600,8 +600,10 @@ void testVectorBasicMemoryTransfers() {
             "SBV stores one byte");
     require(bus.read8(Bus::kSpDmemBase + 0x102U, value) && value == 0xDDU,
             "SSV uses size-scaled offset and stores first selected byte");
-    require(bus.read8(Bus::kSpDmemBase + 0x108U, value) && value == 0xBBU,
+    require(bus.read8(Bus::kSpDmemBase + 0x108U, value) && value == 0xDDU,
             "SLV uses word-scaled offset and wraps vector byte selection");
+    require(bus.read8(Bus::kSpDmemBase + 0x10AU, value) && value == 0xAAU,
+            "SLV wraps selected vector bytes back to byte zero");
     require(bus.read8(Bus::kSpDmemBase + 0x118U, value) && value == 0x77U,
             "SDV uses doubleword-scaled offset");
     require(!rsp.faulted(), "basic RSP vector memory instructions are supported");
