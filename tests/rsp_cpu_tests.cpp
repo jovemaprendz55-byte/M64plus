@@ -366,6 +366,40 @@ void testVectorComparisonsAndMerge() {
     require(rsp.vectorLane(7, 7) == 18U, "VMRG selects VS where VCC_LO is set");
 }
 
+void testVectorClipHigh() {
+    Bus bus; RspCpu rsp;
+    rsp.setVectorLane(1, 0, 0xFFFDU); // -3
+    rsp.setVectorLane(2, 0, 5U);
+    rsp.setVectorLane(1, 1, 0xFFF9U); // -7
+    rsp.setVectorLane(2, 1, 5U);
+    rsp.setVectorLane(1, 2, 4U);
+    rsp.setVectorLane(2, 2, 5U);
+    rsp.setVectorLane(1, 3, 6U);
+    rsp.setVectorLane(2, 3, 5U);
+    rsp.setVectorLane(1, 4, 0xFFFAU); // -6 == -5 - 1, VCE edge
+    rsp.setVectorLane(2, 4, 5U);
+    put(bus, 0, vType(0, 2, 1, 3, 0x25)); // VCH
+    require(rsp.step(bus), "execute VCH");
+    require(rsp.vectorLane(3, 0) == 0xFFFDU,
+            "VCH leaves opposite-sign lane unchanged when above negative bound");
+    require(rsp.vectorLane(3, 1) == 0xFFFAU,
+            "VCH clamps opposite-sign lane to negative bound");
+    require(rsp.vectorLane(3, 2) == 4U,
+            "VCH leaves same-sign lane below positive bound unchanged");
+    require(rsp.vectorLane(3, 3) == 5U,
+            "VCH clamps same-sign lane to positive bound");
+    require(rsp.vectorLane(3, 4) == 0xFFFBU,
+            "VCH handles negative-bound extension edge");
+    require((rsp.vectorCarryFlags() & 0x0013U) == 0x0013U,
+            "VCH sets VCO_LO for opposite-sign lanes");
+    require((rsp.vectorCarryFlags() & (1U << 12U)) == 0U,
+            "VCH clears VCO_HI on VCE edge");
+    require((rsp.vectorClipFlags() & (1U << 4U)) != 0U,
+            "VCH records VCE extension bit");
+    require((rsp.vectorCompareFlags() & (1U << 11U)) != 0U,
+            "VCH records VCC_HI for positive clamp");
+}
+
 void testVectorAccumulatorLowAndVsar() {
     Bus bus;
     RspCpu rsp;
@@ -513,6 +547,7 @@ int main() {
     testVectorMultiplyDoublePrecision();
     testVectorMultiplyDoubleAccumulate();
     testVectorComparisonsAndMerge();
+    testVectorClipHigh();
     testVectorPairBroadcastSelectors();
     testVectorElementBroadcast();
     testVectorInstructionInBranchDelaySlot();
