@@ -976,3 +976,13 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - O primeiro CI do teste 4-bit falhou porque o comando de teste colocou `4` no campo TL (coordenada inicial T), em vez de TH (coordenada final T). Assim, o teste lia a linha de origem errada; não era evidência de falha no empacotamento de nibble da implementação.
 - Corrigido o comando para TL=0, TH=4, mantendo SL=0 e SH=12. Commit: `050febdbb3028a29a881f4e0f9d9cfa201c74045`.
 - O teste ainda aguarda novo CI; não declarar LOAD_TILE 4-bit validado até o resultado.
+
+
+## 16.31 CI aprovado para LOAD_TILE 4-bit (2026-11-22)
+
+- Workflow [#45025229147](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45025229147), commit de teste `050febdbb3028a29a881f4e0f9d9cfa201c74045`: `native-host-tests` success e `assemble-debug` success; etapa de upload do APK success.
+- O teste 4-bit corrigido (TL=0, TH=4) passou junto com toda a suíte nativa. A compilação Android também passou.
+- Artefato `m64plus-debug-apk`, ID `14754758311`, tamanho 576.611 bytes, SHA-256 `f9c79c03dd592e89a8f8e02ba5e81587f0504d9a9f5eec6da2880dc89bd43592`, expiração prevista em 2027-02-20. Download na seção Artifacts do workflow.
+- O workflow seguinte, disparado pelo commit de auditoria, também concluiu com sucesso: [#45025241020](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45025241020), com `native-host-tests` e `assemble-debug` success.
+- **Escopo da validação:** confirma testes automatizados e compilação. Não demonstra que LOAD_TILE 4-bit tenha fidelidade completa em hardware, nem que o emulador renderize jogos.
+- Próxima frente proposta: desenhar uma interface explícita de framebuffer entre a memória de imagem do RDP e o renderer Android. Antes de integrar, especificar formato de pixel, stride/largura, altura, sincronização de thread e propriedade do buffer; manter a tela de diagnóstico como fallback até existir framebuffer válido.
