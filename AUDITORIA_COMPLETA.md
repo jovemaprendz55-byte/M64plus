@@ -601,3 +601,13 @@ Implementadas em 2026-11-22:
 - `readDpCommand()` foi mantido como conveniência para consumir uma única palavra e agora usa o caminho atômico.
 - Teste de regressão: Texture Rectangle de duas palavras com apenas a primeira palavra publicada; a leitura é recusada e o cursor permanece intacto. Após publicar a segunda palavra, ambas são consumidas e DPC_CURRENT avança oito bytes por palavra.
 - **Limite:** o RDP ainda precisa chamar o decoder, determinar o comprimento e solicitar o bloco completo. Esta alteração fornece a primitiva transacional, mas não implementa dispatch, rasterização ou framebuffer.
+
+
+### 16.2. Ponte inicial entre DPC e decoder RDP (2026-11-22)
+
+- Criada a estrutura `RdpCommandPacket`, que armazena metadados e até 22 palavras de 64 bits — limite necessário para os comandos de triângulo com todos os blocos opcionais.
+- Criada `RdpCommandStream::fetchNext()`: consulta o cabeçalho com `peekDpCommand()`, usa `RdpCommandDecoder` para obter o comprimento e solicita ao barramento a retirada atômica do comando completo.
+- Se o comando estiver incompleto ou o DPC estiver congelado, a função retorna falso sem alterar o pacote do chamador nem DPC_CURRENT.
+- Adicionado teste de integração: Texture Rectangle incompleto é retido; quando a segunda palavra é publicada, o pacote recebe opcode, tamanho e as duas palavras, e o cursor avança pelo bloco completo.
+- O alvo de testes RDP agora liga também `bus.cpp` e `rdram.cpp` para testar o caminho integrado.
+- **Limite:** esta ponte apenas transporta/enquadra comandos. Nenhum opcode é executado; o pipeline de rasterização e framebuffer continua ausente.
