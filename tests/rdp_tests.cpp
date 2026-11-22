@@ -446,85 +446,61 @@ void testLoadTileCopiesTextureImageIntoTmem() {
     require(state.tmem.readByte(9U, value) && value == 11U,
             "LOAD_TILE copies second row texels");
 
-    Bus nibbleBus;
-    RdpSyncState nibbleState{};
-    require(nibbleBus.write8(0x1200U, 0x12U) &&
-            nibbleBus.write8(0x1201U, 0x34U), "seed 4-bit packed texture");
-    const std::uint64_t setImage4 =
-        (0x3DULL << 56U) | (3ULL << 32U) | 0x1200ULL;
-    const std::uint64_t setTile4 = (0x35ULL << 56U);
-    const std::uint64_t loadTile4 =
-        (0x34ULL << 56U) | (12ULL << 12U);
-    require(nibbleBus.write64(0x940U, setImage4) &&
-            nibbleBus.write64(0x948U, setTile4) &&
-            nibbleBus.write64(0x950U, loadTile4), "seed 4-bit LOAD_TILE sequence");
-    require(nibbleBus.write32(Bus::kDpStart, 0x940U) &&
-            nibbleBus.write32(Bus::kDpEnd, 0x958U), "publish 4-bit LOAD_TILE sequence");
+    Bus halfwordBus;
+    RdpSyncState halfwordState{};
+    require(halfwordBus.write16(0x1700U, 0x1234U) &&
+            halfwordBus.write16(0x1702U, 0x5678U) &&
+            halfwordBus.write16(0x1704U, 0x9ABCU) &&
+            halfwordBus.write16(0x1706U, 0xDEF0U),
+            "seed 16-bit LOAD_BLOCK source");
+    const std::uint64_t setImage16 =
+        (0x3DULL << 56U) | (2ULL << 51U) | (7ULL << 32U) | 0x1700ULL;
+    const std::uint64_t setTile16 = (0x35ULL << 56U);
+    const std::uint64_t loadBlock16 =
+        (0x33ULL << 56U) | (0ULL << 44U) | (0ULL << 32U) |
+        (0ULL << 24U) | (12ULL << 12U);
+    require(halfwordBus.write64(0xA00U, setImage16) &&
+            halfwordBus.write64(0xA08U, setTile16) &&
+            halfwordBus.write64(0xA10U, loadBlock16),
+            "seed 16-bit LOAD_BLOCK sequence");
+    require(halfwordBus.write32(Bus::kDpStart, 0xA00U) &&
+            halfwordBus.write32(Bus::kDpEnd, 0xA18U),
+            "publish 16-bit LOAD_BLOCK sequence");
     for (unsigned i = 0; i < 3U; ++i)
-        require(RdpCommandProcessor::processNext(nibbleBus, nibbleState) ==
+        require(RdpCommandProcessor::processNext(halfwordBus, halfwordState) ==
                     RdpProcessResult::Processed,
-                "4-bit LOAD_TILE sequence executes");
-    require(nibbleState.tmem.readByte(0U, value) && value == 0x12U &&
-            nibbleState.tmem.readByte(1U, value) && value == 0x34U,
-            "4-bit LOAD_TILE preserves packed nibble order");
+                "16-bit LOAD_BLOCK sequence executes");
+    require(halfwordState.tmem.readByte(0U, value) && value == 0x12U &&
+            halfwordState.tmem.readByte(1U, value) && value == 0x34U &&
+            halfwordState.tmem.readByte(6U, value) && value == 0xDEU &&
+            halfwordState.tmem.readByte(7U, value) && value == 0xF0U,
+            "16-bit LOAD_BLOCK preserves big-endian halfwords");
 }
 
-void testLoadBlockCopiesContiguousTexelsIntoTmem() {
+void testLoadBlockRejectsUnsupportedTexelSizes() {
     using namespace m64plus::n64;
-    Bus bus;
-    RdpSyncState state{};
-    for (std::uint32_t i = 0; i < 16U; ++i)
-        require(bus.write8(0x1600U + i, static_cast<std::uint8_t>(0x20U + i)),
-                "seed LOAD_BLOCK source bytes");
-    const std::uint64_t setImage =
-        (0x3DULL << 56U) | (1ULL << 51U) | (7ULL << 32U) | 0x1600ULL;
-    const std::uint64_t setTile = (0x35ULL << 56U);
-    const std::uint64_t loadBlock =
-        (0x33ULL << 56U) | (0ULL << 44U) | (0ULL << 32U) |
-        (0ULL << 24U) | (28ULL << 12U) | 0x155ULL;
-    require(bus.write64(0x9C0U, setImage) &&
-            bus.write64(0x9C8U, setTile) &&
-            bus.write64(0x9D0U, loadBlock), "seed LOAD_BLOCK command sequence");
-    require(bus.write32(Bus::kDpStart, 0x9C0U) &&
-            bus.write32(Bus::kDpEnd, 0x9D8U), "publish LOAD_BLOCK sequence");
-    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
-            "SET_TEXTURE_IMAGE configures LOAD_BLOCK source");
-    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
-            "SET_TILE configures LOAD_BLOCK destination");
-    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
-            "LOAD_BLOCK copies eight texels");
-    std::uint8_t value = 0U;
-    require(state.tmem.readByte(0U, value) && value == 0x20U,
-            "LOAD_BLOCK writes first texel");
-    require(state.tmem.readByte(7U, value) && value == 0x27U,
-            "LOAD_BLOCK writes last requested texel");
-    require(state.lastTextureLoad.kind == RdpTextureLoadKind::Block &&
-            state.lastTextureLoad.dxt == 0x155U,
-            "LOAD_BLOCK retains DXT field for later line-swizzle stage");
-
-    Bus nibbleBus;
-    RdpSyncState nibbleState{};
-    require(nibbleBus.write8(0x1700U, 0x12U) &&
-            nibbleBus.write8(0x1701U, 0x34U) &&
-            nibbleBus.write8(0x1702U, 0x56U), "seed packed 4-bit LOAD_BLOCK source");
-    const std::uint64_t setImage4 =
-        (0x3DULL << 56U) | (3ULL << 32U) | 0x1700ULL;
-    const std::uint64_t setTile4 = (0x35ULL << 56U);
-    const std::uint64_t loadBlock4 =
-        (0x33ULL << 56U) | (0ULL << 44U) | (0ULL << 32U) |
-        (0ULL << 24U) | (20ULL << 12U);
-    require(nibbleBus.write64(0xA00U, setImage4) &&
-            nibbleBus.write64(0xA08U, setTile4) &&
-            nibbleBus.write64(0xA10U, loadBlock4), "seed 4-bit LOAD_BLOCK sequence");
-    require(nibbleBus.write32(Bus::kDpStart, 0xA00U) &&
-            nibbleBus.write32(Bus::kDpEnd, 0xA18U), "publish 4-bit LOAD_BLOCK sequence");
-    for (unsigned i = 0; i < 3U; ++i)
-        require(RdpCommandProcessor::processNext(nibbleBus, nibbleState) ==
-                    RdpProcessResult::Processed, "4-bit LOAD_BLOCK command executes");
-    require(nibbleState.tmem.readByte(0U, value) && value == 0x12U &&
-            nibbleState.tmem.readByte(1U, value) && value == 0x34U &&
-            nibbleState.tmem.readByte(2U, value) && value == 0x56U,
-            "4-bit LOAD_BLOCK preserves packed nibble stream");
+    for (const std::uint32_t size : {0U, 3U}) {
+        Bus bus;
+        RdpSyncState state{};
+        const std::uint64_t setImage =
+            (0x3DULL << 56U) | (static_cast<std::uint64_t>(size) << 51U) |
+            (7ULL << 32U) | 0x1A00ULL;
+        const std::uint64_t setTile = (0x35ULL << 56U);
+        const std::uint64_t loadBlock =
+            (0x33ULL << 56U) | (0ULL << 44U) | (0ULL << 32U) |
+            (0ULL << 24U) | (4ULL << 12U);
+        require(bus.write64(0xB00U, setImage) &&
+                bus.write64(0xB08U, setTile) &&
+                bus.write64(0xB10U, loadBlock), "seed unsupported LOAD_BLOCK size");
+        require(bus.write32(Bus::kDpStart, 0xB00U) &&
+                bus.write32(Bus::kDpEnd, 0xB18U), "publish unsupported LOAD_BLOCK size");
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "SET_TEXTURE_IMAGE accepts descriptor before size validation");
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "SET_TILE configures unsupported LOAD_BLOCK test");
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+                "LOAD_BLOCK rejects 4-bit and 32-bit paths until specialized support exists");
+    }
 }
 
 void testLoadBlockDxtSwapsOddLineWords() {
@@ -634,6 +610,7 @@ int main() {
     testLoadTileCopiesTextureImageIntoTmem();
     testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadBlockDxtSwapsOddLineWords();
+    testLoadBlockRejectsUnsupportedTexelSizes();
     testLoadTlutReplicatesEntriesIntoHighTmem();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
