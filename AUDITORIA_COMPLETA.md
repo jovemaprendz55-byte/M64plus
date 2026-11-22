@@ -634,3 +634,24 @@ Implementadas em 2026-11-22:
 - Flags indicam quais estados já foram configurados; isso evita confundir um comando ainda não recebido com um valor zero.
 - Teste envia os sete comandos pelo DPC e verifica que os valores brutos e os slots de tile foram preservados.
 - **Limite:** esta é captura bruta de estado, não interpretação completa dos campos nem configuração de um rasterizador. Não há leitura de textura, cálculo de coordenadas, color combiner, depth buffer ou escrita de pixels.
+
+
+### 16.5. Decodificação tipada do estado RDP (2026-11-22)
+
+- O estado bruto capturado na etapa 16.4 agora também é convertido em estruturas tipadas, sem ainda executar rasterização.
+- **SET_SCISSOR (0x2D):** extrai XH, YH, XL e YL como coordenadas inteiras em formato 10.2, além dos bits de habilitação de campo e seleção de linha ímpar.
+- **SET_TILE (0x35):** extrai formato, tamanho, stride em palavras de 64 bits, base TMEM, paleta e os parâmetros S/T de clamp, mirror, mask e shift. Cada um dos oito descritores mantém seu próprio estado.
+- **SET_TILE_SIZE (0x32):** extrai SL, TL, SH e TH em formato 10.2 para o tile selecionado.
+- **SET_TEXTURE_IMAGE (0x3D) e SET_COLOR_IMAGE (0x3F):** extraem formato, tamanho, largura (campo codificado + 1) e endereço DRAM de 26 bits.
+- Os comandos brutos continuam preservados para diagnóstico e comparação futura.
+- Teste dedicado constrói comandos com campos não triviais e verifica cada campo extraído, inclusive limites/flags e seleção de tile.
+- Fontes de referência: resumo oficial SGI/Nintendo Ultra64 RDP Command Summary (1996), tabelas Set Color Image, Set Texture Image, Set Tile, Set Tile Size e Set Scissor; documentação técnica RustyN64 consultada como comparação independente.
+- **Limite:** não há validação de formatos legais, leitura de textura, carga de TMEM, cálculo de coordenadas, color combiner, blender, depth/coverage ou escrita de pixels. A decodificação de SET_OTHER_MODES permanece apenas bruta.
+- Commits desta etapa: estruturas tipadas `d3bdc94`, decodificação `5359c00`, testes `7112f06`.
+
+### 17. Validação de CI e artefato Android — 2026-11-22
+
+- Workflow `45019342842`, commit `93f3c47204cfd2dc7c7f0c6df92b92a24003c559`: `native-host-tests` e `assemble-debug` concluíram com sucesso; a etapa `Upload debug APK` também foi concluída.
+- Artefato `m64plus-debug-apk`, ID `14752977861`, tamanho 558.571 bytes, SHA-256 `efa160d9a2393299013a0400cdc358993b58b5617a6024531cf196efc43d8cbb`, expira em 2027-02-20.
+- Esse APK corresponde ao commit acima, que inclui a captura bruta de estado RDP da seção 16.4. **Não corresponde ainda às alterações de decodificação tipada da seção 16.5**, que foram feitas depois.
+- A validação do commit mais recente precisa ser feita no próximo workflow gerado após os commits 16.5.
