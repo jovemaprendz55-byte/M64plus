@@ -41,6 +41,8 @@ add_test(NAME m64plus_machine_tests COMMAND m64plus_machine_tests)
 add_executable(m64plus_rdp_tests
     tests/rdp_tests.cpp
     app/src/main/cpp/n64/rdp.cpp
+    app/src/main/cpp/n64/bus.cpp
+    app/src/main/cpp/n64/rdram.cpp
 )
 target_include_directories(m64plus_rdp_tests PRIVATE app/src/main/cpp)
 target_compile_features(m64plus_rdp_tests PRIVATE cxx_std_17)
