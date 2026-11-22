@@ -87,6 +87,25 @@ struct RdpCombineCycle final {
     std::uint8_t alphaD = 0;
 };
 
+struct RdpConvertState final {
+    std::array<std::int16_t, 6> coefficients{};
+};
+
+struct RdpKeyRState final {
+    std::uint16_t width = 0;
+    std::uint8_t center = 0;
+    std::uint8_t scale = 0;
+};
+
+struct RdpKeyGbState final {
+    std::uint16_t widthG = 0;
+    std::uint16_t widthB = 0;
+    std::uint8_t centerG = 0;
+    std::uint8_t scaleG = 0;
+    std::uint8_t centerB = 0;
+    std::uint8_t scaleB = 0;
+};
+
 struct RdpOtherModesState final {
     std::uint8_t cycleType = 0;
     bool perspectiveTexture = false;
@@ -130,6 +149,9 @@ struct RdpSyncState final {
 
     // Raw command words are retained alongside decoded state for diagnostics.
     std::uint64_t scissorCommand = 0;
+    std::uint64_t convertCommand = 0;
+    std::uint64_t keyRCommand = 0;
+    std::uint64_t keyGbCommand = 0;
     std::uint64_t otherModesCommand = 0;
     std::uint64_t combineCommand = 0;
     std::uint64_t fillColorCommand = 0;
@@ -143,6 +165,9 @@ struct RdpSyncState final {
     std::array<std::uint64_t, 8> tileCommands{};
     std::array<std::uint64_t, 8> tileSizeCommands{};
     bool hasScissor = false;
+    bool hasConvert = false;
+    bool hasKeyR = false;
+    bool hasKeyGb = false;
     bool hasOtherModes = false;
     bool hasCombine = false;
     bool hasFillColor = false;
@@ -157,6 +182,9 @@ struct RdpSyncState final {
     std::array<bool, 8> hasTileSize{};
 
     RdpScissorState scissor{};
+    RdpConvertState convert{};
+    RdpKeyRState keyR{};
+    RdpKeyGbState keyGb{};
     RdpImageState textureImage{};
     RdpImageState colorImage{};
     std::array<RdpTileState, 8> tiles{};
