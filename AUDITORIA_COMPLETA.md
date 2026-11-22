@@ -809,3 +809,28 @@ O caminho LOAD_BLOCK foi ampliado para aplicar o comportamento de DXT documentad
 - A execução seguinte compilou, mas falhou em um teste antigo de 4-bit que ainda esperava sucesso, comportamento agora explicitamente rejeitado.
 - Reorganizada a suíte: teste de 8-bit e teste de 16-bit ficam em função LOAD_BLOCK própria; teste 4/32-bit verifica `Unsupported`; o teste LOAD_TILE não contém mais verificações de LOAD_BLOCK.
 - A compilação Android havia passado; o bloqueio estava exclusivamente nos testes nativos. A correção precisa ser confirmada por nova execução de CI antes de marcar a etapa como aprovada.
+
+
+
+## 16.18 Confirmação final do CI após reorganização dos testes (2026-11-22)
+
+O workflow do commit `f9ea01dfbbf692af60d6ce5bd8ccf471f25686b1` concluiu com sucesso:
+- `native-host-tests`: sucesso; configuração, compilação e execução dos testes nativos passaram;
+- `assemble-debug`: sucesso; configuração do JDK/Gradle/Android SDK/NDK/CMake, compilação do APK e upload do artefato passaram;
+- artefato publicado: `m64plus-debug-apk` (574.338 bytes, não expirado na verificação);
+- execução: [GitHub Actions #45023007609](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45023007609).
+
+A etapa de correção dos testes LOAD_TILE/LOAD_BLOCK está, portanto, validada pelo CI. Isso confirma compilação e testes automatizados do projeto; não comprova compatibilidade com jogos comerciais nem fidelidade em hardware real.
+
+## 16.19 Revisão de DXT e limites da carga LOAD_BLOCK
+
+Nova conferência das regras de LOAD_BLOCK:
+- o manual confirma que DXT é acumulado uma vez por palavra de 64 bits; quando o acumulador avança para a próxima linha, o contador de linha aumenta e palavras de linhas ímpares têm as metades de 32 bits trocadas;
+- a documentação também alerta que valores DXT não potência de dois podem acumular erro de linha; portanto, não assumir que o contador simplificado reproduz todos os casos sem testes de referência;
+- o código atual incrementa DXT apenas para palavras completas de 8 bytes. Um fragmento final menor que 8 bytes não participa do acumulador nem da troca. Esse comportamento permanece explicitamente pendente de validação, não deve ser declarado fiel;
+- a implementação usa buffer temporário e limita a escrita a 4 KiB, mas ainda não implementa o layout físico completo da TMEM, os bancos separados para texels de 32 bits, nem a semântica completa de formatos YUV/RGBA;
+- LOAD_BLOCK de 4 bits permanece rejeitado no caminho comum; 32 bits permanece sem o caminho dedicado.
+
+Referências consultadas nesta revisão: Nintendo 64 Programming Manual, seção 13.9.3 (LOAD_BLOCK); RDP Command Summary; documentação técnica RustyN64 e implementação Project64. Fontes de referência: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-09.html ; https://hcs64.com/files/RDP_COMMANDS.pdf ; https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md ; https://github.com/project64/project64/blob/develop/Source/Project64-video/rdp.cpp .
+
+**Próxima etapa recomendada:** construir testes independentes de DXT para múltiplos carries, linhas ímpares consecutivas e fragmentos finais; só depois alterar a rotina. Em seguida, implementar e testar o layout físico da TMEM (incluindo troca de halfwords/bancos), mantendo o sampler e rasterizador como etapas separadas.
