@@ -8,6 +8,7 @@ void N64Machine::reset() noexcept {
     bus_.reset();
     cpu_.reset();
     rsp_.reset();
+    rdp_ = RdpSyncState{};
 }
 
 bool N64Machine::stepCpu() noexcept {
@@ -43,11 +44,23 @@ std::size_t N64Machine::runRsp(std::size_t instructionBudget) noexcept {
     return executed;
 }
 
+std::size_t N64Machine::runRdp(std::size_t commandBudget) noexcept {
+    std::size_t consumed = 0;
+    while (consumed < commandBudget) {
+        const RdpProcessResult result = RdpCommandProcessor::processNext(bus_, rdp_);
+        if (result == RdpProcessResult::NoCommand) break;
+        ++consumed;
+    }
+    return consumed;
+}
+
 Bus& N64Machine::bus() noexcept { return bus_; }
 const Bus& N64Machine::bus() const noexcept { return bus_; }
 MipsCpu& N64Machine::cpu() noexcept { return cpu_; }
 const MipsCpu& N64Machine::cpu() const noexcept { return cpu_; }
 RspCpu& N64Machine::rsp() noexcept { return rsp_; }
 const RspCpu& N64Machine::rsp() const noexcept { return rsp_; }
+RdpSyncState& N64Machine::rdp() noexcept { return rdp_; }
+const RdpSyncState& N64Machine::rdp() const noexcept { return rdp_; }
 
 } // namespace m64plus::n64
