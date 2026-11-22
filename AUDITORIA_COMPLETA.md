@@ -691,3 +691,5 @@ Implementadas em 2026-11-22:
 - Os três comandos mantêm a palavra bruta original e flags próprias de presença, além dos campos tipados.
 - Teste integrado publica os comandos via DPC e verifica os campos, incluindo coeficientes negativos e extremos assinados.
 - **Limite:** os valores são apenas decodificados e armazenados. Não foi implementada conversão YUV→RGB, keying por pixel, comparação de limiar ou rasterização; nenhum pixel é produzido nesta etapa.
+
+- Ajuste de regressão após ampliar o dispatch: o teste genérico de comando não suportado usava `0x2A`, que passou a ser corretamente reconhecido como `SET_KEY_GB`. O cenário de comando ainda não implementado foi transferido para `0x30` (`LOAD_TLUT`), mantendo a verificação da resposta `Unsupported`.
