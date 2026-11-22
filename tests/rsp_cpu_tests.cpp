@@ -107,6 +107,37 @@ void testBranchDelaySlot() {
     require(rsp.halted(), "target BREAK halts");
     require(!rsp.faulted(), "BREAK after a branch is not an execution fault");
 }
+void testScalarVariableShiftsAndJalr() {
+    Bus bus;
+    RspCpu rsp;
+    put(bus, 0x00, iType(0x09, 0, 1, 4)); // shift amount
+    put(bus, 0x04, iType(0x0F, 0, 2, 0xFFFF));
+    put(bus, 0x08, iType(0x0D, 2, 2, 0xFFF0)); // -16
+    put(bus, 0x0C, (1U << 21U) | (2U << 16U) | (3U << 11U) |
+                   (4U << 6U) | 0x07U); // SRAV
+    put(bus, 0x10, (1U << 21U) | (2U << 16U) | (4U << 11U) |
+                   (4U << 6U) | 0x04U); // SLLV
+    put(bus, 0x14, (1U << 21U) | (2U << 16U) | (5U << 11U) |
+                   (4U << 6U) | 0x06U); // SRLV
+    put(bus, 0x18, (2U << 16U) | (6U << 11U) | (4U << 6U) | 0x03U); // SRA
+    put(bus, 0x1C, iType(0x09, 0, 7, 0x0028)); // JALR target
+    put(bus, 0x20, (7U << 21U) | (31U << 11U) | 0x09U); // JALR ra, t7
+    put(bus, 0x24, iType(0x09, 0, 8, 0x0055)); // delay slot
+    put(bus, 0x28, iType(0x09, 0, 9, 0x0066)); // skipped
+    put(bus, 0x2C, 0x0000000DU); // target BREAK
+    for (unsigned i = 0; i < 9U; ++i)
+        require(rsp.step(bus), "execute scalar shifts and JALR");
+    require(rsp.reg(3) == 0xFFFFFFFFU, "SRAV sign extends negative values");
+    require(rsp.reg(4) == 0xFFFFFF00U, "SLLV uses low five bits of shift register");
+    require(rsp.reg(5) == 0x0FFFFFFFU, "SRLV shifts logically");
+    require(rsp.reg(6) == 0xFFFFFFFFU, "SRA shifts arithmetically");
+    require(rsp.reg(31) == 0x00000028U, "JALR writes return address to rd");
+    require(rsp.reg(8) == 0x55U && rsp.reg(9) == 0U,
+            "JALR executes delay slot and skips sequential instruction");
+    require(rsp.pc() == 0x02CU, "JALR transfers control to target");
+    require(!rsp.faulted(), "scalar shifts and JALR are supported");
+}
+
 void testByteAndHalfwordMemory() {
     Bus bus;
     RspCpu rsp;
@@ -1058,7 +1089,7 @@ int main() {
     testUnsupportedInstructionFaultIsLatched();
     testCop0SpRegisterMoves();\n    testArithmeticAndMemory();
     testBranchDelaySlot();
-    testByteAndHalfwordMemory();
+    testScalarVariableShiftsAndJalr();\n    testByteAndHalfwordMemory();
     testRegimmBranches();
     testVectorArithmetic();
     testVectorCarryAndLogic();
