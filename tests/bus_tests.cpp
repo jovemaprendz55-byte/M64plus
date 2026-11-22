@@ -49,6 +49,41 @@ void testDpRegisterWindow() {
             "address after DPC register window remains unmapped");
 }
 
+
+void testDpCommandStreamFromRdramAndDmem() {
+    Bus bus;
+    std::uint64_t command = 0;
+    require(bus.write64(0x200U, 0x123456789ABCDEF0ULL), "seed first RDP command in RDRAM");
+    require(bus.write64(0x208U, 0xFEDCBA9876543210ULL), "seed second RDP command in RDRAM");
+    require(bus.write32(Bus::kDpStart, 0x200U), "set DPC_START for RDRAM list");
+    require(bus.write32(Bus::kDpEnd, 0x210U), "set DPC_END for RDRAM list");
+    require(bus.dpCommandsRemaining() == 2U, "DPC reports two pending 64-bit commands");
+    require(bus.readDpCommand(command) && command == 0x123456789ABCDEF0ULL,
+            "DPC fetches first big-endian command from RDRAM");
+    require(bus.dpCommandsRemaining() == 1U, "DPC advances by eight bytes");
+    require(bus.readDpCommand(command) && command == 0xFEDCBA9876543210ULL,
+            "DPC fetches second command from RDRAM");
+    require(bus.dpCommandsRemaining() == 0U, "DPC reaches exclusive end address");
+    require(!bus.readDpCommand(command), "DPC does not read beyond DPC_END");
+
+    require(bus.write64(Bus::kSpDmemBase + 0x20U, 0x8877665544332211ULL),
+            "seed command in SP DMEM");
+    require(bus.write32(Bus::kDpStart, 0x20U), "set DPC_START for XBUS list");
+    require(bus.write32(Bus::kDpEnd, 0x28U), "set DPC_END for XBUS list");
+    require(bus.write32(Bus::kDpStatus, 1U << 1U), "enable XBUS DMEM DMA");
+    require(bus.readDpCommand(command) && command == 0x8877665544332211ULL,
+            "DPC fetches command from SP DMEM in XBUS mode");
+    require(bus.dpCommandsRemaining() == 0U, "XBUS command advances DPC_CURRENT");
+
+    require(bus.write32(Bus::kDpStart, 0x20U), "reset XBUS command cursor");
+    require(bus.write32(Bus::kDpEnd, 0x28U), "republish XBUS command end");
+    require(bus.write32(Bus::kDpStatus, 1U << 3U), "freeze DPC command stream");
+    require(!bus.readDpCommand(command), "frozen DPC does not fetch commands");
+    require(bus.dpCommandsRemaining() == 1U, "freeze preserves command cursor");
+    require(bus.write32(Bus::kDpStatus, 1U << 2U), "unfreeze DPC command stream");
+    require(bus.readDpCommand(command), "unfrozen DPC resumes command fetch");
+}
+
 void testDramToSpAndSpToDram() {
     Bus bus;
     for (std::uint32_t i = 0; i < 16; ++i)
@@ -163,6 +198,7 @@ void testOutOfRangeIsRejectedBeforeCopy() {
 
 int main() {
     testDpRegisterWindow();
+    testDpCommandStreamFromRdramAndDmem();
     testDramToSpAndSpToDram();
     testRowsAndSkip();
     testImemBankAndWrapping();
