@@ -776,15 +776,21 @@ bool RspCpu::step(Bus& bus) noexcept {
         }
         break;
     }
-    case 0x01U: { // REGIMM: BLTZ / BGEZ
-        if (inDelaySlot || (rt != 0U && rt != 1U)) {
+    case 0x01U: { // REGIMM: BLTZ / BGEZ / BLTZAL / BGEZAL
+        if (inDelaySlot || (rt != 0U && rt != 1U && rt != 16U && rt != 17U)) {
             halted_ = true; faulted_ = true;
             return false;
         }
         const bool negative = static_cast<std::int32_t>(a) < 0;
-        const bool taken = rt == 0U ? negative : !negative;
+        const bool branchOnNegative = rt == 0U || rt == 16U;
+        const bool taken = branchOnNegative ? negative : !negative;
         branchTarget = taken ? relativeTarget() : (nextPc + 4U) & kPcMask;
         scheduleBranch = true; // Both outcomes execute the delay slot.
+        if (rt == 16U || rt == 17U) {
+            destination = 31U;
+            result = (nextPc + 4U) & kPcMask;
+            writeRegister = true; // RSP link variants write RA even when not taken.
+        }
         break;
     }
     case 0x02U: // J
