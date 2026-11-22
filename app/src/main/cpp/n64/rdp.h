@@ -42,6 +42,22 @@ struct RdpSyncState final {
     std::uint64_t syncPipeCount = 0;
     std::uint64_t syncTileCount = 0;
     std::uint64_t syncFullCount = 0;
+
+    // Raw one-word state commands are retained until field-level decoding is added.
+    std::uint64_t scissorCommand = 0;
+    std::uint64_t otherModesCommand = 0;
+    std::uint64_t fillColorCommand = 0;
+    std::uint64_t textureImageCommand = 0;
+    std::uint64_t colorImageCommand = 0;
+    std::array<std::uint64_t, 8> tileCommands{};
+    std::array<std::uint64_t, 8> tileSizeCommands{};
+    bool hasScissor = false;
+    bool hasOtherModes = false;
+    bool hasFillColor = false;
+    bool hasTextureImage = false;
+    bool hasColorImage = false;
+    std::array<bool, 8> hasTile{};
+    std::array<bool, 8> hasTileSize{};
 };
 
 class RdpCommandProcessor final {
