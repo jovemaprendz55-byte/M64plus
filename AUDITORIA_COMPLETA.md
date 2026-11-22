@@ -15,7 +15,7 @@ O projeto já possui uma base inicial de emulação:
 - barramento com RDRAM, SP DMEM/IMEM e parte dos registradores MMIO MI/SP;
 - DMA inicial do SP;
 - CPU MIPS III/VR4300 parcial;
-- RSP escalar e operações vetoriais COP2 parciais;
+- RSP escalar e operações vetoriais COP2 parciais (incluindo VMULQ, VMACQ, VRNDP e VRNDN);
 - integração Android com OpenGL ES 2.0 e triângulo de diagnóstico;
 - testes nativos e workflow de CI para build/testes.
 
@@ -546,3 +546,15 @@ Implementar uma fila/ponte de submissão de comandos entre DPC e RDP, com leitur
 - Testes cobrem ordem big-endian, leitura em RDRAM, leitura em DMEM, avanço do cursor, fim da lista e freeze/unfreeze.
 
 **Limites desta etapa:** o RDP ainda não chama essa interface porque seu módulo não existe. Não há decodificação de opcodes, rasterização, atualização de DPC_CLOCK/busy em tempo de hardware, interrupção DP ou processamento real de FLUSH. A interface prepara a fronteira entre barramento e RDP, sem afirmar execução gráfica.
+
+
+## 15. RSP — operações vetoriais de quantização e arredondamento
+
+Implementadas em 2026-11-22:
+- **VMULQ (funct 0x03):** multiplica dois operandos assinados, aplica o ajuste de arredondamento de produtos negativos, grava o produto no acumulador com deslocamento de 16 bits e produz resultado saturado com os quatro bits inferiores zerados.
+- **VMACQ (funct 0x0B):** ajusta o acumulador de 48 bits em direção à fronteira de quantização de `0x20_0000`, satura o resultado deslocado e zera os quatro bits inferiores da saída.
+- **VRNDP (funct 0x02) e VRNDN (funct 0x0A):** usam o sinal do acumulador para decidir se somam o elemento de VT; o bit menos significativo do campo VS seleciona deslocamento de 16 bits. O acumulador é mantido com sinal em 48 bits e o resultado é saturado a partir da parte média.
+- Os elementos de VT são capturados antes da escrita em VD para evitar corrupção quando os registradores de origem e destino coincidem.
+- Testes verificam resultados e fatias do acumulador após VMULQ, VRNDP, VRNDN e VMACQ.
+
+**Referência técnica:** SGI Nintendo 64 RSP Programmer's Guide, seção Vector Unit Instructions, e implementação/documentação pública do projeto RustyN64 usada como comparação independente. A semântica deve continuar sendo confrontada com testes de sistema independentes; aprovação dos testes locais não prova compatibilidade completa de microcódigo.
