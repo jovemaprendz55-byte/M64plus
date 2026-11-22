@@ -46,4 +46,30 @@ bool RdpCommandStream::fetchNext(Bus& bus, RdpCommandPacket& packet) noexcept {
     return true;
 }
 
+RdpProcessResult RdpCommandProcessor::processNext(
+    Bus& bus, RdpSyncState& state) noexcept {
+    RdpCommandPacket packet{};
+    if (!RdpCommandStream::fetchNext(bus, packet))
+        return RdpProcessResult::NoCommand;
+
+    switch (packet.info.opcode) {
+    case 0x26U: // SYNC_LOAD
+        ++state.syncLoadCount;
+        return RdpProcessResult::Processed;
+    case 0x27U: // SYNC_PIPE
+        ++state.syncPipeCount;
+        return RdpProcessResult::Processed;
+    case 0x28U: // SYNC_TILE
+        ++state.syncTileCount;
+        return RdpProcessResult::Processed;
+    case 0x29U: // SYNC_FULL
+        ++state.syncFullCount;
+        // MI interrupt source 5 is the Display Processor.
+        bus.setMiInterrupt(5U, true);
+        return RdpProcessResult::Processed;
+    default:
+        return RdpProcessResult::Unsupported;
+    }
+}
+
 } // namespace m64plus::n64
