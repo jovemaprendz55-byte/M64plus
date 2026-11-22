@@ -790,3 +790,14 @@ O caminho LOAD_BLOCK foi ampliado para aplicar o comportamento de DXT documentad
 **Limitações:** o algoritmo ainda é um modelo funcional simplificado para palavras completas de 64 bits. O último fragmento menor que oito bytes não recebe troca de metades; não há validação por comparação binária com hardware real ou com um RDP de referência. A organização por bancos de TMEM e os formatos YUV/RGBA ainda precisam de tratamento específico. Não há sampler nem rasterizador.
 
 **Referências:** Nintendo 64 Programming Manual, seção 13.9.3 (Load Block), descreve o acumulador DXT, incremento de linha e troca das linhas ímpares; RDP Command Summary também documenta o uso de DXT para interleaving.
+
+
+## 16.16 LOAD_BLOCK — restrição explícita dos tamanhos de texel (2026-11-22)
+
+- A revisão comparativa do caminho de carga mostrou que tratar 4-bit e 32-bit como cópia linear genérica pode produzir TMEM incorreta.
+- O caminho comum LOAD_BLOCK foi restringido a fontes de 8 e 16 bits, que são os formatos cobertos pelo caminho linear implementado nesta etapa.
+- Cargas de 4 bits agora retornam `Unsupported`; a documentação de referência RustyN64 registra que 4-bit LOAD_BLOCK não é um caminho válido de hardware e que jogos normalmente carregam os bytes como 8-bit para depois amostrar nibbles no tile de renderização.
+- Cargas de 32 bits também retornam `Unsupported` até existir o caminho dedicado que separa os componentes entre as metades/bancos da TMEM. O código Project64 mantém uma rotina específica `LoadBlock32b`, evidência de que a cópia linear atual não era suficiente.
+- Testes agora cobrem transferência 16-bit big-endian e rejeição explícita dos tamanhos 4-bit e 32-bit, além dos testes anteriores de 8-bit e DXT.
+- Referências comparativas: RustyN64 RDP documentation (residual R-7) e Project64 `Source/Project64-video/rdp.cpp` (`LoadBlock32b`). Essas fontes são referências de implementação, não substituem validação em hardware.
+- **Limite:** a TMEM física completa, incluindo bancos e swizzle, continua pendente; a carga 8/16-bit ainda é um modelo funcional simplificado.
