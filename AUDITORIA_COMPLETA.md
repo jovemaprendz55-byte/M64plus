@@ -834,3 +834,16 @@ Nova conferência das regras de LOAD_BLOCK:
 Referências consultadas nesta revisão: Nintendo 64 Programming Manual, seção 13.9.3 (LOAD_BLOCK); RDP Command Summary; documentação técnica RustyN64 e implementação Project64. Fontes de referência: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-09.html ; https://hcs64.com/files/RDP_COMMANDS.pdf ; https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md ; https://github.com/project64/project64/blob/develop/Source/Project64-video/rdp.cpp .
 
 **Próxima etapa recomendada:** construir testes independentes de DXT para múltiplos carries, linhas ímpares consecutivas e fragmentos finais; só depois alterar a rotina. Em seguida, implementar e testar o layout físico da TMEM (incluindo troca de halfwords/bancos), mantendo o sampler e rasterizador como etapas separadas.
+
+
+
+## 16.20 Testes adicionais de DXT aprovados pelo CI (2026-11-22)
+
+O commit `ce2a5d435a58db36c9fc808805bfbd1a4cca7d97` adicionou cenários de teste:
+- DXT alto (`0xFFF`), que produz múltiplos carries por palavra e alternância de paridade das linhas;
+- DXT fracionário (`0x600`), que acumula frações e inicia a troca de metades somente quando a linha passa a ser ímpar;
+- preservação dos testes anteriores de DXT `0x400`, carga 8/16-bit e rejeição dos caminhos 4/32-bit não implementados.
+
+**Resultado confirmado:** workflow [#45023292915](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45023292915) concluiu com `native-host-tests = success` e `assemble-debug = success`. O artefato `m64plus-debug-apk` foi publicado (574.338 bytes, não expirado na verificação).
+
+**Interpretação:** os testes confirmam o comportamento da implementação atual para os casos cobertos, não uma comparação integral com hardware ou RDP de referência. O fragmento final menor que 64 bits, os casos de DXT fora dos vetores testados e a organização física de TMEM permanecem pendentes.
