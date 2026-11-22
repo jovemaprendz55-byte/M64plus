@@ -12,6 +12,73 @@ std::int16_t signExtend9(std::uint64_t value) noexcept {
         : signedValue;
 }
 
+bool loadTile32BitTexels(Bus& bus, RdpSyncState& state,
+                           const RdpTextureLoadState& load) noexcept {
+    if (!state.hasTextureImage || !state.hasTile[load.tile]) return false;
+    const RdpImageState& image = state.textureImage;
+    const RdpTileState& tile = state.tiles[load.tile];
+    // The documented 32-bit path is RGBA only and splits RG from BA into
+    // the lower and upper 2 KiB TMEM banks, respectively.
+    if (image.size != 3U || image.format != 0U ||
+        tile.size != 3U || tile.format != 0U) return false;
+
+    const std::uint32_t x0 = load.sl >> 2U;
+    const std::uint32_t y0 = load.tl >> 2U;
+    const std::uint32_t x1 = load.sh >> 2U;
+    const std::uint32_t y1 = load.th >> 2U;
+    if (x1 < x0 || y1 < y0 || x1 >= image.width) return false;
+
+    const std::uint32_t rowTexels = x1 - x0 + 1U;
+    const std::uint32_t rowCount = y1 - y0 + 1U;
+    const std::uint64_t sourceBase = image.address;
+    // Validate the whole rectangle before writing either TMEM bank.
+    for (std::uint32_t row = 0; row < rowCount; ++row) {
+        for (std::uint32_t column = 0; column < rowTexels; ++column) {
+            const std::uint64_t texel =
+                (static_cast<std::uint64_t>(y0 + row) * image.width) +
+                x0 + column;
+            const std::uint64_t address = sourceBase + texel * 4U;
+            for (unsigned byte = 0; byte < 4U; ++byte) {
+                std::uint8_t ignored = 0U;
+                if (address + byte > UINT32_MAX ||
+                    !bus.read8(static_cast<std::uint32_t>(address + byte), ignored))
+                    return false;
+            }
+        }
+    }
+
+    const std::uint64_t base = static_cast<std::uint64_t>(tile.tmem) * 8U;
+    const std::uint64_t stride = static_cast<std::uint64_t>(tile.line) * 8U;
+    for (std::uint32_t row = 0; row < rowCount; ++row) {
+        for (std::uint32_t column = 0; column < rowTexels; ++column) {
+            const std::uint64_t texel =
+                (static_cast<std::uint64_t>(y0 + row) * image.width) +
+                x0 + column;
+            const std::uint64_t source = sourceBase + texel * 4U;
+            const std::uint64_t logical =
+                base + static_cast<std::uint64_t>(row) * stride +
+                static_cast<std::uint64_t>(column) * 2U;
+            const std::uint64_t low = (row & 1U) != 0U
+                ? (logical ^ 4U) : logical;
+            const std::uint64_t high = low + 0x800U;
+            std::uint8_t red = 0U;
+            std::uint8_t green = 0U;
+            std::uint8_t blue = 0U;
+            std::uint8_t alpha = 0U;
+            if (!bus.read8(static_cast<std::uint32_t>(source), red) ||
+                !bus.read8(static_cast<std::uint32_t>(source + 1U), green) ||
+                !bus.read8(static_cast<std::uint32_t>(source + 2U), blue) ||
+                !bus.read8(static_cast<std::uint32_t>(source + 3U), alpha))
+                return false;
+            state.tmem.writeByte(static_cast<std::uint16_t>(low & 0x07FFU), red);
+            state.tmem.writeByte(static_cast<std::uint16_t>((low + 1U) & 0x07FFU), green);
+            state.tmem.writeByte(static_cast<std::uint16_t>(high & 0x0FFFU), blue);
+            state.tmem.writeByte(static_cast<std::uint16_t>((high + 1U) & 0x0FFFU), alpha);
+        }
+    }
+    return true;
+}
+
 bool loadTileTexels(Bus& bus, RdpSyncState& state,
                     const RdpTextureLoadState& load) noexcept {
     if (!state.hasTextureImage || !state.hasTile[load.tile]) return false;
@@ -19,8 +86,7 @@ bool loadTileTexels(Bus& bus, RdpSyncState& state,
     const RdpTileState& tile = state.tiles[load.tile];
     const unsigned bitsPerTexel = image.size == 0U ? 4U
         : (image.size == 1U ? 8U : (image.size == 2U ? 16U : 32U));
-    // 32-bit texels occupy split TMEM banks; a flat byte copy is incorrect.
-    if (bitsPerTexel == 32U) return false;
+    if (bitsPerTexel == 32U) return loadTile32BitTexels(bus, state, load);
     const std::uint32_t x0 = load.sl >> 2U;
     const std::uint32_t y0 = load.tl >> 2U;
     const std::uint32_t x1 = load.sh >> 2U;
