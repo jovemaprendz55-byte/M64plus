@@ -48,3 +48,13 @@ target_include_directories(m64plus_rdp_tests PRIVATE app/src/main/cpp)
 target_compile_features(m64plus_rdp_tests PRIVATE cxx_std_17)
 target_compile_options(m64plus_rdp_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME m64plus_rdp_tests COMMAND m64plus_rdp_tests)
+
+add_executable(m64plus_framebuffer_tests
+    tests/framebuffer_tests.cpp
+    app/src/main/cpp/n64/framebuffer.cpp
+    app/src/main/cpp/n64/rdram.cpp
+)
+target_include_directories(m64plus_framebuffer_tests PRIVATE app/src/main/cpp)
+target_compile_features(m64plus_framebuffer_tests PRIVATE cxx_std_17)
+target_compile_options(m64plus_framebuffer_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME m64plus_framebuffer_tests COMMAND m64plus_framebuffer_tests)
