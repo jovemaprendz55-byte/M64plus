@@ -31,15 +31,13 @@ bool loadTileTexels(Bus& bus, RdpSyncState& state,
 
     // Validate the complete source rectangle before changing TMEM.
     for (std::uint32_t row = 0; row < rowCount; ++row) {
-        const std::uint64_t sourceRow =
-            (static_cast<std::uint64_t>(y0 + row) * image.width * bitsPerTexel) / 8U;
-        const std::uint64_t firstBit =
-            (static_cast<std::uint64_t>(x0) * bitsPerTexel) & 7U;
-        const std::uint64_t firstByte =
-            (static_cast<std::uint64_t>(x0) * bitsPerTexel) / 8U;
+        const std::uint64_t firstTexel =
+            static_cast<std::uint64_t>(y0 + row) * image.width + x0;
+        const std::uint64_t firstBit = (firstTexel * bitsPerTexel) & 7U;
+        const std::uint64_t firstByte = (firstTexel * bitsPerTexel) / 8U;
         const std::uint64_t bytesToCheck = (firstBit + rowBits + 7U) / 8U;
         for (std::uint64_t byte = 0; byte < bytesToCheck; ++byte) {
-            const std::uint64_t address = sourceBase + sourceRow + firstByte + byte;
+            const std::uint64_t address = sourceBase + firstByte + byte;
             std::uint8_t ignored = 0;
             if (address > UINT32_MAX ||
                 !bus.read8(static_cast<std::uint32_t>(address), ignored)) return false;
@@ -49,21 +47,18 @@ bool loadTileTexels(Bus& bus, RdpSyncState& state,
     const std::uint64_t destinationBase = static_cast<std::uint64_t>(tile.tmem) * 8U;
     const std::uint64_t destinationStride = static_cast<std::uint64_t>(tile.line) * 8U;
     for (std::uint32_t row = 0; row < rowCount; ++row) {
-        const std::uint64_t sourceRow =
-            (static_cast<std::uint64_t>(y0 + row) * image.width * bitsPerTexel) / 8U;
         const std::uint64_t destinationRow =
             destinationBase + static_cast<std::uint64_t>(row) * destinationStride;
         for (std::uint32_t column = 0; column < rowTexels; ++column) {
             const std::uint64_t destinationTexel =
                 destinationRow + (static_cast<std::uint64_t>(column) * bitsPerTexel) / 8U;
             if (bitsPerTexel == 4U) {
-                const std::uint64_t sourceAddress = sourceBase + sourceRow +
-                    (static_cast<std::uint64_t>(x0) / 2U) +
-                    (static_cast<std::uint64_t>(column) / 2U);
+                const std::uint64_t sourceAddress = sourceBase +
+                    (sourceTexel / 2U);
                 std::uint8_t sourceByte = 0;
                 if (sourceAddress > UINT32_MAX ||
                     !bus.read8(static_cast<std::uint32_t>(sourceAddress), sourceByte)) return false;
-                const bool sourceLow = ((x0 + column) & 1U) != 0U;
+                const bool sourceLow = (sourceTexel & 1U) != 0U;
                 const std::uint8_t nibble = sourceLow
                     ? static_cast<std::uint8_t>(sourceByte & 0x0FU)
                     : static_cast<std::uint8_t>(sourceByte >> 4U);
@@ -79,8 +74,8 @@ bool loadTileTexels(Bus& bus, RdpSyncState& state,
             } else {
                 const unsigned bytesPerTexel = bitsPerTexel / 8U;
                 for (unsigned byte = 0; byte < bytesPerTexel; ++byte) {
-                    const std::uint64_t sourceAddress = sourceBase + sourceRow +
-                        (static_cast<std::uint64_t>(x0 + column) * bitsPerTexel) / 8U + byte;
+                    const std::uint64_t sourceAddress =
+                        sourceBase + (sourceTexel * bitsPerTexel) / 8U + byte;
                     std::uint8_t value = 0;
                     if (sourceAddress > UINT32_MAX ||
                         !bus.read8(static_cast<std::uint32_t>(sourceAddress), value)) return false;
