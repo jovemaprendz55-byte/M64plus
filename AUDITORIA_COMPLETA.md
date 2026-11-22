@@ -876,3 +876,19 @@ Correção aplicada:
 - A configuração do teste 16-bit foi revisada em duas partes: a segunda linha da origem começa em `base + image.width * 2`, e as coordenadas TL/TH do comando foram ajustadas para selecionar duas linhas (TL=0, TH=4), não apenas a segunda linha.
 - **Status:** testes adicionados ao branch `main`; aguardando CI do commit de correção. Não considerar esta etapa validada até `native-host-tests` e `assemble-debug` concluírem.
 - **Próxima investigação:** implementar o caminho especial de 32 bits somente após definir e testar o mapeamento de bancos/metades TMEM e o comportamento de LOAD_TILE versus LOAD_BLOCK. A rejeição explícita permanece intencional.
+
+
+## 16.23 Primeiro caminho RGBA32 de LOAD_TILE (2026-11-22)
+
+Com base na descrição técnica do layout de 32 bits no RDP, foi implementado um primeiro caminho específico para `LOAD_TILE`:
+- aceita somente combinação RGBA + 32 bits tanto na imagem-fonte quanto no tile;
+- separa R/G em pares de bytes na metade inferior de 2 KiB da TMEM e B/A na metade superior (offset `0x800`);
+- aplica a troca de meia-palavra de 32 bits em linhas ímpares em cada metade;
+- valida todos os bytes da região-fonte antes de alterar a TMEM;
+- mantém `LOAD_BLOCK` de 32 bits explicitamente não suportado; não reaproveita a cópia plana de 8/16 bits.
+
+Foi adicionada uma regressão de duas linhas e dois texels por linha, que verifica os pares RG/BA nas duas metades da TMEM e o swizzle da segunda linha.
+
+**Estado:** implementação e teste enviados à `main`; aguardando CI. A distribuição RG/BA é baseada na documentação técnica RustyN64 e no caminho especial `LoadTile32b` identificado no Project64. Ainda é uma primeira implementação lógica: precisa de validação independente contra um RDP de referência/hardware, casos de TMEM com base não zero, larguras/alinhamentos variados e formatos não RGBA. O sampler, rasterizador e caminho LOAD_BLOCK32 continuam pendentes.
+
+Referências: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md ; https://github.com/project64/project64/blob/develop/Source/Project64-video/rdp.cpp .
