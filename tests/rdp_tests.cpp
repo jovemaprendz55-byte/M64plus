@@ -539,6 +539,49 @@ void testLoadTileSplits32BitRgbaAcrossTmemBanks() {
             "RGBA32 LOAD_TILE applies odd-row halfword swap in upper bank");
 }
 
+void testLoadTileRgba32UpperBankStaysAlignedAcrossBankWrap() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint8_t source[] = {
+        0x10U, 0x20U, 0x30U, 0x40U,
+        0x50U, 0x60U, 0x70U, 0x80U
+    };
+    for (std::uint32_t i = 0; i < sizeof(source); ++i)
+        require(bus.write8(0x1B00U + i, source[i]),
+                "seed RGBA32 source crossing lower TMEM bank boundary");
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (3ULL << 51U) | (1ULL << 32U) | 0x1B00ULL;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (3ULL << 51U) |
+        (1ULL << 41U) | (255ULL << 32U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 12U) | 4ULL;
+    require(bus.write64(0xAE0U, setImage) &&
+            bus.write64(0xAE8U, setTile) &&
+            bus.write64(0xAF0U, loadTile),
+            "seed boundary-crossing RGBA32 LOAD_TILE commands");
+    require(bus.write32(Bus::kDpStart, 0xAE0U) &&
+            bus.write32(Bus::kDpEnd, 0xAF8U),
+            "publish boundary-crossing RGBA32 LOAD_TILE commands");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "boundary-crossing RGBA32 LOAD_TILE executes");
+
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0x7F8U, value) && value == 0x10U &&
+            state.tmem.readByte(0x7F9U, value) && value == 0x20U &&
+            state.tmem.readByte(0xFF8U, value) && value == 0x30U &&
+            state.tmem.readByte(0xFF9U, value) && value == 0x40U,
+            "last lower/upper bank texel pair remains correctly separated");
+    require(state.tmem.readByte(4U, value) && value == 0x50U &&
+            state.tmem.readByte(5U, value) && value == 0x60U &&
+            state.tmem.readByte(0x804U, value) && value == 0x70U &&
+            state.tmem.readByte(0x805U, value) && value == 0x80U,
+            "odd row wraps both RGBA32 banks independently without overlap");
+}
+
 void testLoadTileRejectsNonRgba32FormatsWithoutWritingTmem() {
     using namespace m64plus::n64;
     for (const bool invalidImageFormat : {true, false}) {
@@ -828,6 +871,7 @@ int main() {
     testLoadTileCopiesTextureImageIntoTmem();
     testLoadTileSwizzlesOddRowsFor16BitTexels();
     testLoadTileSplits32BitRgbaAcrossTmemBanks();
+    testLoadTileRgba32UpperBankStaysAlignedAcrossBankWrap();
     testLoadTileRejectsNonRgba32FormatsWithoutWritingTmem();
     testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadBlockDxtSwapsOddLineWords();
