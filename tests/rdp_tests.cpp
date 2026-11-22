@@ -400,6 +400,60 @@ void testRdpTextureLoadCommandFields() {
             "LOAD_TILE coordinate and tile fields are decoded");
 }
 
+void testLoadTileCopiesTextureImageIntoTmem() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0; i < 12U; ++i)
+        require(bus.write8(0x1000U + i, static_cast<std::uint8_t>(i + 1U)),
+                "seed 8-bit source texture");
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (3ULL << 32U) | 0x1000ULL;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (1ULL << 51U) | (1ULL << 41U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
+        (8ULL << 12U) | 8ULL;
+    require(bus.write64(0x900U, setImage), "seed SET_TEXTURE_IMAGE");
+    require(bus.write64(0x908U, setTile), "seed SET_TILE");
+    require(bus.write64(0x910U, loadTile), "seed LOAD_TILE");
+    require(bus.write32(Bus::kDpStart, 0x900U), "set DPC start for LOAD_TILE");
+    require(bus.write32(Bus::kDpEnd, 0x918U), "publish LOAD_TILE sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "SET_TEXTURE_IMAGE, SET_TILE and LOAD_TILE execute");
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 6U,
+            "LOAD_TILE copies selected first-row texel from RDRAM");
+    require(state.tmem.readByte(1U, value) && value == 7U,
+            "LOAD_TILE copies second texel from first row");
+    require(state.tmem.readByte(8U, value) && value == 10U,
+            "LOAD_TILE applies tile line stride to second row");
+    require(state.tmem.readByte(9U, value) && value == 11U,
+            "LOAD_TILE copies second row texels");
+
+    Bus nibbleBus;
+    RdpSyncState nibbleState{};
+    require(nibbleBus.write8(0x1200U, 0x12U) &&
+            nibbleBus.write8(0x1201U, 0x34U), "seed 4-bit packed texture");
+    const std::uint64_t setImage4 = (0x3DULL << 56U) | 0x1200ULL;
+    const std::uint64_t setTile4 = (0x35ULL << 56U);
+    const std::uint64_t loadTile4 =
+        (0x34ULL << 56U) | (12ULL << 12U) | 12ULL;
+    require(nibbleBus.write64(0x940U, setImage4) &&
+            nibbleBus.write64(0x948U, setTile4) &&
+            nibbleBus.write64(0x950U, loadTile4), "seed 4-bit LOAD_TILE sequence");
+    require(nibbleBus.write32(Bus::kDpStart, 0x940U) &&
+            nibbleBus.write32(Bus::kDpEnd, 0x958U), "publish 4-bit LOAD_TILE sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(nibbleBus, nibbleState) ==
+                    RdpProcessResult::Processed,
+                "4-bit LOAD_TILE sequence executes");
+    require(nibbleState.tmem.readByte(0U, value) && value == 0x12U &&
+            nibbleState.tmem.readByte(1U, value) && value == 0x34U,
+            "4-bit LOAD_TILE preserves packed nibble order");
+}
+
 void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
@@ -437,6 +491,7 @@ int main() {
     testRdpPrimitiveDepthCommand();
     testRdpTextureMemory();
     testRdpTextureLoadCommandFields();
+    testLoadTileCopiesTextureImageIntoTmem();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
