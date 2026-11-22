@@ -269,6 +269,43 @@ void testRdpOtherModesAndCombineDecoding() {
             "SET_COMBINE decodes all eight second-cycle selectors");
 }
 
+
+void testRdpColorAndDepthStateCommands() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint64_t commands[] = {
+        (0x37ULL << 56U) | 0x11223344ULL,
+        (0x38ULL << 56U) | 0x22334455ULL,
+        (0x39ULL << 56U) | 0x33445566ULL,
+        (0x3AULL << 56U) | (0x12ULL << 40U) | (0xABULL << 32U) | 0x44556677ULL,
+        (0x3BULL << 56U) | 0x55667788ULL,
+        (0x3EULL << 56U) | 0x02345678ULL
+    };
+    for (std::size_t i = 0; i < 6U; ++i)
+        require(bus.write64(0x800U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed RDP color/depth state command");
+    require(bus.write32(Bus::kDpStart, 0x800U), "set DPC start for color/depth state");
+    require(bus.write32(Bus::kDpEnd, 0x830U), "publish color/depth state commands");
+    for (std::size_t i = 0; i < 6U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "RDP color/depth state command is processed");
+
+    require(state.hasFillColor && state.fillColor == 0x11223344U,
+            "SET_FILL_COLOR extracts packed color");
+    require(state.hasFogColor && state.fogColor == 0x22334455U,
+            "SET_FOG_COLOR extracts RGBA color");
+    require(state.hasBlendColor && state.blendColor == 0x33445566U,
+            "SET_BLEND_COLOR extracts RGBA color");
+    require(state.hasPrimColor && state.primColor == 0x44556677U &&
+            state.primLodMinimum == 0x12U && state.primLodFraction == 0xABU,
+            "SET_PRIM_COLOR extracts LOD fields and RGBA color");
+    require(state.hasEnvColor && state.envColor == 0x55667788U,
+            "SET_ENV_COLOR extracts RGBA color");
+    require(state.hasZImage && state.zImageAddress == 0x02345678U,
+            "SET_Z_IMAGE extracts 26-bit DRAM address");
+}
+
 void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
@@ -301,6 +338,7 @@ int main() {
     testRdpBasicStateCommands();
     testRdpStateFieldDecoding();
     testRdpOtherModesAndCombineDecoding();
+    testRdpColorAndDepthStateCommands();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
