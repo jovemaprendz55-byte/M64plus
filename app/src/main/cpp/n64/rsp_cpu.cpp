@@ -758,15 +758,18 @@ bool RspCpu::step(Bus& bus) noexcept {
         if (function != 0x08U && function != 0x09U && function != 0x0DU) writeRegister = true;
         break;
     case 0x10U: { // COP0: scalar moves to/from SP control registers.
-        if (rs == 0U) { // MFC0
-            if (!bus.read32(Bus::kSpRegBase + rd * 4U, result)) {
+        const std::uint32_t cop0Address = rd < 8U
+            ? Bus::kSpRegBase + rd * 4U
+            : Bus::kDpRegBase + (rd - 8U) * 4U;
+        if (rs == 0U) { // MFC0: SP c0-c7 and DPC c8-c15
+            if (!bus.read32(cop0Address, result)) {
                 halted_ = true; faulted_ = true;
                 return false;
             }
             destination = rt;
             writeRegister = true;
         } else if (rs == 4U) { // MTC0
-            if (!bus.write32(Bus::kSpRegBase + rd * 4U, b)) {
+            if (!bus.write32(cop0Address, b)) {
                 halted_ = true; faulted_ = true;
                 return false;
             }
