@@ -801,3 +801,11 @@ O caminho LOAD_BLOCK foi ampliado para aplicar o comportamento de DXT documentad
 - Testes agora cobrem transferência 16-bit big-endian e rejeição explícita dos tamanhos 4-bit e 32-bit, além dos testes anteriores de 8-bit e DXT.
 - Referências comparativas: RustyN64 RDP documentation (residual R-7) e Project64 `Source/Project64-video/rdp.cpp` (`LoadBlock32b`). Essas fontes são referências de implementação, não substituem validação em hardware.
 - **Limite:** a TMEM física completa, incluindo bancos e swizzle, continua pendente; a carga 8/16-bit ainda é um modelo funcional simplificado.
+
+
+## 16.17 Correção da suíte LOAD_BLOCK após CI (2026-11-22)
+
+- A primeira execução após a restrição dos formatos falhou na compilação porque a edição dos testes deixou uma chamada sem declaração correspondente.
+- A execução seguinte compilou, mas falhou em um teste antigo de 4-bit que ainda esperava sucesso, comportamento agora explicitamente rejeitado.
+- Reorganizada a suíte: teste de 8-bit e teste de 16-bit ficam em função LOAD_BLOCK própria; teste 4/32-bit verifica `Unsupported`; o teste LOAD_TILE não contém mais verificações de LOAD_BLOCK.
+- A compilação Android havia passado; o bloqueio estava exclusivamente nos testes nativos. A correção precisa ser confirmada por nova execução de CI antes de marcar a etapa como aprovada.
