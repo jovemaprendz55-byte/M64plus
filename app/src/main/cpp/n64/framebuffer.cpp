@@ -22,7 +22,7 @@ std::uint32_t packArgb(std::uint8_t red, std::uint8_t green,
 
 bool RdpFramebuffer::copyToArgb8888(
     const Rdram& rdram, const RdpImageState& image, std::uint16_t height,
-    std::vector<std::uint32_t>& output) noexcept {
+    std::vector<std::uint32_t>& output) {
     if (image.format != 0U || image.width == 0U || height == 0U ||
         image.width > kMaxWidth || height > kMaxHeight ||
         (image.size != 2U && image.size != 3U)) {
