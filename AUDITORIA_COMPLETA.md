@@ -567,3 +567,26 @@ Implementadas em 2026-11-22:
 - As fontes são capturadas antes da escrita para preservar comportamento quando VD coincide com VS ou VT.
 - Teste percorre as 19 codificações e verifica VD e ACC_LO em todas as oito lanes.
 - Esta classificação vem de observação de testes de sistema/documentação independente; são codificações reservadas/não documentadas como instruções usuais, não novos mnemonics confirmados pelo manual oficial.
+
+
+## 16. Primeiro decodificador de comandos do RDP (2026-11-22)
+
+### Implementado nesta etapa
+- Criados `n64/rdp.h` e `n64/rdp.cpp`, com uma interface isolada `RdpCommandDecoder`.
+- Extração do opcode de 6 bits (bits 61:56) do cabeçalho de 64 bits.
+- Enquadramento por comprimento:
+  - comandos comuns e reservados: 1 palavra de 64 bits;
+  - Texture Rectangle (0x24) e Texture Rectangle Flip (0x25): 2 palavras;
+  - Fill Triangle (0x08–0x0F): 4 palavras-base, mais 8 palavras de shade, 8 de texture e 2 de Z conforme os três bits inferiores do opcode.
+- Criado `tests/rdp_tests.cpp` cobrindo extração do opcode, comprimentos de comandos de uma palavra, os oito formatos de triângulo e os dois retângulos de textura.
+- O decoder foi incluído nos CMake Android e de testes nativos.
+
+### Limites explícitos
+- Esta etapa só identifica opcode e comprimento. **Não executa comandos, não rasteriza triângulos/retângulos e não escreve framebuffer**.
+- Ainda não existe integração do decoder ao consumo do DPC. É necessário implementar o consumo atômico de comandos completos, sem avançar DPC_CURRENT quando o buffer contém apenas parte de um comando multi-palavra.
+- O sinalizador `knownOpcode` identifica as faixas de comandos documentadas (0x08–0x0F e 0x24–0x3F); as faixas restantes são enquadradas como cabeçalhos de uma palavra, sem execução.
+- Referência técnica independente consultada: `doublegate/RustyN64/docs/rdp.md`, seção “The command decoder (T-31-001)”, que atribui os comprimentos às regras do N64brew Reality Display Processor/Commands. A implementação atual usa essas regras de framing, não a implementação de rasterização do projeto de referência.
+
+### Próxima etapa
+- Criar testes de integração DPC/RDP para garantir que um comando multi-palavra só seja retirado do fluxo quando todas as palavras estiverem disponíveis.
+- Depois implementar a dispatch de comandos de sincronização e estado, mantendo renderização marcada como ausente até existir pipeline de pixels validado.
