@@ -533,3 +533,16 @@ A auditoria ainda deve continuar por:
 ### Próxima etapa recomendada
 Implementar uma fila/ponte de submissão de comandos entre DPC e RDP, com leitura de palavras da RDRAM ou SP DMEM conforme XBUS_DMEM_DMA, avanço de DPC_CURRENT e testes de consumo sem rasterização. Depois disso, iniciar o decodificador de comandos RDP e o pipeline de framebuffer.
 
+
+
+### 14.1. Leitura da lista de comandos DPC — implementação inicial
+
+- A interface do barramento agora oferece `readDpCommand(uint64_t&)` para o futuro RDP obter uma palavra de comando de 64 bits por chamada.
+- Em modo normal, a palavra é lida da RDRAM no endereço indicado por DPC_CURRENT.
+- Com XBUS_DMEM_DMA ativo, a leitura vem da SP DMEM, usando o endereço de 12 bits alinhado dentro da DMEM.
+- Cada leitura bem-sucedida avança DPC_CURRENT em oito bytes; DPC_END é tratado como limite exclusivo.
+- `dpCommandsRemaining()` informa quantas palavras completas de 64 bits ainda podem ser lidas.
+- FREEZE impede a leitura e preserva o cursor; ao remover FREEZE, a leitura pode continuar.
+- Testes cobrem ordem big-endian, leitura em RDRAM, leitura em DMEM, avanço do cursor, fim da lista e freeze/unfreeze.
+
+**Limites desta etapa:** o RDP ainda não chama essa interface porque seu módulo não existe. Não há decodificação de opcodes, rasterização, atualização de DPC_CLOCK/busy em tempo de hardware, interrupção DP ou processamento real de FLUSH. A interface prepara a fronteira entre barramento e RDP, sem afirmar execução gráfica.
