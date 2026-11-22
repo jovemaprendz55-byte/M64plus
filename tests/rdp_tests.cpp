@@ -446,6 +446,35 @@ void testLoadTileCopiesTextureImageIntoTmem() {
     require(state.tmem.readByte(9U, value) && value == 11U,
             "LOAD_TILE copies second row texels");
 
+
+
+void testLoadBlockCopiesContiguousTexelsIntoTmem() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0; i < 8U; ++i)
+        require(bus.write8(0x1600U + i, static_cast<std::uint8_t>(0x20U + i)),
+                "seed 8-bit LOAD_BLOCK source");
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (7ULL << 32U) | 0x1600ULL;
+    const std::uint64_t setTile = (0x35ULL << 56U);
+    const std::uint64_t loadBlock =
+        (0x33ULL << 56U) | (0ULL << 44U) | (0ULL << 32U) |
+        (0ULL << 24U) | (28ULL << 12U);
+    require(bus.write64(0x9C0U, setImage) &&
+            bus.write64(0x9C8U, setTile) &&
+            bus.write64(0x9D0U, loadBlock), "seed 8-bit LOAD_BLOCK sequence");
+    require(bus.write32(Bus::kDpStart, 0x9C0U) &&
+            bus.write32(Bus::kDpEnd, 0x9D8U), "publish 8-bit LOAD_BLOCK sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "8-bit LOAD_BLOCK sequence executes");
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0x20U &&
+            state.tmem.readByte(7U, value) && value == 0x27U,
+            "8-bit LOAD_BLOCK copies all requested texels");
+}
+
     Bus halfwordBus;
     RdpSyncState halfwordState{};
     require(halfwordBus.write16(0x1700U, 0x1234U) &&
@@ -475,8 +504,6 @@ void testLoadTileCopiesTextureImageIntoTmem() {
             halfwordState.tmem.readByte(6U, value) && value == 0xDEU &&
             halfwordState.tmem.readByte(7U, value) && value == 0xF0U,
             "16-bit LOAD_BLOCK preserves big-endian halfwords");
-}
-
 void testLoadBlockRejectsUnsupportedTexelSizes() {
     using namespace m64plus::n64;
     for (const std::uint32_t size : {0U, 3U}) {
