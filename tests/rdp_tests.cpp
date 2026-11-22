@@ -1,4 +1,5 @@
 #include "n64/rdp.h"
+#include "n64/bus.h"
 
 #include <cstdlib>
 #include <iostream>
