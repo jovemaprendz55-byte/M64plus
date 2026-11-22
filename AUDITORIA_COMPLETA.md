@@ -625,3 +625,12 @@ Implementadas em 2026-11-22:
 - Comandos ainda não implementados são consumidos segundo o enquadramento e retornam `Unsupported`; não são tratados como renderizados.
 - Testes verificam os quatro comandos, a interrupção DP somente após SYNC_FULL, fim do fluxo e retorno explícito para comando não implementado.
 - **Limite importante:** sincronização é sequencial/simplificada. Não existe pipeline assíncrono de pixels para drenar, então SYNC_PIPE/SYNC_TILE/SYNC_LOAD são marcadores sem espera de hardware. SYNC_FULL afirma a interrupção DP imediatamente após o processamento sequencial; não há rasterização, textura, color combiner ou framebuffer.
+
+
+### 16.4. Captura inicial de comandos de estado RDP (2026-11-22)
+
+- O processador agora reconhece e retém o comando bruto de `SET_SCISSOR (0x2D)`, `SET_OTHER_MODES (0x2F)`, `SET_TILE_SIZE (0x32)`, `SET_TILE (0x35)`, `SET_FILL_COLOR (0x37)`, `SET_TEXTURE_IMAGE (0x3D)` e `SET_COLOR_IMAGE (0x3F)`.
+- Os comandos de tile são armazenados em oito slots; o índice é extraído dos bits 26:24 do cabeçalho.
+- Flags indicam quais estados já foram configurados; isso evita confundir um comando ainda não recebido com um valor zero.
+- Teste envia os sete comandos pelo DPC e verifica que os valores brutos e os slots de tile foram preservados.
+- **Limite:** esta é captura bruta de estado, não interpretação completa dos campos nem configuração de um rasterizador. Não há leitura de textura, cálculo de coordenadas, color combiner, depth buffer ou escrita de pixels.
