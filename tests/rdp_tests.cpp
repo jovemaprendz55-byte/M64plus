@@ -396,9 +396,13 @@ void testRdpTextureLoadCommandFields() {
     const RdpTextureLoadKind expectedKinds[] = {
         RdpTextureLoadKind::Tlut, RdpTextureLoadKind::Block, RdpTextureLoadKind::Tile
     };
+    const RdpProcessResult expectedResults[] = {
+        RdpProcessResult::Unsupported, RdpProcessResult::Processed,
+        RdpProcessResult::Processed
+    };
     for (std::size_t i = 0; i < 3U; ++i) {
-        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
-                "texture load command is decoded and handled");
+        require(RdpCommandProcessor::processNext(bus, state) == expectedResults[i],
+                "texture load command is decoded and execution status is explicit");
         require(state.hasTextureLoad && state.lastTextureLoad.kind == expectedKinds[i],
                 "texture load kind is identified");
         require(state.lastTextureLoad.rawCommand == commands[i],
