@@ -667,3 +667,17 @@ Implementadas em 2026-11-22:
 - Layouts confrontados com o documento oficial SGI/Nintendo Ultra64 RDP Command Summary (versão 2.0, 1996), tabelas 19 (Set Combine Mode) e 20 (Set Other Modes). A descrição do guia profissional SGI/Nintendo sobre o blender foi usada como contexto adicional.
 - **Limite:** decodificar muxes não executa a equação do color combiner nem o blender por pixel. Não há rasterização, textura/TMEM, coverage, Z-buffer ou framebuffer nesta etapa.
 - Commits: estruturas `f83ce85`, decodificação `c24cf6c`, testes `ca559a4`, ajuste do valor esperado no teste `70aebf4`.
+
+
+### 16.7. Estado de cores e Z image do RDP (2026-11-22)
+
+- O processador agora interpreta os comandos de registradores de cor:
+  - `SET_FILL_COLOR (0x37)`: palavra de cor empacotada de 32 bits.
+  - `SET_FOG_COLOR (0x38)`, `SET_BLEND_COLOR (0x39)` e `SET_ENV_COLOR (0x3B)`: RGBA de 8 bits por canal, preservado como palavra de 32 bits.
+  - `SET_PRIM_COLOR (0x3A)`: cor RGBA, Prim LOD Minimum (5 bits) e Prim LOD Fraction (8 bits).
+- **SET_Z_IMAGE (0x3E):** endereço base DRAM de 26 bits.
+- Todos os comandos brutos continuam disponíveis para diagnóstico.
+- Teste integrado publica os seis comandos pela lista DPC e verifica cada campo e flag.
+- Layout confrontado com o SGI/Nintendo Ultra64 RDP Command Summary 2.0 (1996), tabelas Set Fill Color, Set Fog Color, Set Blend Color, Set Prim Color, Set Env Color e Set Z Image.
+- **Limite:** os registradores são armazenados; não existe ainda operação de fill, mistura de cores, teste de profundidade ou escrita em Z/color framebuffer. A etapa não implementa pixels.
+- Commits: estruturas `3618d37`, decodificação `131d1f6`, testes `308952c`.
