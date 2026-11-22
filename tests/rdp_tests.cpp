@@ -365,12 +365,47 @@ void testRdpTextureMemory() {
             tmem.readByte(0x0FFCU, byte) && byte == 0U, "TMEM reset clears memory");
 }
 
+
+void testRdpTextureLoadCommandFields() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint64_t commands[] = {
+        (0x30ULL << 56U) | (0x012ULL << 44U) | (0x003ULL << 32U) |
+            (5ULL << 24U) | (0x045ULL << 12U) | 0x006ULL,
+        (0x33ULL << 56U) | (0x021ULL << 44U) | (0x004ULL << 32U) |
+            (6ULL << 24U) | (0x087ULL << 12U) | 0x123ULL,
+        (0x34ULL << 56U) | (0x031ULL << 44U) | (0x007ULL << 32U) |
+            (7ULL << 24U) | (0x098ULL << 12U) | 0x00AULL
+    };
+    for (std::size_t i = 0; i < 3U; ++i)
+        require(bus.write64(0x880U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed RDP texture load command");
+    require(bus.write32(Bus::kDpStart, 0x880U), "set DPC start for texture loads");
+    require(bus.write32(Bus::kDpEnd, 0x898U), "publish texture load commands");
+    const RdpTextureLoadKind expectedKinds[] = {
+        RdpTextureLoadKind::Tlut, RdpTextureLoadKind::Block, RdpTextureLoadKind::Tile
+    };
+    for (std::size_t i = 0; i < 3U; ++i) {
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "texture load command header is decoded");
+        require(state.hasTextureLoad && state.lastTextureLoad.kind == expectedKinds[i],
+                "texture load kind is identified");
+        require(state.lastTextureLoad.rawCommand == commands[i],
+                "texture load command is retained");
+    }
+    require(state.lastTextureLoad.tile == 7U && state.lastTextureLoad.sl == 0x031U &&
+            state.lastTextureLoad.tl == 7U && state.lastTextureLoad.sh == 0x098U &&
+            state.lastTextureLoad.th == 0x00AU,
+            "LOAD_TILE coordinate and tile fields are decoded");
+}
+
 void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
     RdpSyncState state{};
-    require(bus.write64(0x600U, static_cast<std::uint64_t>(0x30U) << 56U),
-            "seed unsupported LOAD_TLUT command");
+    require(bus.write64(0x600U, static_cast<std::uint64_t>(0x31U) << 56U),
+            "seed reserved RDP command");
     require(bus.write32(Bus::kDpStart, 0x600U), "set DPC start for unsupported command");
     require(bus.write32(Bus::kDpEnd, 0x608U), "publish unsupported command");
     require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
@@ -401,6 +436,7 @@ int main() {
     testRdpConvertAndKeyStateCommands();
     testRdpPrimitiveDepthCommand();
     testRdpTextureMemory();
+    testRdpTextureLoadCommandFields();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
