@@ -4,7 +4,7 @@
 **Branch de registro:** `main`  
 **Escopo:** auditoria estática e revisão das implementações já examinadas.  
 **Modo:** auditoria contínua com correções registradas diretamente na `main`.  
-**Status:** auditoria em andamento — este documento consolida os resultados conhecidos até 2026-11-21.
+**Status:** auditoria em andamento — este documento consolida os resultados conhecidos até 2026-11-22.
 
 > Importante: “ausente” significa que não foi encontrada implementação nos arquivos examinados; não equivale a teste em hardware. “Defeito confirmado” refere-se a comportamento identificado no código e confrontado com a arquitetura/documentação. Pontos não resolvidos ficam marcados como investigação pendente.
 
@@ -511,3 +511,25 @@ A auditoria ainda deve continuar por:
 - Ambos os caminhos preservam o delay slot; testes cobrem BLTZAL tomado e BGEZAL não tomado, incluindo link e fluxo de execução.
 - Referências consultadas: manual de COP0/RSP da SGI, implementação Mupen64Plus RSP e documentação RustyN64.
 - CI pendente.
+
+
+## 14. DPC / COP0 do RSP — primeira camada implementada em 2026-11-22
+
+### Implementado nesta etapa
+- Janela MMIO DPC mapeada em `0x04100000–0x0410001F`, separada das regiões SP e MI.
+- Registradores DPC_START (c8), DPC_END (c9), DPC_CURRENT (c10), DPC_STATUS (c11), DPC_CLOCK (c12), DPC_BUFBUSY (c13), DPC_PIPEBUSY (c14) e DPC_TMEM (c15).
+- MFC0/MTC0 do RSP agora direcionam c0–c7 para os registradores SP e c8–c15 para os registradores DPC.
+- DPC_START armazena endereço alinhado em 8 bytes e inicializa DPC_CURRENT.
+- DPC_END armazena o limite alinhado da lista de comandos.
+- DPC_STATUS implementa os comandos de limpar/definir XBUS_DMEM_DMA e FREEZE, limpar FLUSH e zerar contadores/busy correspondentes.
+- Registradores de leitura como CURRENT e CLOCK ignoram escritas.
+- Testes nativos adicionados para o mapeamento, alinhamento, comandos de status e transferências MFC0/MTC0 do RSP.
+
+### Limitações importantes
+- **RDP ainda não executa comandos.** Escrever DPC_END apenas registra o endereço final; não há consumo de command buffer, rasterização, pipeline de triângulos, textura ou framebuffer.
+- DPC_CURRENT não avança por consumo de comandos; DPC_CLOCK/BUFBUSY/PIPEBUSY/TMEM permanecem zerados até existir o motor RDP e sua temporização.
+- A semântica implementada é uma base de registradores para integração futura, não uma simulação completa do DP. Interrupções DP, XBUS DMA real, freeze/flush em pipeline e estados busy ainda precisam ser ligados ao RDP.
+
+### Próxima etapa recomendada
+Implementar uma fila/ponte de submissão de comandos entre DPC e RDP, com leitura de palavras da RDRAM ou SP DMEM conforme XBUS_DMEM_DMA, avanço de DPC_CURRENT e testes de consumo sem rasterização. Depois disso, iniciar o decodificador de comandos RDP e o pipeline de framebuffer.
+
