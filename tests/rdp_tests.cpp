@@ -448,6 +448,41 @@ void testLoadTileCopiesTextureImageIntoTmem() {
 }
 
 
+void testLoadTilePacksFourBitNibblesAndSwizzlesOddRows() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    require(bus.write8(0x1700U, 0x12U) &&
+            bus.write8(0x1701U, 0x34U) &&
+            bus.write8(0x1702U, 0x56U) &&
+            bus.write8(0x1703U, 0x78U),
+            "seed two-row 4-bit texture image");
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (3ULL << 32U) | 0x1700ULL;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (1ULL << 41U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 32U) | (12ULL << 12U) | 4ULL;
+    require(bus.write64(0xA40U, setImage) &&
+            bus.write64(0xA48U, setTile) &&
+            bus.write64(0xA50U, loadTile),
+            "seed 4-bit LOAD_TILE command sequence");
+    require(bus.write32(Bus::kDpStart, 0xA40U) &&
+            bus.write32(Bus::kDpEnd, 0xA58U),
+            "publish 4-bit LOAD_TILE command sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) ==
+                    RdpProcessResult::Processed,
+                "4-bit LOAD_TILE commands execute");
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0x12U &&
+            state.tmem.readByte(1U, value) && value == 0x34U,
+            "4-bit LOAD_TILE packs first-row high and low nibbles");
+    require(state.tmem.readByte(12U, value) && value == 0x56U &&
+            state.tmem.readByte(13U, value) && value == 0x78U,
+            "4-bit LOAD_TILE packs and half-swizzles the odd row");
+}
+
 void testLoadTileSwizzlesOddRowsFor16BitTexels() {
     using namespace m64plus::n64;
     Bus bus;
@@ -869,6 +904,7 @@ int main() {
     testRdpTextureMemory();
     testRdpTextureLoadCommandFields();
     testLoadTileCopiesTextureImageIntoTmem();
+    testLoadTilePacksFourBitNibblesAndSwizzlesOddRows();
     testLoadTileSwizzlesOddRowsFor16BitTexels();
     testLoadTileSplits32BitRgbaAcrossTmemBanks();
     testLoadTileRgba32UpperBankStaysAlignedAcrossBankWrap();
