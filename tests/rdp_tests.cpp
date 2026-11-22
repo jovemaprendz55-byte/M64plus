@@ -22,7 +22,7 @@ void testSingleWordCommands() {
         const auto decoded = m64plus::n64::RdpCommandDecoder::decode(header(opcode));
         require(decoded.opcode == opcode, "opcode extraction");
         require(decoded.lengthWords == 1U, "single-word command length");
-        require(decoded.knownOpcode, "six-bit opcode is recognized for framing");
+        const bool documented = opcode >= 0x08U && opcode <= 0x0FU || opcode >= 0x24U;\n        require(decoded.knownOpcode == documented, "documented opcode classification");
     }
 }
 
