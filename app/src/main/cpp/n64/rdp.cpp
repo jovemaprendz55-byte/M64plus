@@ -81,10 +81,76 @@ RdpProcessResult RdpCommandProcessor::processNext(
         state.hasScissor = true;
         return RdpProcessResult::Processed;
     }
-    case 0x2FU: // SET_OTHER_MODES
-        state.otherModesCommand = packet.words[0];
+    case 0x2FU: { // SET_OTHER_MODES
+        const std::uint64_t command = packet.words[0];
+        state.otherModesCommand = command;
+        state.otherModes = {
+            static_cast<std::uint8_t>((command >> 52U) & 0x03U),
+            ((command >> 51U) & 1U) != 0U,
+            ((command >> 50U) & 1U) != 0U,
+            ((command >> 49U) & 1U) != 0U,
+            ((command >> 48U) & 1U) != 0U,
+            ((command >> 47U) & 1U) != 0U,
+            ((command >> 46U) & 1U) != 0U,
+            ((command >> 45U) & 1U) != 0U,
+            ((command >> 44U) & 1U) != 0U,
+            ((command >> 43U) & 1U) != 0U,
+            ((command >> 42U) & 1U) != 0U,
+            ((command >> 41U) & 1U) != 0U,
+            ((command >> 40U) & 1U) != 0U,
+            static_cast<std::uint8_t>((command >> 38U) & 0x03U),
+            static_cast<std::uint8_t>((command >> 36U) & 0x03U),
+            {{static_cast<std::uint8_t>((command >> 30U) & 0x03U),
+              static_cast<std::uint8_t>((command >> 28U) & 0x03U)}},
+            {{static_cast<std::uint8_t>((command >> 26U) & 0x03U),
+              static_cast<std::uint8_t>((command >> 24U) & 0x03U)}},
+            {{static_cast<std::uint8_t>((command >> 22U) & 0x03U),
+              static_cast<std::uint8_t>((command >> 20U) & 0x03U)}},
+            {{static_cast<std::uint8_t>((command >> 18U) & 0x03U),
+              static_cast<std::uint8_t>((command >> 16U) & 0x03U)}},
+            ((command >> 14U) & 1U) != 0U,
+            ((command >> 13U) & 1U) != 0U,
+            ((command >> 12U) & 1U) != 0U,
+            static_cast<std::uint8_t>((command >> 10U) & 0x03U),
+            static_cast<std::uint8_t>((command >> 8U) & 0x03U),
+            ((command >> 7U) & 1U) != 0U,
+            ((command >> 6U) & 1U) != 0U,
+            ((command >> 5U) & 1U) != 0U,
+            ((command >> 4U) & 1U) != 0U,
+            ((command >> 3U) & 1U) != 0U,
+            ((command >> 2U) & 1U) != 0U,
+            ((command >> 1U) & 1U) != 0U,
+            (command & 1U) != 0U
+        };
         state.hasOtherModes = true;
         return RdpProcessResult::Processed;
+    }
+    case 0x3CU: { // SET_COMBINE
+        const std::uint64_t command = packet.words[0];
+        state.combineCommand = command;
+        state.combine[0] = {
+            static_cast<std::uint8_t>((command >> 52U) & 0x0FU),
+            static_cast<std::uint8_t>((command >> 28U) & 0x0FU),
+            static_cast<std::uint8_t>((command >> 47U) & 0x1FU),
+            static_cast<std::uint8_t>((command >> 15U) & 0x07U),
+            static_cast<std::uint8_t>((command >> 44U) & 0x07U),
+            static_cast<std::uint8_t>((command >> 12U) & 0x07U),
+            static_cast<std::uint8_t>((command >> 41U) & 0x07U),
+            static_cast<std::uint8_t>((command >> 9U) & 0x07U)
+        };
+        state.combine[1] = {
+            static_cast<std::uint8_t>((command >> 37U) & 0x0FU),
+            static_cast<std::uint8_t>((command >> 24U) & 0x0FU),
+            static_cast<std::uint8_t>((command >> 32U) & 0x1FU),
+            static_cast<std::uint8_t>((command >> 6U) & 0x07U),
+            static_cast<std::uint8_t>((command >> 21U) & 0x07U),
+            static_cast<std::uint8_t>((command >> 3U) & 0x07U),
+            static_cast<std::uint8_t>((command >> 18U) & 0x07U),
+            static_cast<std::uint8_t>(command & 0x07U)
+        };
+        state.hasCombine = true;
+        return RdpProcessResult::Processed;
+    }
     case 0x32U: { // SET_TILE_SIZE
         const std::uint64_t command = packet.words[0];
         const std::size_t tile = static_cast<std::size_t>((command >> 24U) & 0x07U);
