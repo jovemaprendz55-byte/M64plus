@@ -527,6 +527,38 @@ void testLoadBlockCopiesContiguousTexelsIntoTmem() {
             "4-bit LOAD_BLOCK preserves packed nibble stream");
 }
 
+void testLoadBlockDxtSwapsOddLineWords() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0; i < 24U; ++i)
+        require(bus.write8(0x1800U + i, static_cast<std::uint8_t>(i)),
+                "seed three 64-bit LOAD_BLOCK words");
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (31ULL << 32U) | 0x1800ULL;
+    const std::uint64_t setTile = (0x35ULL << 56U);
+    const std::uint64_t loadBlock =
+        (0x33ULL << 56U) | (0ULL << 44U) | (0ULL << 32U) |
+        (0ULL << 24U) | (92ULL << 12U) | 0x400ULL;
+    require(bus.write64(0xA40U, setImage) &&
+            bus.write64(0xA48U, setTile) &&
+            bus.write64(0xA50U, loadBlock), "seed DXT interleave sequence");
+    require(bus.write32(Bus::kDpStart, 0xA40U) &&
+            bus.write32(Bus::kDpEnd, 0xA58U), "publish DXT interleave sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "DXT LOAD_BLOCK sequence executes");
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(16U, value) && value == 20U,
+            "DXT odd line swaps first 32-bit half with second half");
+    require(state.tmem.readByte(19U, value) && value == 23U,
+            "DXT odd line moves fourth source byte into first half");
+    require(state.tmem.readByte(20U, value) && value == 16U,
+            "DXT odd line moves first source byte into second half");
+    require(state.tmem.readByte(23U, value) && value == 19U,
+            "DXT odd line completes 32-bit half swap");
+}
+
 void testLoadTlutReplicatesEntriesIntoHighTmem() {
     using namespace m64plus::n64;
     Bus bus;
@@ -601,6 +633,7 @@ int main() {
     testRdpTextureLoadCommandFields();
     testLoadTileCopiesTextureImageIntoTmem();
     testLoadBlockCopiesContiguousTexelsIntoTmem();
+    testLoadBlockDxtSwapsOddLineWords();
     testLoadTlutReplicatesEntriesIntoHighTmem();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
