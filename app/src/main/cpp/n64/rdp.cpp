@@ -98,8 +98,11 @@ bool loadBlockTexels(Bus& bus, RdpSyncState& state,
         (load.tl & 0x03U) != 0U || (load.sh & 0x03U) != 0U) return false;
     const RdpImageState& image = state.textureImage;
     const RdpTileState& tile = state.tiles[load.tile];
-    const unsigned bitsPerTexel = image.size == 0U ? 4U
-        : (image.size == 1U ? 8U : (image.size == 2U ? 16U : 32U));
+    // The ordinary LOAD_BLOCK path is defined for 8- and 16-bit source texels.
+    // 4-bit loads are not a valid hardware path; 32-bit loads need the split-bank
+    // transfer handled by the dedicated 32-bit path, which is not implemented yet.
+    if (image.size != 1U && image.size != 2U) return false;
+    const unsigned bitsPerTexel = image.size == 1U ? 8U : 16U;
     const std::uint32_t count =
         (static_cast<std::uint32_t>(load.sh - load.sl) >> 2U) + 1U;
     if (count == 0U || count > 2048U) return false;
@@ -121,31 +124,17 @@ bool loadBlockTexels(Bus& bus, RdpSyncState& state,
     }
 
     std::array<std::uint8_t, RdpTextureMemory::kSize> transfer{};
+    const unsigned bytesPerTexel = bitsPerTexel / 8U;
     for (std::uint32_t i = 0; i < count; ++i) {
         const std::uint64_t sourceTexel = firstTexel + i;
-        if (bitsPerTexel == 4U) {
+        for (unsigned byte = 0; byte < bytesPerTexel; ++byte) {
             const std::uint64_t sourceAddress =
-                static_cast<std::uint64_t>(image.address) + sourceTexel / 2U;
-            std::uint8_t sourceByte = 0;
+                static_cast<std::uint64_t>(image.address) +
+                sourceTexel * bytesPerTexel + byte;
             if (sourceAddress > UINT32_MAX ||
-                !bus.read8(static_cast<std::uint32_t>(sourceAddress), sourceByte)) return false;
-            const std::uint8_t nibble = (sourceTexel & 1U) != 0U
-                ? static_cast<std::uint8_t>(sourceByte & 0x0FU)
-                : static_cast<std::uint8_t>(sourceByte >> 4U);
-            transfer[i / 2U] = (i & 1U) != 0U
-                ? static_cast<std::uint8_t>((transfer[i / 2U] & 0xF0U) | nibble)
-                : static_cast<std::uint8_t>((transfer[i / 2U] & 0x0FU) | (nibble << 4U));
-        } else {
-            const unsigned bytesPerTexel = bitsPerTexel / 8U;
-            for (unsigned byte = 0; byte < bytesPerTexel; ++byte) {
-                const std::uint64_t sourceAddress =
-                    static_cast<std::uint64_t>(image.address) +
-                    sourceTexel * bytesPerTexel + byte;
-                if (sourceAddress > UINT32_MAX ||
-                    !bus.read8(static_cast<std::uint32_t>(sourceAddress),
-                               transfer[static_cast<std::size_t>(i) * bytesPerTexel + byte]))
-                    return false;
-            }
+                !bus.read8(static_cast<std::uint32_t>(sourceAddress),
+                           transfer[static_cast<std::size_t>(i) * bytesPerTexel + byte]))
+                return false;
         }
     }
 
