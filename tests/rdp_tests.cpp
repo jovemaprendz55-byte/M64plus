@@ -478,11 +478,10 @@ void testLoadBlockCopiesContiguousTexelsIntoTmem() {
                 "seed LOAD_BLOCK source bytes");
     const std::uint64_t setImage =
         (0x3DULL << 56U) | (1ULL << 51U) | (7ULL << 32U) | 0x1600ULL;
-    const std::uint64_t setTile =
-        (0x35ULL << 56U) | (3ULL << 32U);
+    const std::uint64_t setTile = (0x35ULL << 56U);
     const std::uint64_t loadBlock =
         (0x33ULL << 56U) | (0ULL << 44U) | (0ULL << 32U) |
-        (0ULL << 24U) | (7ULL << 12U) | 0x155ULL;
+        (0ULL << 24U) | (28ULL << 12U) | 0x155ULL;
     require(bus.write64(0x9C0U, setImage) &&
             bus.write64(0x9C8U, setTile) &&
             bus.write64(0x9D0U, loadBlock), "seed LOAD_BLOCK command sequence");
