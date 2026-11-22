@@ -187,8 +187,47 @@ RdpProcessResult RdpCommandProcessor::processNext(
         return RdpProcessResult::Processed;
     }
     case 0x37U: // SET_FILL_COLOR
-        state.fillColorCommand = packet.words[0];
-        state.hasFillColor = true;
+    case 0x38U: // SET_FOG_COLOR
+    case 0x39U: // SET_BLEND_COLOR
+    case 0x3AU: // SET_PRIM_COLOR
+    case 0x3BU: { // SET_ENV_COLOR
+        const std::uint64_t command = packet.words[0];
+        const std::uint32_t color = static_cast<std::uint32_t>(command & 0xFFFFFFFFU);
+        switch (packet.info.opcode) {
+        case 0x37U:
+            state.fillColorCommand = command;
+            state.fillColor = color;
+            state.hasFillColor = true;
+            break;
+        case 0x38U:
+            state.fogColorCommand = command;
+            state.fogColor = color;
+            state.hasFogColor = true;
+            break;
+        case 0x39U:
+            state.blendColorCommand = command;
+            state.blendColor = color;
+            state.hasBlendColor = true;
+            break;
+        case 0x3AU:
+            state.primColorCommand = command;
+            state.primColor = color;
+            state.primLodMinimum = static_cast<std::uint8_t>((command >> 40U) & 0x1FU);
+            state.primLodFraction = static_cast<std::uint8_t>((command >> 32U) & 0xFFU);
+            state.hasPrimColor = true;
+            break;
+        default:
+            state.envColorCommand = command;
+            state.envColor = color;
+            state.hasEnvColor = true;
+            break;
+        }
+        return RdpProcessResult::Processed;
+    }
+    case 0x3EU: // SET_Z_IMAGE
+        state.zImageCommand = packet.words[0];
+        state.zImageAddress = static_cast<std::uint32_t>(packet.words[0] & 0x03FFFFFFU);
+        state.hasZImage = true;
         return RdpProcessResult::Processed;
     case 0x3DU: // SET_TEXTURE_IMAGE
     case 0x3FU: { // SET_COLOR_IMAGE
