@@ -156,6 +156,7 @@ void testSharedCpuRspBusAndSpBreak() {
 } // namespace
 
 int main() {
+    testMachineOwnsAndProcessesRdpState();
     testCpuKsegDirectMappingWithoutTlb();
     testMachineDoesNotRetryUnsupportedRspInstruction();
     testSharedCpuRspBusAndSpBreak();
