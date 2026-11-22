@@ -487,32 +487,56 @@ void testLoadTileSwizzlesOddRowsFor16BitTexels() {
             "16-bit LOAD_TILE swaps odd-row 32-bit halves");
 }
 
-void testLoadTileRejects32BitTexelsWithoutChangingTmem() {
+void testLoadTileSplits32BitRgbaAcrossTmemBanks() {
     using namespace m64plus::n64;
     Bus bus;
     RdpSyncState state{};
-    state.tmem.writeByte(0U, 0xA5U);
-    require(bus.write32(0x1A00U, 0x12345678U),
-            "seed 32-bit LOAD_TILE source");
+    const std::uint8_t source[] = {
+        0x11U, 0x22U, 0x33U, 0x44U, 0x55U, 0x66U, 0x77U, 0x88U,
+        0x99U, 0xAAU, 0xBBU, 0xCCU, 0xDDU, 0xEEU, 0xF0U, 0x0FU
+    };
+    for (std::uint32_t i = 0; i < sizeof(source); ++i)
+        require(bus.write8(0x1A00U + i, source[i]),
+                "seed two-row RGBA32 LOAD_TILE source");
+
     const std::uint64_t setImage =
         (0x3DULL << 56U) | (3ULL << 51U) | (1ULL << 32U) | 0x1A00ULL;
-    const std::uint64_t setTile = (0x35ULL << 56U) | (3ULL << 51U);
-    const std::uint64_t loadTile = (0x34ULL << 56U);
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (3ULL << 51U) | (1ULL << 41U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 12U) | 4ULL;
     require(bus.write64(0xAA0U, setImage) &&
             bus.write64(0xAA8U, setTile) &&
             bus.write64(0xAB0U, loadTile),
-            "seed unsupported 32-bit LOAD_TILE sequence");
+            "seed RGBA32 LOAD_TILE command sequence");
     require(bus.write32(Bus::kDpStart, 0xAA0U) &&
             bus.write32(Bus::kDpEnd, 0xAB8U),
-            "publish unsupported 32-bit LOAD_TILE sequence");
-    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
-            RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
-            "32-bit LOAD_TILE setup commands execute");
-    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
-            "32-bit LOAD_TILE is explicitly unsupported");
+            "publish RGBA32 LOAD_TILE command sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "RGBA32 LOAD_TILE command executes");
+
     std::uint8_t value = 0U;
-    require(state.tmem.readByte(0U, value) && value == 0xA5U,
-            "unsupported 32-bit LOAD_TILE leaves TMEM unchanged");
+    require(state.tmem.readByte(0U, value) && value == 0x11U &&
+            state.tmem.readByte(1U, value) && value == 0x22U &&
+            state.tmem.readByte(2U, value) && value == 0x55U &&
+            state.tmem.readByte(3U, value) && value == 0x66U,
+            "RGBA32 LOAD_TILE stores RG pairs in the lower TMEM bank");
+    require(state.tmem.readByte(0x800U, value) && value == 0x33U &&
+            state.tmem.readByte(0x801U, value) && value == 0x44U &&
+            state.tmem.readByte(0x802U, value) && value == 0x77U &&
+            state.tmem.readByte(0x803U, value) && value == 0x88U,
+            "RGBA32 LOAD_TILE stores BA pairs in the upper TMEM bank");
+    require(state.tmem.readByte(12U, value) && value == 0x99U &&
+            state.tmem.readByte(13U, value) && value == 0xAAU &&
+            state.tmem.readByte(14U, value) && value == 0xDDU &&
+            state.tmem.readByte(15U, value) && value == 0xEEU,
+            "RGBA32 LOAD_TILE applies odd-row halfword swap in lower bank");
+    require(state.tmem.readByte(0x80CU, value) && value == 0xBBU &&
+            state.tmem.readByte(0x80DU, value) && value == 0xCCU &&
+            state.tmem.readByte(0x80EU, value) && value == 0xF0U &&
+            state.tmem.readByte(0x80FU, value) && value == 0x0FU,
+            "RGBA32 LOAD_TILE applies odd-row halfword swap in upper bank");
 }
 
 void testLoadBlockCopiesContiguousTexelsIntoTmem() {
@@ -762,7 +786,7 @@ int main() {
     testRdpTextureLoadCommandFields();
     testLoadTileCopiesTextureImageIntoTmem();
     testLoadTileSwizzlesOddRowsFor16BitTexels();
-    testLoadTileRejects32BitTexelsWithoutChangingTmem();
+    testLoadTileSplits32BitRgbaAcrossTmemBanks();
     testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadBlockDxtSwapsOddLineWords();
     testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines();
