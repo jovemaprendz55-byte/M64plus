@@ -32,6 +32,7 @@ add_executable(m64plus_machine_tests
     app/src/main/cpp/n64/tlb.cpp
     app/src/main/cpp/n64/rsp_cpu.cpp
     app/src/main/cpp/n64/machine.cpp
+    app/src/main/cpp/n64/rdp.cpp
 )
 target_include_directories(m64plus_machine_tests PRIVATE app/src/main/cpp)
 target_compile_features(m64plus_machine_tests PRIVATE cxx_std_17)
