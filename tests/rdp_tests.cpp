@@ -539,6 +539,40 @@ void testLoadTileSplits32BitRgbaAcrossTmemBanks() {
             "RGBA32 LOAD_TILE applies odd-row halfword swap in upper bank");
 }
 
+void testLoadTileRejectsNonRgba32FormatsWithoutWritingTmem() {
+    using namespace m64plus::n64;
+    for (const bool invalidImageFormat : {true, false}) {
+        Bus bus;
+        RdpSyncState state{};
+        const std::uint64_t setImage =
+            (0x3DULL << 56U) | (3ULL << 51U) |
+            (invalidImageFormat ? (1ULL << 53U) : 0ULL) |
+            (1ULL << 32U) | 0x1A00ULL;
+        const std::uint64_t setTile =
+            (0x35ULL << 56U) | (3ULL << 51U) |
+            (invalidImageFormat ? 0ULL : (1ULL << 53U));
+        const std::uint64_t loadTile =
+            (0x34ULL << 56U) | (4ULL << 12U) | 4ULL;
+        require(bus.write64(0xAC0U, setImage) &&
+                bus.write64(0xAC8U, setTile) &&
+                bus.write64(0xAD0U, loadTile),
+                "seed invalid-format RGBA32 LOAD_TILE sequence");
+        require(bus.write32(Bus::kDpStart, 0xAC0U) &&
+                bus.write32(Bus::kDpEnd, 0xAD8U),
+                "publish invalid-format RGBA32 LOAD_TILE sequence");
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "SET_TEXTURE_IMAGE records format before LOAD_TILE validation");
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "SET_TILE records format before LOAD_TILE validation");
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+                "RGBA32 LOAD_TILE rejects non-RGBA source or tile format");
+        std::uint8_t value = 0xFFU;
+        require(state.tmem.readByte(0U, value) && value == 0U &&
+                state.tmem.readByte(0x800U, value) && value == 0U,
+                "invalid RGBA32 format leaves both TMEM banks unchanged");
+    }
+}
+
 void testLoadBlockCopiesContiguousTexelsIntoTmem() {
     using namespace m64plus::n64;
     Bus bus;
@@ -787,6 +821,7 @@ int main() {
     testLoadTileCopiesTextureImageIntoTmem();
     testLoadTileSwizzlesOddRowsFor16BitTexels();
     testLoadTileSplits32BitRgbaAcrossTmemBanks();
+    testLoadTileRejectsNonRgba32FormatsWithoutWritingTmem();
     testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadBlockDxtSwapsOddLineWords();
     testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines();
