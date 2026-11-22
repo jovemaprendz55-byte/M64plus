@@ -84,6 +84,36 @@ void testDpCommandStreamFromRdramAndDmem() {
     require(bus.readDpCommand(command), "unfrozen DPC resumes command fetch");
 }
 
+void testDpMultiwordCommandIsAtomic() {
+    Bus bus;
+    constexpr std::uint64_t first = 0x2400000012345678ULL;
+    constexpr std::uint64_t second = 0x9ABCDEF001020304ULL;
+    require(bus.write64(0x300U, first), "seed first texture-rectangle word");
+    require(bus.write64(0x308U, second), "seed second texture-rectangle word");
+    require(bus.write32(Bus::kDpStart, 0x300U), "set DPC_START for partial command");
+    require(bus.write32(Bus::kDpEnd, 0x308U), "publish only one word of command");
+
+    std::uint64_t header = 0;
+    require(bus.peekDpCommand(header) && header == first,
+            "peek reads command header without consuming it");
+    std::uint64_t words[2] = {0xAAAAAAAAAAAAAAAAULL, 0xBBBBBBBBBBBBBBBBULL};
+    require(!bus.readDpCommandWords(words, 2U),
+            "incomplete multiword command is not consumed");
+    std::uint32_t current = 0;
+    require(bus.read32(Bus::kDpCurrent, current) && current == 0x300U,
+            "failed atomic read preserves DPC_CURRENT");
+    require(words[0] == 0xAAAAAAAAAAAAAAAAULL &&
+            words[1] == 0xBBBBBBBBBBBBBBBBULL,
+            "failed atomic read does not modify output buffer");
+
+    require(bus.write32(Bus::kDpEnd, 0x310U), "publish complete two-word command");
+    require(bus.readDpCommandWords(words, 2U), "consume complete multiword command");
+    require(words[0] == first && words[1] == second,
+            "multiword command words preserve big-endian order");
+    require(bus.read32(Bus::kDpCurrent, current) && current == 0x310U,
+            "successful atomic read advances by full command length");
+}
+
 void testDramToSpAndSpToDram() {
     Bus bus;
     for (std::uint32_t i = 0; i < 16; ++i)
@@ -199,6 +229,7 @@ void testOutOfRangeIsRejectedBeforeCopy() {
 int main() {
     testDpRegisterWindow();
     testDpCommandStreamFromRdramAndDmem();
+    testDpMultiwordCommandIsAtomic();
     testDramToSpAndSpToDram();
     testRowsAndSkip();
     testImemBankAndWrapping();
