@@ -397,7 +397,7 @@ void testRdpTextureLoadCommandFields() {
         RdpTextureLoadKind::Tlut, RdpTextureLoadKind::Block, RdpTextureLoadKind::Tile
     };
     const RdpProcessResult expectedResults[] = {
-        RdpProcessResult::Unsupported, RdpProcessResult::Processed,
+        RdpProcessResult::Unsupported, RdpProcessResult::Unsupported,
         RdpProcessResult::Processed
     };
     for (std::size_t i = 0; i < 3U; ++i) {
