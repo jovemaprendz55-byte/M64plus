@@ -847,3 +847,23 @@ O commit `ce2a5d435a58db36c9fc808805bfbd1a4cca7d97` adicionou cenários de teste
 **Resultado confirmado:** workflow [#45023292915](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45023292915) concluiu com `native-host-tests = success` e `assemble-debug = success`. O artefato `m64plus-debug-apk` foi publicado (574.338 bytes, não expirado na verificação).
 
 **Interpretação:** os testes confirmam o comportamento da implementação atual para os casos cobertos, não uma comparação integral com hardware ou RDP de referência. O fragmento final menor que 64 bits, os casos de DXT fora dos vetores testados e a organização física de TMEM permanecem pendentes.
+
+
+
+## 16.21 LOAD_TILE — troca das metades em linhas ímpares (2026-11-22)
+
+A revisão da organização de TMEM identificou uma ausência no caminho LOAD_TILE: linhas ímpares de texels de 4/8/16 bits precisam trocar as duas metades de 32 bits dentro de cada palavra de 64 bits para permitir o acesso intercalado do filtro de textura.
+
+Correção aplicada:
+- o destino de cada byte de uma linha ímpar passa a usar o endereço com bit de meia-palavra trocado (`offset ^ 4`);
+- o caminho de nibbles também aplica a troca ao byte que contém o texel;
+- o teste de LOAD_TILE com duas linhas agora verifica que a segunda linha aparece no deslocamento swizzled (12/13 em vez de 8/9, para o caso de teste);
+- o caminho de texel de 32 bits foi explicitamente bloqueado em LOAD_TILE: a cópia plana anterior não representava o layout dividido entre bancos/metades da TMEM e não deve ser tratada como suportada.
+
+**Limitações que permanecem:**
+- o caminho de 4 bits ainda é uma cópia lógica de nibbles e precisa de comparação específica com o comportamento documentado; o manual recomenda carregar tipos 4-bit usando transferência maior e configurar o tile de renderização para 4-bit;
+- a distribuição física de texels 32-bit entre os bancos da TMEM não foi implementada;
+- alinhamento de linhas, limites de TMEM, swizzle por formato e interação com sampler ainda precisam de testes dedicados;
+- a nova correção aguarda confirmação do CI antes de ser considerada validada.
+
+**Referências:** Nintendo 64 Programming Manual, seção 13.8.1 (organização de TMEM) e 13.9 (LOAD_TILE/LOAD_BLOCK); RustyN64 RDP notes (layout de TMEM comparado com ParaLLEl-RDP); Moria, “N64 Part 20: TMEM Format and Mip Maps”. Links: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-09.html ; https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md ; https://www.moria.us/blog/2020/11/n64-part20-tmem-format-and-mip-maps .
