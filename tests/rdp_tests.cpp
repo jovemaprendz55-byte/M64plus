@@ -469,6 +469,65 @@ void testLoadTileCopiesTextureImageIntoTmem() {
             "4-bit LOAD_TILE preserves packed nibble order");
 }
 
+void testLoadBlockCopiesContiguousTexelsIntoTmem() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0; i < 16U; ++i)
+        require(bus.write8(0x1600U + i, static_cast<std::uint8_t>(0x20U + i)),
+                "seed LOAD_BLOCK source bytes");
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (7ULL << 32U) | 0x1600ULL;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (3ULL << 32U);
+    const std::uint64_t loadBlock =
+        (0x33ULL << 56U) | (0ULL << 44U) | (0ULL << 32U) |
+        (0ULL << 24U) | (7ULL << 12U) | 0x155ULL;
+    require(bus.write64(0x9C0U, setImage) &&
+            bus.write64(0x9C8U, setTile) &&
+            bus.write64(0x9D0U, loadBlock), "seed LOAD_BLOCK command sequence");
+    require(bus.write32(Bus::kDpStart, 0x9C0U) &&
+            bus.write32(Bus::kDpEnd, 0x9D8U), "publish LOAD_BLOCK sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TEXTURE_IMAGE configures LOAD_BLOCK source");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE configures LOAD_BLOCK destination");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "LOAD_BLOCK copies eight texels");
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0x20U,
+            "LOAD_BLOCK writes first texel");
+    require(state.tmem.readByte(7U, value) && value == 0x27U,
+            "LOAD_BLOCK writes last requested texel");
+    require(state.lastTextureLoad.kind == RdpTextureLoadKind::Block &&
+            state.lastTextureLoad.dxt == 0x155U,
+            "LOAD_BLOCK retains DXT field for later line-swizzle stage");
+
+    Bus nibbleBus;
+    RdpSyncState nibbleState{};
+    require(nibbleBus.write8(0x1700U, 0x12U) &&
+            nibbleBus.write8(0x1701U, 0x34U) &&
+            nibbleBus.write8(0x1702U, 0x56U), "seed packed 4-bit LOAD_BLOCK source");
+    const std::uint64_t setImage4 =
+        (0x3DULL << 56U) | (3ULL << 32U) | 0x1700ULL;
+    const std::uint64_t setTile4 = (0x35ULL << 56U);
+    const std::uint64_t loadBlock4 =
+        (0x33ULL << 56U) | (0ULL << 44U) | (0ULL << 32U) |
+        (0ULL << 24U) | (20ULL << 12U);
+    require(nibbleBus.write64(0xA00U, setImage4) &&
+            nibbleBus.write64(0xA08U, setTile4) &&
+            nibbleBus.write64(0xA10U, loadBlock4), "seed 4-bit LOAD_BLOCK sequence");
+    require(nibbleBus.write32(Bus::kDpStart, 0xA00U) &&
+            nibbleBus.write32(Bus::kDpEnd, 0xA18U), "publish 4-bit LOAD_BLOCK sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(nibbleBus, nibbleState) ==
+                    RdpProcessResult::Processed, "4-bit LOAD_BLOCK command executes");
+    require(nibbleState.tmem.readByte(0U, value) && value == 0x12U &&
+            nibbleState.tmem.readByte(1U, value) && value == 0x34U &&
+            nibbleState.tmem.readByte(2U, value) && value == 0x56U,
+            "4-bit LOAD_BLOCK preserves packed nibble stream");
+}
+
 void testLoadTlutReplicatesEntriesIntoHighTmem() {
     using namespace m64plus::n64;
     Bus bus;
@@ -542,6 +601,7 @@ int main() {
     testRdpTextureMemory();
     testRdpTextureLoadCommandFields();
     testLoadTileCopiesTextureImageIntoTmem();
+    testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadTlutReplicatesEntriesIntoHighTmem();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
