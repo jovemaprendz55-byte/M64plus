@@ -106,6 +106,8 @@ bool loadBlockTexels(Bus& bus, RdpSyncState& state,
     const std::uint64_t firstTexel =
         static_cast<std::uint64_t>(load.tl >> 2U) * image.width + (load.sl >> 2U);
     const std::uint64_t totalBits = static_cast<std::uint64_t>(count) * bitsPerTexel;
+    const std::uint64_t totalBytes = (totalBits + 7U) / 8U;
+    if (totalBytes > RdpTextureMemory::kSize) return false;
     const std::uint64_t sourceFirstBit = firstTexel * bitsPerTexel;
     const std::uint64_t sourceFirstByte = sourceFirstBit / 8U;
     const std::uint64_t sourceBytes =
@@ -118,8 +120,7 @@ bool loadBlockTexels(Bus& bus, RdpSyncState& state,
             !bus.read8(static_cast<std::uint32_t>(address), ignored)) return false;
     }
 
-    const std::uint64_t destinationBase =
-        static_cast<std::uint64_t>(tile.tmem) * 8U;
+    std::array<std::uint8_t, RdpTextureMemory::kSize> transfer{};
     for (std::uint32_t i = 0; i < count; ++i) {
         const std::uint64_t sourceTexel = firstTexel + i;
         if (bitsPerTexel == 4U) {
@@ -131,30 +132,53 @@ bool loadBlockTexels(Bus& bus, RdpSyncState& state,
             const std::uint8_t nibble = (sourceTexel & 1U) != 0U
                 ? static_cast<std::uint8_t>(sourceByte & 0x0FU)
                 : static_cast<std::uint8_t>(sourceByte >> 4U);
-            const std::uint16_t destinationAddress =
-                static_cast<std::uint16_t>((destinationBase + i / 2U) & 0x0FFFU);
-            std::uint8_t destinationByte = 0;
-            state.tmem.readByte(destinationAddress, destinationByte);
-            destinationByte = (i & 1U) != 0U
-                ? static_cast<std::uint8_t>((destinationByte & 0xF0U) | nibble)
-                : static_cast<std::uint8_t>((destinationByte & 0x0FU) | (nibble << 4U));
-            state.tmem.writeByte(destinationAddress, destinationByte);
+            transfer[i / 2U] = (i & 1U) != 0U
+                ? static_cast<std::uint8_t>((transfer[i / 2U] & 0xF0U) | nibble)
+                : static_cast<std::uint8_t>((transfer[i / 2U] & 0x0FU) | (nibble << 4U));
         } else {
             const unsigned bytesPerTexel = bitsPerTexel / 8U;
             for (unsigned byte = 0; byte < bytesPerTexel; ++byte) {
                 const std::uint64_t sourceAddress =
                     static_cast<std::uint64_t>(image.address) +
                     sourceTexel * bytesPerTexel + byte;
-                std::uint8_t value = 0;
                 if (sourceAddress > UINT32_MAX ||
-                    !bus.read8(static_cast<std::uint32_t>(sourceAddress), value)) return false;
-                const std::uint64_t destinationAddress =
-                    destinationBase + static_cast<std::uint64_t>(i) * bytesPerTexel + byte;
-                state.tmem.writeByte(
-                    static_cast<std::uint16_t>(destinationAddress & 0x0FFFU), value);
+                    !bus.read8(static_cast<std::uint32_t>(sourceAddress),
+                               transfer[static_cast<std::size_t>(i) * bytesPerTexel + byte]))
+                    return false;
             }
         }
     }
+
+    // DXT is an 11-bit fractional accumulator advanced once per 64-bit word.
+    // Every carry advances the texture line; odd lines swap the two 32-bit halves.
+    std::uint32_t dxtAccumulator = 0U;
+    std::uint32_t line = 0U;
+    for (std::uint64_t offset = 0; offset + 8U <= totalBytes; offset += 8U) {
+        if ((line & 1U) != 0U) {
+            for (std::uint32_t byte = 0; byte < 4U; ++byte) {
+                const std::size_t first = static_cast<std::size_t>(offset + byte);
+                const std::size_t second = first + 4U;
+                const std::uint8_t temporary = transfer[first];
+                transfer[first] = transfer[second];
+                transfer[second] = temporary;
+            }
+        }
+        dxtAccumulator += load.dxt;
+        while (dxtAccumulator >= 0x800U) {
+            dxtAccumulator -= 0x800U;
+            ++line;
+        }
+    }
+
+    const std::uint64_t destinationBase =
+        static_cast<std::uint64_t>(tile.tmem) * 8U;
+    for (std::uint64_t byte = 0; byte < totalBytes; ++byte) {
+        state.tmem.writeByte(
+            static_cast<std::uint16_t>((destinationBase + byte) & 0x0FFFU),
+            transfer[static_cast<std::size_t>(byte)]);
+    }
+    state.tileSizes[load.tile] = {load.sl, load.tl, load.sh, load.th};
+    state.hasTileSize[load.tile] = true;
     return true;
 }
 
