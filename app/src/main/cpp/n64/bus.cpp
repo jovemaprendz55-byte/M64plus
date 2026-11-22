@@ -21,6 +21,14 @@ void Bus::reset() noexcept {
     spProgramCounter_ = 0;
     spSemaphore_ = 0;
     spDmaBusy_ = false;
+    dpStart_ = 0;
+    dpEnd_ = 0;
+    dpCurrent_ = 0;
+    dpStatus_ = 0;
+    dpClock_ = 0;
+    dpBufferBusy_ = 0;
+    dpPipeBusy_ = 0;
+    dpTmem_ = 0;
 }
 
 BusRegion Bus::region(std::uint32_t address) const noexcept {
@@ -31,6 +39,8 @@ BusRegion Bus::region(std::uint32_t address) const noexcept {
         return BusRegion::SpImem;
     if (address >= kMiBase && address < kMiBase + 0x10U)
         return BusRegion::MiRegisters;
+    if (address >= kDpRegBase && address < kDpRegBase + 0x20U)
+        return BusRegion::DpRegisters;
     if ((address >= kSpRegBase && address < kSpRegBase + 0x20U) ||
         (address >= kSpPc && address < kSpPc + 4U))
         return BusRegion::SpRegisters;
@@ -61,6 +71,7 @@ bool Bus::readByte(std::uint32_t address, std::uint8_t& value) const noexcept {
         return true;
     case BusRegion::MiRegisters:
     case BusRegion::SpRegisters:
+    case BusRegion::DpRegisters:
         return false; // Device registers require aligned 32-bit accesses.
     case BusRegion::Unmapped:
         return false;
@@ -80,6 +91,7 @@ bool Bus::writeByte(std::uint32_t address, std::uint8_t value) noexcept {
         return true;
     case BusRegion::MiRegisters:
     case BusRegion::SpRegisters:
+    case BusRegion::DpRegisters:
         return false; // Device registers require aligned 32-bit accesses.
     case BusRegion::Unmapped:
         return false;
@@ -91,11 +103,13 @@ bool Bus::readBytes(std::uint32_t address, std::uint8_t* output,
                     std::size_t width) const noexcept {
     BusRegion selected = BusRegion::Unmapped;
     if (output == nullptr || !rangeFits(address, width, selected)) return false;
-    if (selected == BusRegion::MiRegisters || selected == BusRegion::SpRegisters) {
+    if (selected == BusRegion::MiRegisters || selected == BusRegion::SpRegisters || selected == BusRegion::DpRegisters) {
         if (width != 4U || (address & 3U) != 0) return false;
         std::uint32_t value = 0;
         const bool ok = selected == BusRegion::MiRegisters
-            ? readMiRegister(address, value) : readSpRegister(address, value);
+            ? readMiRegister(address, value)
+            : selected == BusRegion::SpRegisters ? readSpRegister(address, value)
+            : readDpRegister(address, value);
         if (!ok) return false;
         output[0] = static_cast<std::uint8_t>(value >> 24U);
         output[1] = static_cast<std::uint8_t>(value >> 16U);
@@ -120,7 +134,9 @@ bool Bus::writeBytes(std::uint32_t address, const std::uint8_t* input,
             (static_cast<std::uint32_t>(input[1]) << 16U) |
             (static_cast<std::uint32_t>(input[2]) << 8U) | input[3];
         return selected == BusRegion::MiRegisters
-            ? writeMiRegister(address, value) : writeSpRegister(address, value);
+            ? writeMiRegister(address, value)
+            : selected == BusRegion::SpRegisters ? writeSpRegister(address, value)
+            : writeDpRegister(address, value);
     }
     for (std::size_t i = 0; i < width; ++i) {
         if (!writeByte(address + static_cast<std::uint32_t>(i), input[i]))
@@ -323,6 +339,54 @@ bool Bus::performSpDma(std::uint32_t lengthRegister, bool dramToSp) noexcept {
         static_cast<std::uint64_t>(spDramAddr_) + rowCount * rowStride) & 0x00FFFFFFU;
     spDmaBusy_ = false;
     return true;
+}
+
+
+bool Bus::readDpRegister(std::uint32_t address, std::uint32_t& value) const noexcept {
+    switch (address) {
+    case kDpStart: value = dpStart_; return true;
+    case kDpEnd: value = dpEnd_; return true;
+    case kDpCurrent: value = dpCurrent_; return true;
+    case kDpStatus: value = dpStatus_; return true;
+    case kDpClock: value = dpClock_; return true;
+    case kDpBufferBusy: value = dpBufferBusy_; return true;
+    case kDpPipeBusy: value = dpPipeBusy_; return true;
+    case kDpTmem: value = dpTmem_; return true;
+    default: return false;
+    }
+}
+
+bool Bus::writeDpRegister(std::uint32_t address, std::uint32_t value) noexcept {
+    switch (address) {
+    case kDpStart:
+        dpStart_ = value & 0x00FFFFF8U;
+        dpCurrent_ = dpStart_;
+        return true;
+    case kDpEnd:
+        // Record the submitted end address. RDP command execution is not present yet.
+        dpEnd_ = value & 0x00FFFFF8U;
+        return true;
+    case kDpCurrent:
+    case kDpClock:
+    case kDpBufferBusy:
+    case kDpPipeBusy:
+    case kDpTmem:
+        return true; // Read-only hardware registers ignore writes.
+    case kDpStatus:
+        if ((value & (1U << 0U)) != 0U) dpStatus_ &= ~kDpXbusDmemDma;
+        if ((value & (1U << 1U)) != 0U) dpStatus_ |= kDpXbusDmemDma;
+        if ((value & (1U << 2U)) != 0U) dpStatus_ &= ~kDpFreeze;
+        if ((value & (1U << 3U)) != 0U) dpStatus_ |= kDpFreeze;
+        if ((value & (1U << 4U)) != 0U) dpStatus_ &= ~kDpFlush;
+        if ((value & (1U << 5U)) != 0U) dpStatus_ |= kDpFlush;
+        if ((value & (1U << 6U)) != 0U) dpTmem_ = 0;
+        if ((value & (1U << 7U)) != 0U) dpPipeBusy_ = 0;
+        if ((value & (1U << 8U)) != 0U) dpBufferBusy_ = 0;
+        if ((value & (1U << 9U)) != 0U) dpClock_ = 0;
+        return true;
+    default:
+        return false;
+    }
 }
 
 void Bus::setMiInterrupt(unsigned source, bool asserted) noexcept {
