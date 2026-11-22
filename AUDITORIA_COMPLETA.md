@@ -474,3 +474,11 @@ A auditoria ainda deve continuar por:
 - Testes foram ampliados para endereços com deslocamento de 6 bytes dentro da janela; LHV/SHV atravessam o limite de 16 bytes, LFV verifica as duas metades com base desalinhada, e SFV verifica o wrap com bit 3 do endereço ligado.
 - Implementação: commit `c51d32a`; testes de LHV/SHV/LFV: `13967fd`; teste adicional de SFV: `b707097`.
 - Workflow `44904063267`: `native-host-tests` aprovado; `assemble-debug` ainda em execução na última verificação.
+
+### Continuação do RSP — transferências COP0/SP (2026-11-22)
+- Implementados MFC0 e MTC0 do COP0 do RSP para os oito registradores SP já expostos pelo barramento: SP_MEM_ADDR, SP_DRAM_ADDR, SP_RD_LEN, SP_WR_LEN, SP_STATUS, SP_DMA_FULL, SP_DMA_BUSY e SP_SEMAPHORE.
+- A leitura/escrita usa os acessos de 32 bits do barramento, preservando os efeitos colaterais existentes (por exemplo, leitura de SP_SEMAPHORE e comandos de SP_STATUS, além do início síncrono de DMA ao escrever SP_RD_LEN/SP_WR_LEN).
+- Codificações COP0 não suportadas ou índices sem registrador mapeado continuam gerando falha explícita, em vez de retornar valores inventados.
+- Teste cobre MTC0/MFC0 de SP_MEM_ADDR, limpar HALT por SP_STATUS e semântica de leitura do SP_SEMAPHORE.
+- Implementação e testes aguardam CI.
+- Limitação: registradores DPC COP0 (índices 8–15) ainda não estão mapeados no barramento; não fazem parte desta etapa.
