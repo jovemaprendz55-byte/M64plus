@@ -944,3 +944,8 @@ Referências: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md ; htt
 ### Ajuste do vetor de limite RGBA32
 
 Ao revisar o novo vetor antes do CI, foi corrigido o campo WIDTH de SET_TEXTURE_IMAGE: o campo codifica largura menos um, portanto o teste de uma coluna deve gravar zero nesse campo. Sem esse ajuste, a segunda linha apontaria para além dos oito bytes de origem preparados. Correção enviada no commit `709b23f47fd7e22e7a2600e38e17c89584ee3c72`; o CI desse commit é o que deve ser usado para validar o teste final.
+
+
+### Segundo ajuste do vetor de limite RGBA32
+
+A execução do vetor corrigido ainda encontrou um campo de coordenada incorreto: `SH` estava em 4 (duas colunas), quando o caso de uma coluna exige `SH=0`; `TH=4` seleciona a segunda linha. O comando foi ajustado para codificar somente `TH=4`. Commit: `289952bf153606a09eecd1b06d644d7bb669bad8`. A próxima execução deste commit deve determinar se o vetor passa; não tratar execuções anteriores como validação da correção.
