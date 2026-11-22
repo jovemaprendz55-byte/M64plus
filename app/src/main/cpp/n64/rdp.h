@@ -152,6 +152,7 @@ struct RdpSyncState final {
     std::uint64_t convertCommand = 0;
     std::uint64_t keyRCommand = 0;
     std::uint64_t keyGbCommand = 0;
+    std::uint64_t primDepthCommand = 0;
     std::uint64_t otherModesCommand = 0;
     std::uint64_t combineCommand = 0;
     std::uint64_t fillColorCommand = 0;
@@ -168,6 +169,7 @@ struct RdpSyncState final {
     bool hasConvert = false;
     bool hasKeyR = false;
     bool hasKeyGb = false;
+    bool hasPrimDepth = false;
     bool hasOtherModes = false;
     bool hasCombine = false;
     bool hasFillColor = false;
@@ -185,6 +187,8 @@ struct RdpSyncState final {
     RdpConvertState convert{};
     RdpKeyRState keyR{};
     RdpKeyGbState keyGb{};
+    std::uint16_t primDepth = 0;
+    std::uint16_t primDeltaZ = 0;
     RdpImageState textureImage{};
     RdpImageState colorImage{};
     std::array<RdpTileState, 8> tiles{};
