@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace m64plus::n64 {
@@ -141,7 +142,21 @@ struct RdpOtherModesState final {
     bool alphaCompare = false;
 };
 
+// 4 KiB of RDP on-chip texture memory. Addresses wrap on the 12-bit TMEM bus.
+class RdpTextureMemory final {
+public:
+    static constexpr std::size_t kSize = 4096U;
+    void reset() noexcept;
+    bool readByte(std::uint16_t address, std::uint8_t& value) const noexcept;
+    bool writeByte(std::uint16_t address, std::uint8_t value) noexcept;
+    bool read64(std::uint16_t address, std::uint64_t& value) const noexcept;
+    bool write64(std::uint16_t address, std::uint64_t value) noexcept;
+private:
+    std::array<std::uint8_t, kSize> bytes_{};
+};
+
 struct RdpSyncState final {
+    RdpTextureMemory tmem{};
     std::uint64_t syncLoadCount = 0;
     std::uint64_t syncPipeCount = 0;
     std::uint64_t syncTileCount = 0;
