@@ -111,6 +111,44 @@ void testRdpSynchronizationCommands() {
             "empty DPC stream reports no command");
 }
 
+void testRdpBasicStateCommands() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint64_t commands[] = {
+        (static_cast<std::uint64_t>(0x2DU) << 56U) | 0x0000000012345678ULL,
+        (static_cast<std::uint64_t>(0x2FU) << 56U) | 0x0000000087654321ULL,
+        (static_cast<std::uint64_t>(0x32U) << 56U) | (3ULL << 24U) | 0x1234ULL,
+        (static_cast<std::uint64_t>(0x35U) << 56U) | (3ULL << 24U) | 0x5678ULL,
+        (static_cast<std::uint64_t>(0x37U) << 56U) | 0xAABBCCDDULL,
+        (static_cast<std::uint64_t>(0x3DU) << 56U) | 0x01020304ULL,
+        (static_cast<std::uint64_t>(0x3FU) << 56U) | 0x05060708ULL
+    };
+    for (std::size_t i = 0; i < 7U; ++i)
+        require(bus.write64(0x700U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed basic RDP state command");
+    require(bus.write32(Bus::kDpStart, 0x700U), "set DPC start for state commands");
+    require(bus.write32(Bus::kDpEnd, 0x738U), "publish basic state commands");
+    for (std::size_t i = 0; i < 7U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "basic RDP state command is dispatched");
+
+    require(state.hasScissor && state.scissorCommand == commands[0],
+            "SET_SCISSOR raw command retained");
+    require(state.hasOtherModes && state.otherModesCommand == commands[1],
+            "SET_OTHER_MODES raw command retained");
+    require(state.hasTileSize[3] && state.tileSizeCommands[3] == commands[2],
+            "SET_TILE_SIZE retained for selected tile");
+    require(state.hasTile[3] && state.tileCommands[3] == commands[3],
+            "SET_TILE retained for selected tile");
+    require(state.hasFillColor && state.fillColorCommand == commands[4],
+            "SET_FILL_COLOR raw command retained");
+    require(state.hasTextureImage && state.textureImageCommand == commands[5],
+            "SET_TEXTURE_IMAGE raw command retained");
+    require(state.hasColorImage && state.colorImageCommand == commands[6],
+            "SET_COLOR_IMAGE raw command retained");
+}
+
 void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
@@ -140,6 +178,7 @@ int main() {
     testTextureRectangleLengths();
     testDpcCommandStreamIntegration();
     testRdpSynchronizationCommands();
+    testRdpBasicStateCommands();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
