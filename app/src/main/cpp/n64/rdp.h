@@ -155,7 +155,22 @@ private:
     std::array<std::uint8_t, kSize> bytes_{};
 };
 
+enum class RdpTextureLoadKind : std::uint8_t { None, Tile, Block, Tlut };
+
+struct RdpTextureLoadState final {
+    RdpTextureLoadKind kind = RdpTextureLoadKind::None;
+    std::uint8_t tile = 0;
+    std::uint16_t sl = 0;
+    std::uint16_t tl = 0;
+    std::uint16_t sh = 0;
+    std::uint16_t th = 0;
+    std::uint16_t dxt = 0;
+    std::uint64_t rawCommand = 0;
+};
+
 struct RdpSyncState final {
+    RdpTextureLoadState lastTextureLoad{};
+    bool hasTextureLoad = false;
     RdpTextureMemory tmem{};
     std::uint64_t syncLoadCount = 0;
     std::uint64_t syncPipeCount = 0;
