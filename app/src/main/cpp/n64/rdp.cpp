@@ -90,6 +90,44 @@ bool loadTileTexels(Bus& bus, RdpSyncState& state,
     }
     return true;
 }
+
+bool loadTlutEntries(Bus& bus, RdpSyncState& state,
+                     const RdpTextureLoadState& load) noexcept {
+    if (!state.hasTextureImage || !state.hasTile[load.tile] ||
+        state.textureImage.size != 2U) return false;
+    const RdpTileState& tile = state.tiles[load.tile];
+    const std::uint32_t count = (static_cast<std::uint32_t>(load.sh) >> 2U) + 1U;
+    if (count == 0U || count > 256U || tile.tmem < 256U ||
+        static_cast<std::uint32_t>(tile.tmem) + count > 512U) return false;
+
+    for (std::uint32_t i = 0; i < count; ++i) {
+        const std::uint64_t address =
+            static_cast<std::uint64_t>(state.textureImage.address) + i * 2U;
+        std::uint16_t ignored = 0;
+        if (address > UINT32_MAX ||
+            !bus.read16(static_cast<std::uint32_t>(address), ignored)) return false;
+    }
+
+    const std::uint64_t destinationBase =
+        static_cast<std::uint64_t>(tile.tmem) * 8U;
+    for (std::uint32_t i = 0; i < count; ++i) {
+        const std::uint32_t address =
+            state.textureImage.address + i * 2U;
+        std::uint16_t entry = 0;
+        if (!bus.read16(address, entry)) return false;
+        const std::uint64_t replicated =
+            (static_cast<std::uint64_t>(entry) << 48U) |
+            (static_cast<std::uint64_t>(entry) << 32U) |
+            (static_cast<std::uint64_t>(entry) << 16U) |
+            static_cast<std::uint64_t>(entry);
+        state.tmem.write64(
+            static_cast<std::uint16_t>((destinationBase + i * 8U) & 0x0FFFU),
+            replicated);
+    }
+    state.tileSizes[load.tile] = {load.sl, load.tl, load.sh, load.th};
+    state.hasTileSize[load.tile] = true;
+    return true;
+}
 } // namespace
 
 
@@ -207,6 +245,10 @@ RdpProcessResult RdpCommandProcessor::processNext(
         state.hasTextureLoad = true;
         if (load.kind == RdpTextureLoadKind::Tile &&
             !loadTileTexels(bus, state, load)) {
+            return RdpProcessResult::Unsupported;
+        }
+        if (load.kind == RdpTextureLoadKind::Tlut &&
+            !loadTlutEntries(bus, state, load)) {
             return RdpProcessResult::Unsupported;
         }
         return RdpProcessResult::Processed;
