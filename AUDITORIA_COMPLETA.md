@@ -949,3 +949,8 @@ Ao revisar o novo vetor antes do CI, foi corrigido o campo WIDTH de SET_TEXTURE_
 ### Segundo ajuste do vetor de limite RGBA32
 
 A execução do vetor corrigido ainda encontrou um campo de coordenada incorreto: `SH` estava em 4 (duas colunas), quando o caso de uma coluna exige `SH=0`; `TH=4` seleciona a segunda linha. O comando foi ajustado para codificar somente `TH=4`. Commit: `289952bf153606a09eecd1b06d644d7bb669bad8`. A próxima execução deste commit deve determinar se o vetor passa; não tratar execuções anteriores como validação da correção.
+
+
+### Isolamento das coordenadas nos testes de LOAD_TILE
+
+Na revisão do vetor de limite, o CI revelou que a substituição anterior também havia alterado por engano o comando do teste de regressão 16-bit (que precisa de duas colunas). O teste 16-bit foi restaurado para `SH=4, TH=4`; somente o vetor RGBA32 de uma coluna usa `SH=0, TH=4`. Correção enviada no commit `86ec0bb1e0405b471c6d9a8e1d632e05cf219f6f`. Os resultados dos commits anteriores permanecem falhos e não contam como validação.
