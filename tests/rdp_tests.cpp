@@ -333,8 +333,8 @@ void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
     RdpSyncState state{};
-    require(bus.write64(0x600U, static_cast<std::uint64_t>(0x2AU) << 56U),
-            "seed unsupported key command");
+    require(bus.write64(0x600U, static_cast<std::uint64_t>(0x30U) << 56U),
+            "seed unsupported LOAD_TLUT command");
     require(bus.write32(Bus::kDpStart, 0x600U), "set DPC start for unsupported command");
     require(bus.write32(Bus::kDpEnd, 0x608U), "publish unsupported command");
     require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
