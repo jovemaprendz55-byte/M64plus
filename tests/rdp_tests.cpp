@@ -441,10 +441,10 @@ void testLoadTileCopiesTextureImageIntoTmem() {
             "LOAD_TILE copies selected first-row texel from RDRAM");
     require(state.tmem.readByte(1U, value) && value == 7U,
             "LOAD_TILE copies second texel from first row");
-    require(state.tmem.readByte(8U, value) && value == 10U,
-            "LOAD_TILE applies tile line stride to second row");
-    require(state.tmem.readByte(9U, value) && value == 11U,
-            "LOAD_TILE copies second row texels");
+    require(state.tmem.readByte(12U, value) && value == 10U,
+            "LOAD_TILE swaps the two 32-bit halves for the odd row");
+    require(state.tmem.readByte(13U, value) && value == 11U,
+            "LOAD_TILE preserves the odd-row texels after halfword swap");
 }
 
 void testLoadBlockCopiesContiguousTexelsIntoTmem() {
