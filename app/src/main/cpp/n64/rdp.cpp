@@ -14,6 +14,34 @@ std::int16_t signExtend9(std::uint64_t value) noexcept {
 } // namespace
 
 
+void RdpTextureMemory::reset() noexcept {
+    bytes_.fill(0U);
+}
+bool RdpTextureMemory::readByte(std::uint16_t address, std::uint8_t& value) const noexcept {
+    value = bytes_[static_cast<std::size_t>(address) & (kSize - 1U)];
+    return true;
+}
+bool RdpTextureMemory::writeByte(std::uint16_t address, std::uint8_t value) noexcept {
+    bytes_[static_cast<std::size_t>(address) & (kSize - 1U)] = value;
+    return true;
+}
+bool RdpTextureMemory::read64(std::uint16_t address, std::uint64_t& value) const noexcept {
+    value = 0U;
+    for (std::size_t i = 0; i < 8U; ++i) {
+        const std::size_t index = (static_cast<std::size_t>(address) + i) & (kSize - 1U);
+        value = (value << 8U) | bytes_[index];
+    }
+    return true;
+}
+bool RdpTextureMemory::write64(std::uint16_t address, std::uint64_t value) noexcept {
+    for (std::size_t i = 0; i < 8U; ++i) {
+        const unsigned shift = static_cast<unsigned>((7U - i) * 8U);
+        const std::size_t index = (static_cast<std::size_t>(address) + i) & (kSize - 1U);
+        bytes_[index] = static_cast<std::uint8_t>((value >> shift) & 0xFFU);
+    }
+    return true;
+}
+
 RdpCommandInfo RdpCommandDecoder::decode(std::uint64_t header) noexcept {
     const auto opcode = static_cast<std::uint8_t>((header >> 56U) & 0x3FU);
     std::uint8_t words = 1U;
