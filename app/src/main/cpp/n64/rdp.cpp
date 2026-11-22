@@ -11,6 +11,88 @@ std::int16_t signExtend9(std::uint64_t value) noexcept {
         ? static_cast<std::int16_t>(signedValue - 0x0200)
         : signedValue;
 }
+
+bool loadTileTexels(Bus& bus, RdpSyncState& state,
+                    const RdpTextureLoadState& load) noexcept {
+    if (!state.hasTextureImage || !state.hasTile[load.tile]) return false;
+    const RdpImageState& image = state.textureImage;
+    const RdpTileState& tile = state.tiles[load.tile];
+    const unsigned bitsPerTexel = image.size == 0U ? 4U
+        : (image.size == 1U ? 8U : (image.size == 2U ? 16U : 32U));
+    const std::uint32_t x0 = load.sl >> 2U;
+    const std::uint32_t y0 = load.tl >> 2U;
+    const std::uint32_t x1 = load.sh >> 2U;
+    const std::uint32_t y1 = load.th >> 2U;
+    if (x1 < x0 || y1 < y0 || x1 >= image.width) return false;
+    const std::uint32_t rowTexels = x1 - x0 + 1U;
+    const std::uint32_t rowCount = y1 - y0 + 1U;
+    const std::uint64_t rowBits = static_cast<std::uint64_t>(rowTexels) * bitsPerTexel;
+    const std::uint64_t sourceBase = image.address;
+
+    // Validate the complete source rectangle before changing TMEM.
+    for (std::uint32_t row = 0; row < rowCount; ++row) {
+        const std::uint64_t sourceRow =
+            (static_cast<std::uint64_t>(y0 + row) * image.width * bitsPerTexel) / 8U;
+        const std::uint64_t firstBit =
+            (static_cast<std::uint64_t>(x0) * bitsPerTexel) & 7U;
+        const std::uint64_t firstByte =
+            (static_cast<std::uint64_t>(x0) * bitsPerTexel) / 8U;
+        const std::uint64_t bytesToCheck = (firstBit + rowBits + 7U) / 8U;
+        for (std::uint64_t byte = 0; byte < bytesToCheck; ++byte) {
+            const std::uint64_t address = sourceBase + sourceRow + firstByte + byte;
+            std::uint8_t ignored = 0;
+            if (address > UINT32_MAX ||
+                !bus.read8(static_cast<std::uint32_t>(address), ignored)) return false;
+        }
+    }
+
+    const std::uint64_t destinationBase = static_cast<std::uint64_t>(tile.tmem) * 8U;
+    const std::uint64_t destinationStride = static_cast<std::uint64_t>(tile.line) * 8U;
+    for (std::uint32_t row = 0; row < rowCount; ++row) {
+        const std::uint64_t sourceRow =
+            (static_cast<std::uint64_t>(y0 + row) * image.width * bitsPerTexel) / 8U;
+        const std::uint64_t destinationRow =
+            destinationBase + static_cast<std::uint64_t>(row) * destinationStride;
+        for (std::uint32_t column = 0; column < rowTexels; ++column) {
+            const std::uint64_t destinationTexel =
+                destinationRow + (static_cast<std::uint64_t>(column) * bitsPerTexel) / 8U;
+            if (bitsPerTexel == 4U) {
+                const std::uint64_t sourceAddress = sourceBase + sourceRow +
+                    (static_cast<std::uint64_t>(x0) / 2U) +
+                    (static_cast<std::uint64_t>(column) / 2U);
+                std::uint8_t sourceByte = 0;
+                if (sourceAddress > UINT32_MAX ||
+                    !bus.read8(static_cast<std::uint32_t>(sourceAddress), sourceByte)) return false;
+                const bool sourceLow = ((x0 + column) & 1U) != 0U;
+                const std::uint8_t nibble = sourceLow
+                    ? static_cast<std::uint8_t>(sourceByte & 0x0FU)
+                    : static_cast<std::uint8_t>(sourceByte >> 4U);
+                const std::uint16_t destinationAddress =
+                    static_cast<std::uint16_t>(destinationTexel & 0x0FFFU);
+                std::uint8_t destinationByte = 0;
+                state.tmem.readByte(destinationAddress, destinationByte);
+                const bool destinationLow = (column & 1U) != 0U;
+                destinationByte = destinationLow
+                    ? static_cast<std::uint8_t>((destinationByte & 0xF0U) | nibble)
+                    : static_cast<std::uint8_t>((destinationByte & 0x0FU) | (nibble << 4U));
+                state.tmem.writeByte(destinationAddress, destinationByte);
+            } else {
+                const unsigned bytesPerTexel = bitsPerTexel / 8U;
+                for (unsigned byte = 0; byte < bytesPerTexel; ++byte) {
+                    const std::uint64_t sourceAddress = sourceBase + sourceRow +
+                        (static_cast<std::uint64_t>(x0 + column) * bitsPerTexel) / 8U + byte;
+                    std::uint8_t value = 0;
+                    if (sourceAddress > UINT32_MAX ||
+                        !bus.read8(static_cast<std::uint32_t>(sourceAddress), value)) return false;
+                    state.tmem.writeByte(
+                        static_cast<std::uint16_t>((destinationTexel + byte) & 0x0FFFU),
+                        value);
+                }
+            }
+        }
+    }
+    return true;
+}
 } // namespace
 
 
@@ -126,6 +208,10 @@ RdpProcessResult RdpCommandProcessor::processNext(
         load.rawCommand = command;
         state.lastTextureLoad = load;
         state.hasTextureLoad = true;
+        if (load.kind == RdpTextureLoadKind::Tile &&
+            !loadTileTexels(bus, state, load)) {
+            return RdpProcessResult::Unsupported;
+        }
         return RdpProcessResult::Processed;
     }
     case 0x2AU: { // SET_KEY_GB
