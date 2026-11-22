@@ -5,6 +5,7 @@
 #include "n64/bus.h"
 #include "n64/mips_cpu.h"
 #include "n64/rsp_cpu.h"
+#include "n64/rdp.h"
 
 namespace m64plus::n64 {
 
@@ -19,6 +20,8 @@ public:
     bool stepCpu() noexcept;
     bool stepRsp() noexcept;
     std::size_t runRsp(std::size_t instructionBudget) noexcept;
+    // Consume up to commandBudget RDP commands; unsupported commands are consumed but not rendered.
+    std::size_t runRdp(std::size_t commandBudget) noexcept;
 
     Bus& bus() noexcept;
     const Bus& bus() const noexcept;
@@ -26,11 +29,14 @@ public:
     const MipsCpu& cpu() const noexcept;
     RspCpu& rsp() noexcept;
     const RspCpu& rsp() const noexcept;
+    RdpSyncState& rdp() noexcept;
+    const RdpSyncState& rdp() const noexcept;
 
 private:
     Bus bus_{};
     MipsCpu cpu_{};
     RspCpu rsp_{};
+    RdpSyncState rdp_{};
 };
 
 } // namespace m64plus::n64
