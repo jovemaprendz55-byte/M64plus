@@ -558,3 +558,12 @@ Implementadas em 2026-11-22:
 - Testes verificam resultados e fatias do acumulador após VMULQ, VRNDP, VRNDN e VMACQ.
 
 **Referência técnica:** SGI Nintendo 64 RSP Programmer's Guide, seção Vector Unit Instructions, e implementação/documentação pública do projeto RustyN64 usada como comparação independente. A semântica deve continuar sendo confrontada com testes de sistema independentes; aprovação dos testes locais não prova compatibilidade completa de microcódigo.
+
+
+### 15.1. Família de opcodes VZERO
+
+- Implementada a família de 19 codificações documentadas pelos testes de sistema como comportamento VZERO: `0x12`, `0x16–0x1C`, `0x1E–0x1F`, `0x2E–0x2F` e `0x38–0x3E`.
+- Cada codificação grava zero em todas as lanes de VD e grava `VS + VT[element]` em ACC_LO, com soma de 16 bits.
+- As fontes são capturadas antes da escrita para preservar comportamento quando VD coincide com VS ou VT.
+- Teste percorre as 19 codificações e verifica VD e ACC_LO em todas as oito lanes.
+- Esta classificação vem de observação de testes de sistema/documentação independente; são codificações reservadas/não documentadas como instruções usuais, não novos mnemonics confirmados pelo manual oficial.
