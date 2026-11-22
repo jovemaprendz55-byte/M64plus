@@ -281,7 +281,7 @@ void testVectorQuantizedMultiplyAndAccumulatorRounding() {
         rsp.setVectorLane(4, 0, 0x0001U);
         put(bus, 0, vType(0, 2, 1, 3, 0x03));  // VMULQ
         put(bus, 4, vType(1, 0, 0, 4, 0x1D));  // VSAR ACC_MD
-        put(bus, 8, vType(0, 4, 1, 5, 0x02));  // VRNDP, vt << 16
+        put(bus, 8, vType(0, 2, 1, 5, 0x02));  // VRNDP, vt << 16
         put(bus, 12, vType(1, 0, 0, 6, 0x1D)); // VSAR ACC_MD
         put(bus, 16, vType(0, 0, 0, 7, 0x0B)); // VMACQ
         put(bus, 20, vType(1, 0, 0, 8, 0x1D)); // VSAR ACC_MD
