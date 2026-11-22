@@ -121,6 +121,62 @@ std::uint8_t RspCpu::vectorClipFlags() const noexcept { return vce_; }
 bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
                            unsigned vd, unsigned function) noexcept {
     if (vt >= 32U || vs >= 32U || vd >= 32U || element >= 16U) return false;
+    const auto accumulatorSigned = [&](unsigned lane) noexcept -> std::int64_t {
+        const std::uint64_t raw =
+            (static_cast<std::uint64_t>(accumulator_[lane].hi) << 32U) |
+            (static_cast<std::uint64_t>(accumulator_[lane].md) << 16U) |
+            accumulator_[lane].lo;
+        if ((raw & (1ULL << 47U)) == 0U)
+            return static_cast<std::int64_t>(raw);
+        return static_cast<std::int64_t>(raw & ((1ULL << 47U) - 1U)) -
+            (1LL << 47U);
+    };
+    const auto storeAccumulator = [&](unsigned lane, std::int64_t value) noexcept {
+        const std::uint64_t raw = static_cast<std::uint64_t>(value) & 0x0000FFFFFFFFFFFFULL;
+        accumulator_[lane].lo = static_cast<std::uint16_t>(raw);
+        accumulator_[lane].md = static_cast<std::uint16_t>(raw >> 16U);
+        accumulator_[lane].hi = static_cast<std::uint16_t>(raw >> 32U);
+    };
+    const auto clampSigned = [](std::int64_t value) noexcept -> std::uint16_t {
+        if (value < -32768) return 0x8000U;
+        if (value > 32767) return 0x7FFFU;
+        return static_cast<std::uint16_t>(value);
+    };
+    if (function == 0x02U || function == 0x0AU) { // VRNDP / VRNDN
+        std::array<std::uint16_t, 8> source{};
+        for (unsigned lane = 0; lane < 8U; ++lane)
+            source[lane] = vr_[vt][kElementMap[element][lane]];
+        const bool positive = function == 0x02U;
+        for (unsigned lane = 0; lane < 8U; ++lane) {
+            std::int64_t acc = accumulatorSigned(lane);
+            if ((positive && acc >= 0) || (!positive && acc < 0)) {
+                std::int64_t addend = static_cast<std::int16_t>(source[lane]);
+                if ((vs & 1U) != 0U) addend *= 65536;
+                acc = static_cast<std::int64_t>(
+                    static_cast<std::uint64_t>(acc + addend) & 0x0000FFFFFFFFFFFFULL);
+                if ((static_cast<std::uint64_t>(acc) & (1ULL << 47U)) != 0U)
+                    acc = static_cast<std::int64_t>(
+                        static_cast<std::uint64_t>(acc) & ((1ULL << 47U) - 1U)) -
+                        (1LL << 47U);
+            }
+            storeAccumulator(lane, acc);
+            vr_[vd][lane] = clampSigned(acc >> 16U);
+        }
+        return true;
+    }
+    if (function == 0x0BU) { // VMACQ: round accumulator to 0x20_0000 boundary
+        for (unsigned lane = 0; lane < 8U; ++lane) {
+            std::int64_t acc = accumulatorSigned(lane);
+            if ((acc & 0x200000LL) == 0) {
+                if ((acc >> 22U) < 0) acc += 0x200000LL;
+                else if ((acc >> 22U) > 0) acc -= 0x200000LL;
+            }
+            storeAccumulator(lane, acc);
+            vr_[vd][lane] = static_cast<std::uint16_t>(
+                clampSigned(acc >> 17U) & 0xFFF0U);
+        }
+        return true;
+    }
     if (function == 0x1DU) { // VSAR: read one 16-bit accumulator slice.
         if (element > 2U) return false;
         for (unsigned lane = 0; lane < 8U; ++lane) {
