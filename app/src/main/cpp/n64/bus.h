@@ -78,6 +78,9 @@ public:
     void setMiInterrupt(unsigned source, bool asserted) noexcept;
     std::uint32_t miInterruptMask() const noexcept;
     bool miInterruptPending() const noexcept;
+    // Fetch one 64-bit RDP command from the active DPC command stream.
+    bool readDpCommand(std::uint64_t& command) noexcept;
+    std::uint32_t dpCommandsRemaining() const noexcept;
     bool spHalted() const noexcept { return (spStatus_ & kSpHalt) != 0U; }
     bool spBroke() const noexcept { return (spStatus_ & kSpBroke) != 0U; }
     std::uint32_t spProgramCounter() const noexcept { return spProgramCounter_; }
@@ -126,6 +129,7 @@ private:
     std::uint32_t dpBufferBusy_ = 0;
     std::uint32_t dpPipeBusy_ = 0;
     std::uint32_t dpTmem_ = 0;
+    bool dpXbusDmemDma_ = false;
 };
 
 } // namespace m64plus::n64
