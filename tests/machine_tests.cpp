@@ -15,6 +15,27 @@ void require(bool condition, const char* message) {
     }
 }
 
+void testMachineOwnsAndProcessesRdpState() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    // SET_COLOR_IMAGE: RGBA16, width 320, address 0x2000.
+    const std::uint64_t setColorImage = (0x3FULL << 56U) |
+        (2ULL << 51U) | (319ULL << 32U) | 0x2000ULL;
+    require(bus.write64(0x100U, setColorImage), "write RDP SET_COLOR_IMAGE command");
+    require(bus.write32(Bus::kDpStart, 0x100U), "set DPC_START");
+    require(bus.write32(Bus::kDpEnd, 0x108U), "set DPC_END");
+    require(machine.runRdp(4U) == 1U, "machine consumes one RDP command");
+    const auto& image = machine.rdp().colorImage;
+    require(machine.rdp().hasColorImage, "machine retains RDP color image state");
+    require(image.format == 0U && image.size == 2U && image.width == 320U &&
+            image.address == 0x2000U, "machine exposes decoded color image descriptor");
+    require(machine.runRdp(4U) == 0U, "RDP runner stops when command stream is empty");
+
+    // Reset must clear RDP state as well as CPU/RSP and bus state.
+    machine.reset();
+    require(!machine.rdp().hasColorImage, "machine reset clears RDP image state");
+}
+
 void testCpuKsegDirectMappingWithoutTlb() {
     N64Machine machine;
     Bus& bus = machine.bus();
