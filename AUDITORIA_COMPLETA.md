@@ -611,3 +611,17 @@ Implementadas em 2026-11-22:
 - Adicionado teste de integração: Texture Rectangle incompleto é retido; quando a segunda palavra é publicada, o pacote recebe opcode, tamanho e as duas palavras, e o cursor avança pelo bloco completo.
 - O alvo de testes RDP agora liga também `bus.cpp` e `rdram.cpp` para testar o caminho integrado.
 - **Limite:** esta ponte apenas transporta/enquadra comandos. Nenhum opcode é executado; o pipeline de rasterização e framebuffer continua ausente.
+
+
+### 16.3. Primeiro processamento de comandos RDP: sincronização (2026-11-22)
+
+- Criado `RdpCommandProcessor::processNext()`, que obtém o próximo comando completo pelo fluxo DPC/RDP e despacha comandos com implementação explícita.
+- Implementados os comandos de sincronização:
+  - `0x26 SYNC_LOAD`: registra a ocorrência do marcador de sincronização de carga.
+  - `0x27 SYNC_PIPE`: registra a ocorrência do marcador de sincronização do pipeline.
+  - `0x28 SYNC_TILE`: registra a ocorrência do marcador de sincronização de tile.
+  - `0x29 SYNC_FULL`: registra a ocorrência e afirma a interrupção DP no MI (fonte 5).
+- Estado de diagnóstico `RdpSyncState` mantém contadores para os quatro comandos.
+- Comandos ainda não implementados são consumidos segundo o enquadramento e retornam `Unsupported`; não são tratados como renderizados.
+- Testes verificam os quatro comandos, a interrupção DP somente após SYNC_FULL, fim do fluxo e retorno explícito para comando não implementado.
+- **Limite importante:** sincronização é sequencial/simplificada. Não existe pipeline assíncrono de pixels para drenar, então SYNC_PIPE/SYNC_TILE/SYNC_LOAD são marcadores sem espera de hardware. SYNC_FULL afirma a interrupção DP imediatamente após o processamento sequencial; não há rasterização, textura, color combiner ou framebuffer.
