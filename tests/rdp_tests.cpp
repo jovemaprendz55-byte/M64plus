@@ -544,6 +544,11 @@ void testLoadTileRejectsNonRgba32FormatsWithoutWritingTmem() {
     for (const bool invalidImageFormat : {true, false}) {
         Bus bus;
         RdpSyncState state{};
+        require(state.tmem.writeByte(0U, 0x5AU) &&
+                state.tmem.writeByte(1U, 0xA5U) &&
+                state.tmem.writeByte(0x800U, 0x3CU) &&
+                state.tmem.writeByte(0x801U, 0xC3U),
+                "seed both TMEM banks with sentinels before invalid-format load");
         const std::uint64_t setImage =
             (0x3DULL << 56U) | (3ULL << 51U) |
             (invalidImageFormat ? (1ULL << 53U) : 0ULL) |
@@ -567,9 +572,11 @@ void testLoadTileRejectsNonRgba32FormatsWithoutWritingTmem() {
         require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
                 "RGBA32 LOAD_TILE rejects non-RGBA source or tile format");
         std::uint8_t value = 0xFFU;
-        require(state.tmem.readByte(0U, value) && value == 0U &&
-                state.tmem.readByte(0x800U, value) && value == 0U,
-                "invalid RGBA32 format leaves both TMEM banks unchanged");
+        require(state.tmem.readByte(0U, value) && value == 0x5AU &&
+                state.tmem.readByte(1U, value) && value == 0xA5U &&
+                state.tmem.readByte(0x800U, value) && value == 0x3CU &&
+                state.tmem.readByte(0x801U, value) && value == 0xC3U,
+                "invalid RGBA32 format preserves pre-existing bytes in both TMEM banks");
     }
 }
 
