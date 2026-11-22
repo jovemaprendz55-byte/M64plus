@@ -133,6 +133,11 @@ struct RdpSyncState final {
     std::uint64_t otherModesCommand = 0;
     std::uint64_t combineCommand = 0;
     std::uint64_t fillColorCommand = 0;
+    std::uint64_t fogColorCommand = 0;
+    std::uint64_t blendColorCommand = 0;
+    std::uint64_t primColorCommand = 0;
+    std::uint64_t envColorCommand = 0;
+    std::uint64_t zImageCommand = 0;
     std::uint64_t textureImageCommand = 0;
     std::uint64_t colorImageCommand = 0;
     std::array<std::uint64_t, 8> tileCommands{};
@@ -141,6 +146,11 @@ struct RdpSyncState final {
     bool hasOtherModes = false;
     bool hasCombine = false;
     bool hasFillColor = false;
+    bool hasFogColor = false;
+    bool hasBlendColor = false;
+    bool hasPrimColor = false;
+    bool hasEnvColor = false;
+    bool hasZImage = false;
     bool hasTextureImage = false;
     bool hasColorImage = false;
     std::array<bool, 8> hasTile{};
@@ -151,6 +161,14 @@ struct RdpSyncState final {
     RdpImageState colorImage{};
     std::array<RdpTileState, 8> tiles{};
     std::array<RdpTileSizeState, 8> tileSizes{};
+    std::uint32_t fillColor = 0;
+    std::uint32_t fogColor = 0;
+    std::uint32_t blendColor = 0;
+    std::uint32_t primColor = 0;
+    std::uint32_t envColor = 0;
+    std::uint32_t zImageAddress = 0;
+    std::uint8_t primLodMinimum = 0;
+    std::uint8_t primLodFraction = 0;
     RdpOtherModesState otherModes{};
     std::array<RdpCombineCycle, 2> combine{};
 };
