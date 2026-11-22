@@ -873,6 +873,6 @@ Correção aplicada:
 
 - Ampliada a suíte para cobrir a troca das metades de 32 bits em linhas ímpares com texels de 16 bits, incluindo verificação da ordem big-endian e do stride de origem da imagem.
 - Adicionado teste que confirma que LOAD_TILE de 32 bits retorna `Unsupported` e não altera a TMEM, evitando aceitar silenciosamente uma cópia linear incorreta.
-- A primeira versão do cenário 16-bit foi corrigida para respeitar a largura da imagem: a segunda linha começa em `base + image.width * 2`, não imediatamente após os dois texels selecionados da primeira linha.
+- A configuração do teste 16-bit foi revisada em duas partes: a segunda linha da origem começa em `base + image.width * 2`, e as coordenadas TL/TH do comando foram ajustadas para selecionar duas linhas (TL=0, TH=4), não apenas a segunda linha.
 - **Status:** testes adicionados ao branch `main`; aguardando CI do commit de correção. Não considerar esta etapa validada até `native-host-tests` e `assemble-debug` concluírem.
 - **Próxima investigação:** implementar o caminho especial de 32 bits somente após definir e testar o mapeamento de bancos/metades TMEM e o comportamento de LOAD_TILE versus LOAD_BLOCK. A rejeição explícita permanece intencional.
