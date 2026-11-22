@@ -12,6 +12,7 @@ enum class BusRegion : std::uint8_t {
     SpImem,
     MiRegisters,
     SpRegisters,
+    DpRegisters,
     Unmapped
 };
 
@@ -29,6 +30,18 @@ public:
     static constexpr std::uint32_t kMiVersionValue = 0x01010101U;
     static constexpr std::uint32_t kSpRegBase = 0x04040000U;
     static constexpr std::uint32_t kSpPc = 0x04080000U;
+    static constexpr std::uint32_t kDpRegBase = 0x04100000U;
+    static constexpr std::uint32_t kDpStart = kDpRegBase + 0x00U;
+    static constexpr std::uint32_t kDpEnd = kDpRegBase + 0x04U;
+    static constexpr std::uint32_t kDpCurrent = kDpRegBase + 0x08U;
+    static constexpr std::uint32_t kDpStatus = kDpRegBase + 0x0CU;
+    static constexpr std::uint32_t kDpClock = kDpRegBase + 0x10U;
+    static constexpr std::uint32_t kDpBufferBusy = kDpRegBase + 0x14U;
+    static constexpr std::uint32_t kDpPipeBusy = kDpRegBase + 0x18U;
+    static constexpr std::uint32_t kDpTmem = kDpRegBase + 0x1CU;
+    static constexpr std::uint32_t kDpXbusDmemDma = 1U << 0U;
+    static constexpr std::uint32_t kDpFreeze = 1U << 1U;
+    static constexpr std::uint32_t kDpFlush = 1U << 2U;
     static constexpr std::uint32_t kSpMemAddr = kSpRegBase + 0x00U;
     static constexpr std::uint32_t kSpDramAddr = kSpRegBase + 0x04U;
     static constexpr std::uint32_t kSpReadLength = kSpRegBase + 0x08U;
@@ -86,6 +99,8 @@ private:
     bool writeMiRegister(std::uint32_t address, std::uint32_t value) noexcept;
     bool readSpRegister(std::uint32_t address, std::uint32_t& value) const noexcept;
     bool writeSpRegister(std::uint32_t address, std::uint32_t value) noexcept;
+    bool readDpRegister(std::uint32_t address, std::uint32_t& value) const noexcept;
+    bool writeDpRegister(std::uint32_t address, std::uint32_t value) noexcept;
     bool performSpDma(std::uint32_t lengthRegister, bool dramToSp) noexcept;
     bool writeByte(std::uint32_t address, std::uint8_t value) noexcept;
 
@@ -103,6 +118,14 @@ private:
     std::uint32_t spProgramCounter_ = 0;
     mutable std::uint32_t spSemaphore_ = 0;
     bool spDmaBusy_ = false;
+    std::uint32_t dpStart_ = 0;
+    std::uint32_t dpEnd_ = 0;
+    std::uint32_t dpCurrent_ = 0;
+    std::uint32_t dpStatus_ = 0;
+    std::uint32_t dpClock_ = 0;
+    std::uint32_t dpBufferBusy_ = 0;
+    std::uint32_t dpPipeBusy_ = 0;
+    std::uint32_t dpTmem_ = 0;
 };
 
 } // namespace m64plus::n64
