@@ -1088,7 +1088,8 @@ void testCop2VectorAndControlMoves() {
 
 int main() {
     testUnsupportedInstructionFaultIsLatched();
-    testCop0SpRegisterMoves();\n    testArithmeticAndMemory();
+    testCop0SpRegisterMoves();
+    testArithmeticAndMemory();
     testBranchDelaySlot();
     testScalarVariableShiftsAndJalr();\n    testByteAndHalfwordMemory();
     testRegimmBranches();
