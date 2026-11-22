@@ -23,7 +23,7 @@ public:
     static bool copyToArgb8888(const Rdram& rdram,
                                const RdpImageState& image,
                                std::uint16_t height,
-                               std::vector<std::uint32_t>& output) noexcept;
+                               std::vector<std::uint32_t>& output);
 };
 
 } // namespace m64plus::n64
