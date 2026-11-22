@@ -75,6 +75,57 @@ void testDpcCommandStreamIntegration() {
             "RDP stream advances DPC cursor by complete command length");
 }
 
+void testRdpSynchronizationCommands() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint64_t commands[] = {
+        static_cast<std::uint64_t>(0x26U) << 56U,
+        static_cast<std::uint64_t>(0x27U) << 56U,
+        static_cast<std::uint64_t>(0x28U) << 56U,
+        static_cast<std::uint64_t>(0x29U) << 56U
+    };
+    for (std::size_t i = 0; i < 4U; ++i)
+        require(bus.write64(0x500U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed RDP synchronization command");
+    require(bus.write32(Bus::kDpStart, 0x500U), "set DPC start for sync commands");
+    require(bus.write32(Bus::kDpEnd, 0x520U), "publish four sync commands");
+
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SYNC_LOAD is processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SYNC_PIPE is processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SYNC_TILE is processed");
+    std::uint32_t mi = 0;
+    require(bus.read32(Bus::kMiInterrupt, mi) && (mi & (1U << 5U)) == 0U,
+            "DP interrupt is not asserted before SYNC_FULL");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SYNC_FULL is processed");
+    require(state.syncLoadCount == 1U && state.syncPipeCount == 1U &&
+            state.syncTileCount == 1U && state.syncFullCount == 1U,
+            "all synchronization commands update their counters");
+    require(bus.read32(Bus::kMiInterrupt, mi) && (mi & (1U << 5U)) != 0U,
+            "SYNC_FULL asserts MI DP interrupt");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::NoCommand,
+            "empty DPC stream reports no command");
+}
+
+void testUnsupportedRdpCommandIsReported() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    require(bus.write64(0x600U, static_cast<std::uint64_t>(0x2AU) << 56U),
+            "seed unsupported key command");
+    require(bus.write32(Bus::kDpStart, 0x600U), "set DPC start for unsupported command");
+    require(bus.write32(Bus::kDpEnd, 0x608U), "publish unsupported command");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "unimplemented command is reported as unsupported");
+    std::uint32_t current = 0;
+    require(bus.read32(Bus::kDpCurrent, current) && current == 0x608U,
+            "unsupported command framing still advances DPC cursor");
+}
+
 void testTextureRectangleLengths() {
     require(m64plus::n64::RdpCommandDecoder::decode(header(0x24U)).lengthWords == 2U,
             "texture rectangle has two words");
@@ -88,6 +139,8 @@ int main() {
     testTriangleCommandLengths();
     testTextureRectangleLengths();
     testDpcCommandStreamIntegration();
+    testRdpSynchronizationCommands();
+    testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
 }
