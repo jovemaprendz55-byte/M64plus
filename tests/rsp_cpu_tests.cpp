@@ -120,13 +120,13 @@ void testScalarVariableShiftsAndJalr() {
     put(bus, 0x14, (1U << 21U) | (2U << 16U) | (5U << 11U) |
                    (4U << 6U) | 0x06U); // SRLV
     put(bus, 0x18, (2U << 16U) | (6U << 11U) | (4U << 6U) | 0x03U); // SRA
-    put(bus, 0x1C, iType(0x09, 0, 7, 0x0028)); // JALR target
+    put(bus, 0x1C, iType(0x09, 0, 7, 0x002C)); // JALR target
     put(bus, 0x20, (7U << 21U) | (31U << 11U) | 0x09U); // JALR ra, t7
     put(bus, 0x24, iType(0x09, 0, 8, 0x0055)); // delay slot
     put(bus, 0x28, iType(0x09, 0, 9, 0x0066)); // skipped
     put(bus, 0x2C, 0x0000000DU); // target BREAK
-    for (unsigned i = 0; i < 9U; ++i)
-        require(rsp.step(bus), "execute scalar shifts and JALR");
+    for (unsigned i = 0; i < 10U; ++i)
+        require(rsp.step(bus), "execute scalar shifts, JALR and delay slot");
     require(rsp.reg(3) == 0xFFFFFFFFU, "SRAV sign extends negative values");
     require(rsp.reg(4) == 0xFFFFFF00U, "SLLV uses low five bits of shift register");
     require(rsp.reg(5) == 0x0FFFFFFFU, "SRLV shifts logically");
@@ -134,7 +134,8 @@ void testScalarVariableShiftsAndJalr() {
     require(rsp.reg(31) == 0x00000028U, "JALR writes return address to rd");
     require(rsp.reg(8) == 0x55U && rsp.reg(9) == 0U,
             "JALR executes delay slot and skips sequential instruction");
-    require(rsp.pc() == 0x02CU, "JALR transfers control to target");
+    require(rsp.pc() == 0x02CU, "JALR transfers control to target after delay slot");
+    require(rsp.step(bus) && rsp.halted(), "JALR target executes BREAK");
     require(!rsp.faulted(), "scalar shifts and JALR are supported");
 }
 
