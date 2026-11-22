@@ -4,6 +4,8 @@
 #include "n64/rdram.h"
 #include "n64/tlb.h"
 #include "n64/bus.h"
+#include "n64/machine.h"
+#include <cstdint>
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeRdramSelfTest(JNIEnv*, jclass) {
     m64plus::n64::Rdram memory;
@@ -680,4 +682,31 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuBusIntegrationSelfTest(JNIEnv*, jclas
         !faultCpu.cp0().exceptionLevel())
         return JNI_FALSE;
     return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeCreateMachine(JNIEnv*, jclass) {
+    auto* machine = new (std::nothrow) m64plus::n64::N64Machine();
+    return static_cast<jlong>(reinterpret_cast<std::uintptr_t>(machine));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeDestroyMachine(JNIEnv*, jclass, jlong handle) {
+    auto* machine = reinterpret_cast<m64plus::n64::N64Machine*>(static_cast<std::uintptr_t>(handle));
+    delete machine;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeResetMachine(JNIEnv*, jclass, jlong handle) {
+    auto* machine = reinterpret_cast<m64plus::n64::N64Machine*>(static_cast<std::uintptr_t>(handle));
+    if (machine == nullptr) return JNI_FALSE;
+    machine->reset();
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeMachineCpuPc(JNIEnv*, jclass, jlong handle) {
+    auto* machine = reinterpret_cast<m64plus::n64::N64Machine*>(static_cast<std::uintptr_t>(handle));
+    if (machine == nullptr) return 0;
+    return static_cast<jlong>(machine->cpu().pc());
 }
