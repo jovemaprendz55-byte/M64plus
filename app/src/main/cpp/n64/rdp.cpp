@@ -113,6 +113,14 @@ RdpProcessResult RdpCommandProcessor::processNext(
         state.hasConvert = true;
         return RdpProcessResult::Processed;
     }
+    case 0x2EU: { // SET_PRIM_DEPTH
+        const std::uint64_t command = packet.words[0];
+        state.primDepthCommand = command;
+        state.primDepth = static_cast<std::uint16_t>((command >> 16U) & 0xFFFFU);
+        state.primDeltaZ = static_cast<std::uint16_t>(command & 0xFFFFU);
+        state.hasPrimDepth = true;
+        return RdpProcessResult::Processed;
+    }
     case 0x2DU: { // SET_SCISSOR
         const std::uint64_t command = packet.words[0];
         state.scissorCommand = command;
