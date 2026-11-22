@@ -503,3 +503,11 @@ A auditoria ainda deve continuar por:
 - ADD/ADDI e SUB usam aritmética de 32 bits com wrap, conforme a unidade escalar sem exceções aritméticas do RSP; comparações signed e unsigned são separadas.
 - Testes cobrem valores negativos, limites de 32 bits e comparações signed/unsigned.
 - CI pendente.
+
+
+### Continuação do RSP — branches com link (2026-11-22)
+- Implementados BLTZAL e BGEZAL (REGIMM rt=16 e rt=17).
+- O registrador RA (r31) recebe PC+8 mesmo quando a condição não é satisfeita, de acordo com o comportamento documentado para o RSP.
+- Ambos os caminhos preservam o delay slot; testes cobrem BLTZAL tomado e BGEZAL não tomado, incluindo link e fluxo de execução.
+- Referências consultadas: manual de COP0/RSP da SGI, implementação Mupen64Plus RSP e documentação RustyN64.
+- CI pendente.
