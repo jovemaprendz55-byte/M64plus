@@ -969,3 +969,10 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Vetor esperado: primeira linha em TMEM 0x00/0x01 (`0x12, 0x34`); segunda linha em 0x0C/0x0D (`0x56, 0x78`) com `line=1`.
 - Teste enviado à `main` no commit `41aa27c14ad76e9950d4a2bd187ea85d7a7047f2`. CI pendente.
 - Limitação: esse teste confirma o modelo implementado de nibble packing e odd-row swizzle, mas não estabelece sozinho que a transferência direta 4-bit reproduz todo comportamento de hardware; comparar com implementação de referência continua necessário.
+
+
+### Ajuste do vetor de LOAD_TILE 4-bit após CI
+
+- O primeiro CI do teste 4-bit falhou porque o comando de teste colocou `4` no campo TL (coordenada inicial T), em vez de TH (coordenada final T). Assim, o teste lia a linha de origem errada; não era evidência de falha no empacotamento de nibble da implementação.
+- Corrigido o comando para TL=0, TH=4, mantendo SL=0 e SH=12. Commit: `050febdbb3028a29a881f4e0f9d9cfa201c74045`.
+- O teste ainda aguarda novo CI; não declarar LOAD_TILE 4-bit validado até o resultado.
