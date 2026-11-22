@@ -501,6 +501,67 @@ void testLoadBlockCopiesContiguousTexelsIntoTmem() {
             "16-bit LOAD_BLOCK preserves big-endian halfwords");
 }
 
+void testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines() {
+    using namespace m64plus::n64;
+    // DXT=0xFFF advances at least one line per 64-bit word. The line
+    // parity alternates, so words 1 and 3 (zero-based) must be half-swapped.
+    Bus fastBus;
+    RdpSyncState fastState{};
+    for (std::uint32_t i = 0; i < 32U; ++i)
+        require(fastBus.write8(0x1C00U + i, static_cast<std::uint8_t>(i)),
+                "seed high-DXT LOAD_BLOCK data");
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (1ULL << 51U) | (31ULL << 32U) | 0x1C00ULL;
+    const std::uint64_t tile = (0x35ULL << 56U);
+    const std::uint64_t fastLoad =
+        (0x33ULL << 56U) | (124ULL << 12U) | 0xFFFULL;
+    require(fastBus.write64(0xAC0U, image) &&
+            fastBus.write64(0xAC8U, tile) &&
+            fastBus.write64(0xAD0U, fastLoad), "seed high-DXT sequence");
+    require(fastBus.write32(Bus::kDpStart, 0xAC0U) &&
+            fastBus.write32(Bus::kDpEnd, 0xAD8U), "publish high-DXT sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(fastBus, fastState) ==
+                    RdpProcessResult::Processed,
+                "high-DXT LOAD_BLOCK sequence executes");
+    std::uint8_t value = 0U;
+    require(fastState.tmem.readByte(8U, value) && value == 12U &&
+            fastState.tmem.readByte(12U, value) && value == 8U,
+            "high DXT swaps the second 64-bit word");
+    require(fastState.tmem.readByte(24U, value) && value == 28U &&
+            fastState.tmem.readByte(28U, value) && value == 24U,
+            "high DXT swaps the fourth 64-bit word");
+
+    // A non-power-of-two DXT accumulates fractional line progress. With
+    // 0x600, only the third word starts on an odd line in this four-word span.
+    Bus fractionalBus;
+    RdpSyncState fractionalState{};
+    for (std::uint32_t i = 0; i < 32U; ++i)
+        require(fractionalBus.write8(0x1D00U + i, static_cast<std::uint8_t>(i)),
+                "seed fractional-DXT LOAD_BLOCK data");
+    const std::uint64_t fractionalImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (31ULL << 32U) | 0x1D00ULL;
+    const std::uint64_t fractionalLoad =
+        (0x33ULL << 56U) | (124ULL << 12U) | 0x600ULL;
+    require(fractionalBus.write64(0xAE0U, fractionalImage) &&
+            fractionalBus.write64(0xAE8U, tile) &&
+            fractionalBus.write64(0xAF0U, fractionalLoad),
+            "seed fractional-DXT sequence");
+    require(fractionalBus.write32(Bus::kDpStart, 0xAE0U) &&
+            fractionalBus.write32(Bus::kDpEnd, 0xAF8U),
+            "publish fractional-DXT sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(fractionalBus, fractionalState) ==
+                    RdpProcessResult::Processed,
+                "fractional-DXT LOAD_BLOCK sequence executes");
+    require(fractionalState.tmem.readByte(16U, value) && value == 20U &&
+            fractionalState.tmem.readByte(20U, value) && value == 16U,
+            "fractional DXT swaps only the third word");
+    require(fractionalState.tmem.readByte(24U, value) && value == 24U &&
+            fractionalState.tmem.readByte(28U, value) && value == 28U,
+            "fractional DXT leaves the fourth word unswapped");
+}
+
 void testLoadBlockRejectsUnsupportedTexelSizes() {
     using namespace m64plus::n64;
     for (const std::uint32_t size : {0U, 3U}) {
@@ -634,6 +695,7 @@ int main() {
     testLoadTileCopiesTextureImageIntoTmem();
     testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadBlockDxtSwapsOddLineWords();
+    testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines();
     testLoadBlockRejectsUnsupportedTexelSizes();
     testLoadTlutReplicatesEntriesIntoHighTmem();
     testUnsupportedRdpCommandIsReported();
