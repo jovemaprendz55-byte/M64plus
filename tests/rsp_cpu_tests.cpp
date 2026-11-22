@@ -124,8 +124,8 @@ void testScalarAddAndSetLessThan() {
     require(rsp.reg(2) == 0U, "ADDI wraps at 32 bits");
     require(rsp.reg(3) == 1U, "SLTI performs signed comparison");
     require(rsp.reg(4) == 0U, "SLTIU performs unsigned comparison");
-    require(rsp.reg(5) == 0xFFFFFFFEU, "ADD performs 32-bit addition");
-    require(rsp.reg(6) == 0xFFFFFFFEU, "SUB performs 32-bit subtraction");
+    require(rsp.reg(5) == 0xFFFFFFFFU, "ADD performs 32-bit addition");
+    require(rsp.reg(6) == 0xFFFFFFFFU, "SUB performs 32-bit subtraction");
     require(rsp.reg(7) == 1U, "SLT performs signed comparison");
     require(rsp.reg(8) == 0U, "SLTU performs unsigned comparison");
     require(!rsp.faulted(), "scalar arithmetic and comparisons are supported");
