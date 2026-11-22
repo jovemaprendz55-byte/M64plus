@@ -929,3 +929,13 @@ Referências: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md ; htt
 - Após o resultado `Unsupported`, o teste exige que os quatro valores originais permaneçam intactos. Isso verifica ausência de escrita parcial/sobrescrita nos pontos amostrados, em vez de apenas confirmar que a memória inicialmente zerada continuou zerada.
 - Alteração enviada à `main` no commit `9029eaabb85a5eda2136212d0cb7610b716883a3`; CI ainda precisa ser consultado.
 - **Escopo:** o teste cobre os dois bancos em quatro endereços específicos. Não prova atomicidade para toda a TMEM nem substitui testes de limite, wrap e validação externa.
+
+
+## 16.28 Correção de wrap independente dos bancos TMEM em LOAD_TILE RGBA32 (2026-11-22)
+
+- Revisão do cálculo de endereço encontrou um caso-limite: o endereço do banco superior era derivado do endereço lógico ainda não mascarado. Quando a linha ultrapassava 0x7FF, o cálculo podia fazer os bytes B/A voltarem para a metade inferior da TMEM e sobrescrever R/G.
+- Correção: primeiro normalizar o endereço na metade inferior (`logical/swizzle & 0x07FF`); depois derivar o endereço correspondente da metade superior somando `0x0800`. O wrap de cada metade passa a ser independente.
+- Novo teste com `tile.tmem = 255`, `line = 1` e duas linhas verifica a última posição da metade inferior/superior e a linha ímpar que cruza o limite. Confere que RG e BA permanecem separados.
+- Código enviado à `main`: `e693b2cf918a0f669afc0aa569c686442c8f5c36`; teste enviado à `main`: `48395912d256e9922bb2884794594b9be6ec1287`.
+- **Status:** correção ainda não considerada validada até o CI concluir. A prova atual é um teste unitário determinístico; ainda falta comparação contra ParaLLEl-RDP/Angrylion ou hardware para todos os alinhamentos e limites.
+- Referência usada para a regra de endereço: RustyN64 RDP notes, seção “The TMEM loads”, que descreve a separação RG/BA e o mascaramento em 0x7FF: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md .
