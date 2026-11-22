@@ -94,7 +94,8 @@ bool loadTileTexels(Bus& bus, RdpSyncState& state,
 bool loadBlockTexels(Bus& bus, RdpSyncState& state,
                       const RdpTextureLoadState& load) noexcept {
     if (!state.hasTextureImage || !state.hasTile[load.tile] ||
-        load.sh < load.sl || ((load.sh - load.sl) & 0x03U) != 0U) return false;
+        load.sh < load.sl || (load.sl & 0x03U) != 0U ||
+        (load.tl & 0x03U) != 0U || (load.sh & 0x03U) != 0U) return false;
     const RdpImageState& image = state.textureImage;
     const RdpTileState& tile = state.tiles[load.tile];
     const unsigned bitsPerTexel = image.size == 0U ? 4U
