@@ -105,6 +105,29 @@ RdpProcessResult RdpCommandProcessor::processNext(
         // MI interrupt source 5 is the Display Processor.
         bus.setMiInterrupt(5U, true);
         return RdpProcessResult::Processed;
+    case 0x30U: // LOAD_TLUT
+    case 0x33U: // LOAD_BLOCK
+    case 0x34U: { // LOAD_TILE
+        const std::uint64_t command = packet.words[0];
+        const std::uint8_t tile = static_cast<std::uint8_t>((command >> 24U) & 0x07U);
+        RdpTextureLoadState load{};
+        load.kind = packet.info.opcode == 0x30U ? RdpTextureLoadKind::Tlut
+            : (packet.info.opcode == 0x33U ? RdpTextureLoadKind::Block
+                                          : RdpTextureLoadKind::Tile);
+        load.tile = tile;
+        load.sl = static_cast<std::uint16_t>((command >> 44U) & 0x0FFFU);
+        load.tl = static_cast<std::uint16_t>((command >> 32U) & 0x0FFFU);
+        load.sh = static_cast<std::uint16_t>((command >> 12U) & 0x0FFFU);
+        if (packet.info.opcode == 0x33U) {
+            load.dxt = static_cast<std::uint16_t>(command & 0x0FFFU);
+        } else {
+            load.th = static_cast<std::uint16_t>(command & 0x0FFFU);
+        }
+        load.rawCommand = command;
+        state.lastTextureLoad = load;
+        state.hasTextureLoad = true;
+        return RdpProcessResult::Processed;
+    }
     case 0x2AU: { // SET_KEY_GB
         const std::uint64_t command = packet.words[0];
         state.keyGbCommand = command;
