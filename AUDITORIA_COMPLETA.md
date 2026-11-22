@@ -482,3 +482,11 @@ A auditoria ainda deve continuar por:
 - Teste cobre MTC0/MFC0 de SP_MEM_ADDR, limpar HALT por SP_STATUS e semântica de leitura do SP_SEMAPHORE.
 - Implementação e testes aguardam CI.
 - Limitação: registradores DPC COP0 (índices 8–15) ainda não estão mapeados no barramento; não fazem parte desta etapa.
+
+
+### Continuação do RSP — shifts escalares e JALR (2026-11-22)
+- Adicionados SRA, SLLV, SRLV e SRAV ao decodificador SPECIAL do Scalar Unit.
+- Adicionado JALR com link em `rd`, alvo alinhado ao PC de 12 bits do RSP e execução do delay slot.
+- Os testes verificam deslocamentos aritméticos/lógicos, deslocamento variável e link/delay slot do JALR.
+- Implementação e testes aguardam CI.
+- Ainda faltam instruções escalares importantes do subconjunto RSP, incluindo ADD/ADDI, SLT/SLTU/SLTI/SLTIU, além de revisão de semântica COP0 e de acessos DPC.
