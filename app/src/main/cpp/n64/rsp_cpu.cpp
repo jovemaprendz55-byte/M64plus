@@ -738,6 +738,25 @@ bool RspCpu::step(Bus& bus) noexcept {
         }
         if (function != 0x08U && function != 0x0DU) writeRegister = true;
         break;
+    case 0x10U: { // COP0: scalar moves to/from SP control registers.
+        if (rs == 0U) { // MFC0
+            if (!bus.read32(Bus::kSpRegBase + rd * 4U, result)) {
+                halted_ = true; faulted_ = true;
+                return false;
+            }
+            destination = rt;
+            writeRegister = true;
+        } else if (rs == 4U) { // MTC0
+            if (!bus.write32(Bus::kSpRegBase + rd * 4U, b)) {
+                halted_ = true; faulted_ = true;
+                return false;
+            }
+        } else {
+            halted_ = true; faulted_ = true;
+            return false;
+        }
+        break;
+    }
     case 0x01U: { // REGIMM: BLTZ / BGEZ
         if (inDelaySlot || (rt != 0U && rt != 1U)) {
             halted_ = true; faulted_ = true;
