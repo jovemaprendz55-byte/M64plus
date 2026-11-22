@@ -681,3 +681,13 @@ Implementadas em 2026-11-22:
 - Layout confrontado com o SGI/Nintendo Ultra64 RDP Command Summary 2.0 (1996), tabelas Set Fill Color, Set Fog Color, Set Blend Color, Set Prim Color, Set Env Color e Set Z Image.
 - **Limite:** os registradores são armazenados; não existe ainda operação de fill, mistura de cores, teste de profundidade ou escrita em Z/color framebuffer. A etapa não implementa pixels.
 - Commits: estruturas `3618d37`, decodificação `131d1f6`, testes `308952c`.
+
+
+### 16.8. Conversão YUV e controles de color key do RDP (2026-11-22)
+
+- Implementado o decodificador de `SET_CONVERT (0x2C)`, armazenando os seis coeficientes K0–K5 como valores assinados de 9 bits, com extensão de sinal na faixa de -256 a +255.
+- Implementado `SET_KEY_R (0x2B)`, com width de 12 bits, center e scale de 8 bits.
+- Implementado `SET_KEY_GB (0x2A)`, com width G/B de 12 bits e center/scale de 8 bits para cada canal.
+- Os três comandos mantêm a palavra bruta original e flags próprias de presença, além dos campos tipados.
+- Teste integrado publica os comandos via DPC e verifica os campos, incluindo coeficientes negativos e extremos assinados.
+- **Limite:** os valores são apenas decodificados e armazenados. Não foi implementada conversão YUV→RGB, keying por pixel, comparação de limiar ou rasterização; nenhum pixel é produzido nesta etapa.
