@@ -60,7 +60,11 @@ bool loadTile32BitTexels(Bus& bus, RdpSyncState& state,
                 static_cast<std::uint64_t>(column) * 2U;
             const std::uint64_t low = (row & 1U) != 0U
                 ? (logical ^ 4U) : logical;
-            const std::uint64_t high = low + 0x800U;
+            // Normalize within the lower 2 KiB bank before deriving the
+            // matching upper-bank address; otherwise crossing 0x800 can
+            // make the BA write wrap into the lower bank.
+            const std::uint64_t lowerBankAddress = low & 0x07FFU;
+            const std::uint64_t upperBankAddress = lowerBankAddress + 0x0800U;
             std::uint8_t red = 0U;
             std::uint8_t green = 0U;
             std::uint8_t blue = 0U;
@@ -70,10 +74,10 @@ bool loadTile32BitTexels(Bus& bus, RdpSyncState& state,
                 !bus.read8(static_cast<std::uint32_t>(source + 2U), blue) ||
                 !bus.read8(static_cast<std::uint32_t>(source + 3U), alpha))
                 return false;
-            state.tmem.writeByte(static_cast<std::uint16_t>(low & 0x07FFU), red);
-            state.tmem.writeByte(static_cast<std::uint16_t>((low + 1U) & 0x07FFU), green);
-            state.tmem.writeByte(static_cast<std::uint16_t>(high & 0x0FFFU), blue);
-            state.tmem.writeByte(static_cast<std::uint16_t>((high + 1U) & 0x0FFFU), alpha);
+            state.tmem.writeByte(static_cast<std::uint16_t>(lowerBankAddress), red);
+            state.tmem.writeByte(static_cast<std::uint16_t>((lowerBankAddress + 1U) & 0x07FFU), green);
+            state.tmem.writeByte(static_cast<std::uint16_t>(upperBankAddress & 0x0FFFU), blue);
+            state.tmem.writeByte(static_cast<std::uint16_t>((upperBankAddress + 1U) & 0x0FFFU), alpha);
         }
     }
     return true;
