@@ -76,6 +76,52 @@ struct RdpScissorState final {
     bool oddLine = false;
 };
 
+struct RdpCombineCycle final {
+    std::uint8_t colorA = 0;
+    std::uint8_t colorB = 0;
+    std::uint8_t colorC = 0;
+    std::uint8_t colorD = 0;
+    std::uint8_t alphaA = 0;
+    std::uint8_t alphaB = 0;
+    std::uint8_t alphaC = 0;
+    std::uint8_t alphaD = 0;
+};
+
+struct RdpOtherModesState final {
+    std::uint8_t cycleType = 0;
+    bool perspectiveTexture = false;
+    bool detailTexture = false;
+    bool sharpenTexture = false;
+    bool textureLod = false;
+    bool textureLut = false;
+    bool textureLutType = false;
+    bool sampleType = false;
+    bool midTexel = false;
+    bool biLerp0 = false;
+    bool biLerp1 = false;
+    bool convertOne = false;
+    bool keyEnable = false;
+    std::uint8_t rgbDither = 0;
+    std::uint8_t alphaDither = 0;
+    std::array<std::uint8_t, 2> blendM1a{};
+    std::array<std::uint8_t, 2> blendM1b{};
+    std::array<std::uint8_t, 2> blendM2a{};
+    std::array<std::uint8_t, 2> blendM2b{};
+    bool forceBlend = false;
+    bool alphaCoverageSelect = false;
+    bool coverageTimesAlpha = false;
+    std::uint8_t zMode = 0;
+    std::uint8_t coverageDestination = 0;
+    bool colorOnCoverage = false;
+    bool imageRead = false;
+    bool zUpdate = false;
+    bool zCompare = false;
+    bool antialias = false;
+    bool zSourceSelect = false;
+    bool ditherAlphaEnable = false;
+    bool alphaCompare = false;
+};
+
 struct RdpSyncState final {
     std::uint64_t syncLoadCount = 0;
     std::uint64_t syncPipeCount = 0;
@@ -85,6 +131,7 @@ struct RdpSyncState final {
     // Raw one-word state commands are retained until field-level decoding is added.
     std::uint64_t scissorCommand = 0;
     std::uint64_t otherModesCommand = 0;
+    std::uint64_t combineCommand = 0;
     std::uint64_t fillColorCommand = 0;
     std::uint64_t textureImageCommand = 0;
     std::uint64_t colorImageCommand = 0;
@@ -92,6 +139,7 @@ struct RdpSyncState final {
     std::array<std::uint64_t, 8> tileSizeCommands{};
     bool hasScissor = false;
     bool hasOtherModes = false;
+    bool hasCombine = false;
     bool hasFillColor = false;
     bool hasTextureImage = false;
     bool hasColorImage = false;
@@ -103,6 +151,8 @@ struct RdpSyncState final {
     RdpImageState colorImage{};
     std::array<RdpTileState, 8> tiles{};
     std::array<RdpTileSizeState, 8> tileSizes{};
+    RdpOtherModesState otherModes{};
+    std::array<RdpCombineCycle, 2> combine{};
 };
 
 class RdpCommandProcessor final {
