@@ -954,3 +954,10 @@ A execução do vetor corrigido ainda encontrou um campo de coordenada incorreto
 ### Isolamento das coordenadas nos testes de LOAD_TILE
 
 Na revisão do vetor de limite, o CI revelou que a substituição anterior também havia alterado por engano o comando do teste de regressão 16-bit (que precisa de duas colunas). O teste 16-bit foi restaurado para `SH=4, TH=4`; somente o vetor RGBA32 de uma coluna usa `SH=0, TH=4`. Correção enviada no commit `86ec0bb1e0405b471c6d9a8e1d632e05cf219f6f`. Os resultados dos commits anteriores permanecem falhos e não contam como validação.
+
+
+## 16.29 CI aprovado após correções do vetor RGBA32 (2026-11-22)
+
+- Workflow [#45024990879](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45024990879), commit de teste `86ec0bb1e0405b471c6d9a8e1d632e05cf219f6f`: `native-host-tests` success e `assemble-debug` success; upload do APK success.
+- Artefato `m64plus-debug-apk`, ID `14755820040`, tamanho 576.614 bytes, não expirado na consulta de 2026-11-22.
+- Esse CI valida o teste de regressão 16-bit restaurado e o teste RGBA32 de wrap, além dos demais testes automatizados e compilação Android. Não valida precisão de hardware nem compatibilidade com ROMs comerciais.
