@@ -892,3 +892,14 @@ Foi adicionada uma regressão de duas linhas e dois texels por linha, que verifi
 **Estado:** implementação e teste enviados à `main`; aguardando CI. A distribuição RG/BA é baseada na documentação técnica RustyN64 e no caminho especial `LoadTile32b` identificado no Project64. Ainda é uma primeira implementação lógica: precisa de validação independente contra um RDP de referência/hardware, casos de TMEM com base não zero, larguras/alinhamentos variados e formatos não RGBA. O sampler, rasterizador e caminho LOAD_BLOCK32 continuam pendentes.
 
 Referências: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md ; https://github.com/project64/project64/blob/develop/Source/Project64-video/rdp.cpp .
+
+
+
+## 16.24 LOAD_TILE RGBA32 — base TMEM diferente de zero e CI (2026-11-22)
+
+- O workflow [#45024077569](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45024077569), no commit de código `8a8196b0de2b5c84d75fff9325be32b904699415`, concluiu com sucesso: `native-host-tests` = success e `assemble-debug` = success.
+- O artefato `m64plus-debug-apk` foi publicado, com 576.559 bytes, não expirado na verificação.
+- O teste RGBA32 foi ampliado para usar `tile.tmem = 2` (base de 16 bytes), verificando que os pares RG são escritos a partir do deslocamento 16, os pares BA a partir de 0x810 e que o swizzle da segunda linha é preservado nas duas metades.
+- Essa regressão cobre agora uma base TMEM não zero, mas somente um valor pequeno e alinhado. Não valida limites superiores, wrap, sobreposição entre bancos ou todos os valores possíveis de TMEM.
+- **Status:** o novo teste foi enviado à `main` no commit `f91238b47cc1ab54022e51eec43b20eb6a1162f2`. O resultado do CI desse commit ainda precisa ser consultado antes de declarar o teste aprovado.
+- **Limite:** a separação RG/BA e o swizzle continuam sendo uma implementação inicial baseada em documentação/código de referência; falta comparação independente com hardware ou RDP de referência. `LOAD_BLOCK` 32-bit, sampler e rasterizador continuam pendentes.
