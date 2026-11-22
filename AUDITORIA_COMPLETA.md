@@ -693,3 +693,12 @@ Implementadas em 2026-11-22:
 - **Limite:** os valores são apenas decodificados e armazenados. Não foi implementada conversão YUV→RGB, keying por pixel, comparação de limiar ou rasterização; nenhum pixel é produzido nesta etapa.
 
 - Ajuste de regressão após ampliar o dispatch: o teste genérico de comando não suportado usava `0x2A`, que passou a ser corretamente reconhecido como `SET_KEY_GB`. O cenário de comando ainda não implementado foi transferido para `0x30` (`LOAD_TLUT`), mantendo a verificação da resposta `Unsupported`.
+
+
+### 16.9. Registrador de profundidade primitiva do RDP (2026-11-22)
+
+- Implementado `SET_PRIM_DEPTH (0x2E)` com extração do registrador Primitive Z nos bits 31–16 e Primitive Delta Z nos bits 15–0, preservando ambos como valores de 16 bits.
+- A palavra bruta e uma flag de presença são mantidas para diagnóstico.
+- Teste integrado verifica os dois campos com valores não triviais e a preservação do comando original.
+- Layout conferido no SGI/Nintendo Ultra64 RDP Command Summary, Tabela 26; a referência da API `gDPSetPrimDepth` descreve os formatos e uso dos valores Z/delta-Z.
+- **Limite:** ainda não há teste de profundidade por pixel, conversão para o formato do Z-buffer, atualização do Z-buffer ou rasterização.
