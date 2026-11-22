@@ -489,7 +489,7 @@ A auditoria ainda deve continuar por:
 - Adicionado JALR com link em `rd`, alvo alinhado ao PC de 12 bits do RSP e execução do delay slot.
 - Os testes verificam deslocamentos aritméticos/lógicos, deslocamento variável e link/delay slot do JALR.
 - Implementação e testes aguardam CI.
-- Ainda faltam instruções escalares importantes do subconjunto RSP, incluindo ADD/ADDI, SLT/SLTU/SLTI/SLTIU, além de revisão de semântica COP0 e de acessos DPC.
+- Situação atualizada após commits seguintes: ADD/ADDI/SUB, SLT/SLTU/SLTI/SLTIU, shifts escalares e branches com link foram implementados. Permanecem pendentes revisão aprofundada de semântica COP0/DPC, interlocks e instruções de multiplicação/divisão escalar (não disponíveis no RSP padrão).
 
 
 ### Correção de CI — testes COP0 (2026-11-22)
