@@ -271,6 +271,54 @@ void testRegimmLinkBranches() {
     }
 }
 
+
+void testVectorQuantizedMultiplyAndAccumulatorRounding() {
+    {
+        Bus bus;
+        RspCpu rsp;
+        rsp.setVectorLane(1, 0, 0x0100U);
+        rsp.setVectorLane(2, 0, 0x0001U);
+        rsp.setVectorLane(4, 0, 0x0001U);
+        put(bus, 0, vType(0, 2, 1, 3, 0x03));  // VMULQ
+        put(bus, 4, vType(1, 0, 0, 4, 0x1D));  // VSAR ACC_MD
+        put(bus, 8, vType(0, 4, 1, 5, 0x02));  // VRNDP, vt << 16
+        put(bus, 12, vType(1, 0, 0, 6, 0x1D)); // VSAR ACC_MD
+        put(bus, 16, vType(0, 0, 0, 7, 0x0B)); // VMACQ
+        put(bus, 20, vType(1, 0, 0, 8, 0x1D)); // VSAR ACC_MD
+        require(rsp.step(bus), "execute VMULQ");
+        require(rsp.vectorLane(3, 0) == 0x0080U,
+                "VMULQ returns half product with low four bits cleared");
+        require(rsp.step(bus), "read VMULQ accumulator middle");
+        require(rsp.vectorLane(4, 0) == 0x0100U,
+                "VMULQ places product in accumulator middle slice");
+        require(rsp.step(bus), "execute VRNDP");
+        require(rsp.step(bus), "read VRNDP accumulator middle");
+        require(rsp.vectorLane(6, 0) == 0x0101U,
+                "VRNDP conditionally adds shifted vt to a non-negative accumulator");
+        require(rsp.step(bus), "execute VMACQ");
+        require(rsp.vectorLane(7, 0) == 0x0070U,
+                "VMACQ rounds positive accumulator and clears low four result bits");
+        require(rsp.step(bus), "read VMACQ accumulator middle");
+        require(rsp.vectorLane(8, 0) == 0x00E1U,
+                "VMACQ preserves rounded accumulator state");
+    }
+    {
+        Bus bus;
+        RspCpu rsp;
+        rsp.setVectorLane(1, 0, 0xFF00U); // -256
+        rsp.setVectorLane(2, 0, 0x0001U);
+        rsp.setVectorLane(4, 0, 0x0001U);
+        put(bus, 0, vType(0, 2, 1, 3, 0x03)); // VMULQ
+        put(bus, 4, vType(0, 4, 1, 5, 0x0A)); // VRNDN, vt << 16
+        require(rsp.step(bus), "execute negative VMULQ");
+        require(rsp.vectorLane(3, 0) == 0xFF80U,
+                "VMULQ rounds negative product toward zero before masking");
+        require(rsp.step(bus), "execute VRNDN");
+        require(rsp.vectorLane(5, 0) == 0xFF20U,
+                "VRNDN conditionally adds shifted vt to a negative accumulator");
+    }
+}
+
 void testVectorArithmetic() {
     Bus bus;
     RspCpu rsp;
@@ -1187,6 +1235,7 @@ int main() {
     testRegimmBranches();
     testRegimmLinkBranches();
     testVectorArithmetic();
+    testVectorQuantizedMultiplyAndAccumulatorRounding();
     testVectorCarryAndLogic();
     testVectorAccumulatorLowAndVsar();
     testVectorMultiplyFraction();
