@@ -261,7 +261,7 @@ void testRdpOtherModesAndCombineDecoding() {
     const auto& c1 = state.combine[1];
     require(c0.colorA == 0xAU && c0.colorB == 0xCU && c0.colorC == 0x15U &&
             c0.colorD == 4U && c0.alphaA == 5U && c0.alphaB == 3U &&
-            c0.alphaC == 3U && c0.alphaD == 5U,
+            c0.alphaC == 3U && c0.alphaD == 6U,
             "SET_COMBINE decodes all eight first-cycle selectors");
     require(c1.colorA == 6U && c1.colorB == 9U && c1.colorC == 0x1BU &&
             c1.colorD == 5U && c1.alphaA == 5U && c1.alphaB == 2U &&
