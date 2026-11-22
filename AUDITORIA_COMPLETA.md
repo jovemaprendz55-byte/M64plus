@@ -655,3 +655,15 @@ Implementadas em 2026-11-22:
 - Artefato `m64plus-debug-apk`, ID `14752977861`, tamanho 558.571 bytes, SHA-256 `efa160d9a2393299013a0400cdc358993b58b5617a6024531cf196efc43d8cbb`, expira em 2027-02-20.
 - Esse APK corresponde ao commit acima, que inclui a captura bruta de estado RDP da seção 16.4. **Não corresponde ainda às alterações de decodificação tipada da seção 16.5**, que foram feitas depois.
 - A validação do commit mais recente precisa ser feita no próximo workflow gerado após os commits 16.5.
+
+
+### 16.6. Decodificação de SET_OTHER_MODES e SET_COMBINE (2026-11-22)
+
+- **SET_OTHER_MODES (0x2F):** agora interpreta ciclo (1-cycle, 2-cycle, copy, fill), perspectiva, detail/sharpen, LOD, TLUT e tipo, sample type, mid-texel, bilerp por ciclo, convert-one, keying, RGB/alpha dither.
+- Também extrai os oito seletores P/A/M/B do blender (quatro por ciclo), force-blend, alpha-coverage-select, coverage-times-alpha, Z mode, coverage destination, color-on-coverage, image-read, Z update/compare, antialias, Z source e alpha compare.
+- **SET_COMBINE (0x3C):** decodifica os 16 seletores do color combiner: A/B/C/D para RGB e A/B/C/D para alpha, em cada um dos dois ciclos.
+- Os comandos brutos permanecem armazenados junto com as estruturas tipadas.
+- Teste dedicado constrói palavras com seletores distintos e verifica os campos dos dois ciclos, os controles do blender e os modos de textura/depth/coverage.
+- Layouts confrontados com o documento oficial SGI/Nintendo Ultra64 RDP Command Summary (versão 2.0, 1996), tabelas 19 (Set Combine Mode) e 20 (Set Other Modes). A descrição do guia profissional SGI/Nintendo sobre o blender foi usada como contexto adicional.
+- **Limite:** decodificar muxes não executa a equação do color combiner nem o blender por pixel. Não há rasterização, textura/TMEM, coverage, Z-buffer ou framebuffer nesta etapa.
+- Commits: estruturas `f83ce85`, decodificação `c24cf6c`, testes `ca559a4`, ajuste do valor esperado no teste `70aebf4`.
