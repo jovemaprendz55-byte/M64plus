@@ -67,6 +67,40 @@ RdpProcessResult RdpCommandProcessor::processNext(
         // MI interrupt source 5 is the Display Processor.
         bus.setMiInterrupt(5U, true);
         return RdpProcessResult::Processed;
+    case 0x2DU: // SET_SCISSOR
+        state.scissorCommand = packet.words[0];
+        state.hasScissor = true;
+        return RdpProcessResult::Processed;
+    case 0x2FU: // SET_OTHER_MODES
+        state.otherModesCommand = packet.words[0];
+        state.hasOtherModes = true;
+        return RdpProcessResult::Processed;
+    case 0x32U: { // SET_TILE_SIZE
+        const std::size_t tile = static_cast<std::size_t>(
+            (packet.words[0] >> 24U) & 0x07U);
+        state.tileSizeCommands[tile] = packet.words[0];
+        state.hasTileSize[tile] = true;
+        return RdpProcessResult::Processed;
+    }
+    case 0x35U: { // SET_TILE
+        const std::size_t tile = static_cast<std::size_t>(
+            (packet.words[0] >> 24U) & 0x07U);
+        state.tileCommands[tile] = packet.words[0];
+        state.hasTile[tile] = true;
+        return RdpProcessResult::Processed;
+    }
+    case 0x37U: // SET_FILL_COLOR
+        state.fillColorCommand = packet.words[0];
+        state.hasFillColor = true;
+        return RdpProcessResult::Processed;
+    case 0x3DU: // SET_TEXTURE_IMAGE
+        state.textureImageCommand = packet.words[0];
+        state.hasTextureImage = true;
+        return RdpProcessResult::Processed;
+    case 0x3FU: // SET_COLOR_IMAGE
+        state.colorImageCommand = packet.words[0];
+        state.hasColorImage = true;
+        return RdpProcessResult::Processed;
     default:
         return RdpProcessResult::Unsupported;
     }
