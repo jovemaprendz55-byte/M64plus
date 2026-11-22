@@ -490,3 +490,9 @@ A auditoria ainda deve continuar por:
 - Os testes verificam deslocamentos aritméticos/lógicos, deslocamento variável e link/delay slot do JALR.
 - Implementação e testes aguardam CI.
 - Ainda faltam instruções escalares importantes do subconjunto RSP, incluindo ADD/ADDI, SLT/SLTU/SLTI/SLTIU, além de revisão de semântica COP0 e de acessos DPC.
+
+
+### Correção de CI — testes COP0 (2026-11-22)
+- Os primeiros workflows da adição COP0 falharam por um caractere literal de escape de nova linha inserido indevidamente na chamada do teste em main; o código de produção compilou.
+- A chamada foi corrigida para uma quebra de linha real. A revisão posterior de shifts/JALR também está incluída nos workflows mais recentes.
+- A validação final deve considerar os workflows posteriores a esta correção, não os runs iniciais com erro de formatação.
