@@ -450,7 +450,7 @@ void testLoadTileCopiesTextureImageIntoTmem() {
         (0x3DULL << 56U) | (3ULL << 32U) | 0x1200ULL;
     const std::uint64_t setTile4 = (0x35ULL << 56U);
     const std::uint64_t loadTile4 =
-        (0x34ULL << 56U) | (12ULL << 12U) | 12ULL;
+        (0x34ULL << 56U) | (12ULL << 12U);
     require(nibbleBus.write64(0x940U, setImage4) &&
             nibbleBus.write64(0x948U, setTile4) &&
             nibbleBus.write64(0x950U, loadTile4), "seed 4-bit LOAD_TILE sequence");
