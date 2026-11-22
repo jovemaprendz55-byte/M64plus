@@ -903,3 +903,12 @@ Referências: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md ; htt
 - Essa regressão cobre agora uma base TMEM não zero, mas somente um valor pequeno e alinhado. Não valida limites superiores, wrap, sobreposição entre bancos ou todos os valores possíveis de TMEM.
 - **Status:** o novo teste foi enviado à `main` no commit `f91238b47cc1ab54022e51eec43b20eb6a1162f2`. O resultado do CI desse commit ainda precisa ser consultado antes de declarar o teste aprovado.
 - **Limite:** a separação RG/BA e o swizzle continuam sendo uma implementação inicial baseada em documentação/código de referência; falta comparação independente com hardware ou RDP de referência. `LOAD_BLOCK` 32-bit, sampler e rasterizador continuam pendentes.
+
+
+## 16.25 LOAD_TILE RGBA32 — rejeição de formatos incompatíveis (2026-11-22)
+
+- Adicionado teste para duas combinações inválidas: imagem-fonte com formato diferente de RGBA e tile com formato diferente de RGBA, mantendo o tamanho de 32 bits.
+- Em ambos os cenários, o fluxo deve retornar `Unsupported` no LOAD_TILE e manter inalterados os bancos inferior e superior da TMEM.
+- O teste foi enviado à `main` no commit `02f1472a64ab7745e70b2b195e4616c4ab6e5172`; aguarda CI.
+- Referência de formato: a tabela de atributos de tile do manual define RGBA como formato 0 e 32 bits como tamanho 3. A implementação de 32 bits aqui permanece restrita a RGBA.
+- **Limite:** este teste não cobre os limites de endereço TMEM, wrap, stride grande, nem valida o resultado contra hardware. Não ampliar suporte de formatos sem vetores de referência independentes.
