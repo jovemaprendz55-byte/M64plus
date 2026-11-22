@@ -446,7 +446,8 @@ void testLoadTileCopiesTextureImageIntoTmem() {
     RdpSyncState nibbleState{};
     require(nibbleBus.write8(0x1200U, 0x12U) &&
             nibbleBus.write8(0x1201U, 0x34U), "seed 4-bit packed texture");
-    const std::uint64_t setImage4 = (0x3DULL << 56U) | 0x1200ULL;
+    const std::uint64_t setImage4 =
+        (0x3DULL << 56U) | (3ULL << 32U) | 0x1200ULL;
     const std::uint64_t setTile4 = (0x35ULL << 56U);
     const std::uint64_t loadTile4 =
         (0x34ULL << 56U) | (12ULL << 12U) | 12ULL;
