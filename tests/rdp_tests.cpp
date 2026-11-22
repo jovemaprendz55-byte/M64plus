@@ -454,8 +454,8 @@ void testLoadTileSwizzlesOddRowsFor16BitTexels() {
     RdpSyncState state{};
     require(bus.write16(0x1800U, 0x1122U) &&
             bus.write16(0x1802U, 0x3344U) &&
-            bus.write16(0x1804U, 0x5566U) &&
-            bus.write16(0x1806U, 0x7788U),
+            bus.write16(0x1808U, 0x5566U) &&
+            bus.write16(0x180AU, 0x7788U),
             "seed two-row 16-bit LOAD_TILE texture");
     const std::uint64_t setImage =
         (0x3DULL << 56U) | (2ULL << 51U) | (3ULL << 32U) | 0x1800ULL;
