@@ -1091,7 +1091,8 @@ int main() {
     testCop0SpRegisterMoves();
     testArithmeticAndMemory();
     testBranchDelaySlot();
-    testScalarVariableShiftsAndJalr();\n    testByteAndHalfwordMemory();
+    testScalarVariableShiftsAndJalr();
+    testByteAndHalfwordMemory();
     testRegimmBranches();
     testVectorArithmetic();
     testVectorCarryAndLogic();
