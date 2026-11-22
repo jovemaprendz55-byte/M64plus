@@ -188,6 +188,7 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
     }
     const bool multiplyFraction = function == 0x00U;
     const bool multiplyUnsigned = function == 0x01U;
+    const bool multiplyQuantized = function == 0x03U;
     const bool multiplyLow = function == 0x04U;
     const bool multiplyMidSigned = function == 0x05U;
     const bool multiplyMidUnsigned = function == 0x06U;
@@ -198,7 +199,7 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
     const bool multiplyAccumulateMidSigned = function == 0x0DU;
     const bool multiplyAccumulateMidUnsigned = function == 0x0EU;
     const bool multiplyAccumulateHigh = function == 0x0FU;
-    const bool multiplyFamily = multiplyFraction || multiplyUnsigned || multiplyLow ||
+    const bool multiplyFamily = multiplyFraction || multiplyUnsigned || multiplyQuantized || multiplyLow ||
         multiplyMidSigned || multiplyMidUnsigned || multiplyHigh ||
         multiplyAccumulateFraction || multiplyAccumulateUnsigned ||
         multiplyAccumulateLow || multiplyAccumulateMidSigned ||
@@ -237,7 +238,12 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
                 multiplyAccumulateMidUnsigned || multiplyAccumulateHigh;
             bool unsignedClamp = false;
             std::int64_t accumulatorValue = 0;
-            if (multiplyLow || multiplyAccumulateLow) {
+            if (multiplyQuantized) {
+                product = static_cast<std::int64_t>(static_cast<std::int16_t>(left)) *
+                    static_cast<std::int16_t>(right);
+                if (product < 0) product += 31;
+                accumulatorValue = product * 65536;
+            } else if (multiplyLow || multiplyAccumulateLow) {
                 product = (static_cast<std::int64_t>(left) * right) >> 16U;
                 accumulatorValue = product;
                 value = static_cast<std::uint16_t>(product);
@@ -277,7 +283,9 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
             const std::int64_t shifted = signedAccumulator >= 0
                 ? signedAccumulator / 65536
                 : -((-signedAccumulator + 65535) / 65536);
-            if (multiplyLow) {
+            if (multiplyQuantized) {
+                value = static_cast<std::uint16_t>(clampSigned(product >> 1U) & 0xFFF0U);
+            } else if (multiplyLow) {
                 value = static_cast<std::uint16_t>(raw);
             } else if (multiplyAccumulateLow || multiplyMidUnsigned ||
                        multiplyAccumulateMidUnsigned) {
