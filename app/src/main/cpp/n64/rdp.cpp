@@ -1,5 +1,7 @@
 #include "n64/rdp.h"
 
+#include "n64/bus.h"
+
 namespace m64plus::n64 {
 
 RdpCommandInfo RdpCommandDecoder::decode(std::uint64_t header) noexcept {
@@ -25,6 +27,23 @@ RdpCommandInfo RdpCommandDecoder::decode(std::uint64_t header) noexcept {
         (opcode >= 0x08U && opcode <= 0x0FU) ||
         (opcode >= 0x24U && opcode <= 0x3FU);
     return {opcode, words, known};
+}
+
+bool RdpCommandStream::fetchNext(Bus& bus, RdpCommandPacket& packet) noexcept {
+    std::uint64_t header = 0;
+    if (!bus.peekDpCommand(header)) return false;
+
+    const RdpCommandInfo info = RdpCommandDecoder::decode(header);
+    if (info.lengthWords == 0U || info.lengthWords > RdpCommandPacket::kMaxWords)
+        return false;
+
+    RdpCommandPacket candidate{};
+    candidate.info = info;
+    if (!bus.readDpCommandWords(candidate.words.data(), info.lengthWords))
+        return false;
+
+    packet = candidate;
+    return true;
 }
 
 } // namespace m64plus::n64
