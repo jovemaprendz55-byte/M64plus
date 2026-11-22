@@ -10,7 +10,7 @@ import android.view.WindowManager;
 public final class MainActivity extends Activity {
     private static final String TAG = "M64plus-Native";
     static { System.loadLibrary("m64plus_native"); }
-    private GLSurfaceView glSurfaceView;
+    private GLSurfaceView glSurfaceView;\n    private long nativeMachineHandle;
     private static native boolean nativeRdramSelfTest();
     private static native boolean nativeCpuSelfTest();
     private static native boolean nativeCpuBranchSelfTest();
@@ -23,7 +23,7 @@ public final class MainActivity extends Activity {
     private static native boolean nativeBusSelfTest();
     private static native boolean nativeCpuBusIntegrationSelfTest();
     private static native boolean nativeCpuMiInterruptSelfTest();
-    private static native boolean nativeRspMachineSelfTest();
+    private static native boolean nativeRspMachineSelfTest();\n    private static native long nativeCreateMachine();\n    private static native void nativeDestroyMachine(long handle);\n    private static native boolean nativeResetMachine(long handle);\n    private static native long nativeMachineCpuPc(long handle);
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         boolean memoryPassed = nativeRdramSelfTest();
@@ -51,7 +51,7 @@ public final class MainActivity extends Activity {
         Log.i(TAG, "N64 physical bus / SP memory self-test: " + (busPassed ? "PASS" : "FAIL"));
         Log.i(TAG, "MIPS CPU + physical bus integration self-test: " + (cpuBusPassed ? "PASS" : "FAIL"));
         Log.i(TAG, "MI hardware interrupt / CP0 delivery self-test: " + (miInterruptPassed ? "PASS" : "FAIL"));
-        Log.i(TAG, "MIPS CPU + RSP shared-machine self-test: " + (rspMachinePassed ? "PASS" : "FAIL"));
+        Log.i(TAG, "MIPS CPU + RSP shared-machine self-test: " + (rspMachinePassed ? "PASS" : "FAIL"));\n        nativeMachineHandle = nativeCreateMachine();\n        if (nativeMachineHandle != 0L) {\n            Log.i(TAG, "Persistent N64Machine: CREATED; CPU_PC=0x" + Long.toHexString(nativeMachineCpuPc(nativeMachineHandle)));\n        } else {\n            Log.e(TAG, "Persistent N64Machine: CREATE_FAILED");\n        }
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         glSurfaceView = new GLSurfaceView(this);
@@ -64,6 +64,6 @@ public final class MainActivity extends Activity {
                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         setContentView(glSurfaceView);
     }
-    @Override protected void onPause() { if (glSurfaceView != null) glSurfaceView.onPause(); super.onPause(); }
+    @Override protected void onDestroy() {\n        if (nativeMachineHandle != 0L) {\n            nativeDestroyMachine(nativeMachineHandle);\n            nativeMachineHandle = 0L;\n        }\n        super.onDestroy();\n    }\n    @Override protected void onPause() { if (glSurfaceView != null) glSurfaceView.onPause(); super.onPause(); }
     @Override protected void onResume() { super.onResume(); if (glSurfaceView != null) glSurfaceView.onResume(); }
 }
