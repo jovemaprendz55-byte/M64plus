@@ -912,3 +912,12 @@ Referências: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md ; htt
 - O teste foi enviado à `main` no commit `02f1472a64ab7745e70b2b195e4616c4ab6e5172`; aguarda CI.
 - Referência de formato: a tabela de atributos de tile do manual define RGBA como formato 0 e 32 bits como tamanho 3. A implementação de 32 bits aqui permanece restrita a RGBA.
 - **Limite:** este teste não cobre os limites de endereço TMEM, wrap, stride grande, nem valida o resultado contra hardware. Não ampliar suporte de formatos sem vetores de referência independentes.
+
+
+## 16.26 LOAD_TILE RGBA32 — CI do teste de formatos incompatíveis (2026-11-22)
+
+- O workflow [#45024695074](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45024695074), para o commit de código `02f1472a64ab7745e70b2b195e4616c4ab6e5172`, concluiu com sucesso.
+- `native-host-tests`: success. `assemble-debug`: success. A etapa de upload do APK também concluiu com sucesso.
+- Artefato `m64plus-debug-apk`: 576.561 bytes; não expirado na consulta de 2026-11-22. Download disponível na seção Artifacts do workflow.
+- O resultado confirma que os testes automatizados e a compilação Android passam para esse commit. **Não** comprova compatibilidade com jogos, precisão completa do RDP, nem funcionamento de renderização de ROMs.
+- Próxima etapa: fortalecer o teste de rejeição com valores sentinela previamente gravados na TMEM e investigar limites/endereço de destino do caminho RGBA32 sem alterar a lógica até existir referência técnica independente.
