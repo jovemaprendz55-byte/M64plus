@@ -867,3 +867,12 @@ Correção aplicada:
 - a nova correção aguarda confirmação do CI antes de ser considerada validada.
 
 **Referências:** Nintendo 64 Programming Manual, seção 13.8.1 (organização de TMEM) e 13.9 (LOAD_TILE/LOAD_BLOCK); RustyN64 RDP notes (layout de TMEM comparado com ParaLLEl-RDP); Moria, “N64 Part 20: TMEM Format and Mip Maps”. Links: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-09.html ; https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md ; https://www.moria.us/blog/2020/11/n64-part20-tmem-format-and-mip-maps .
+
+
+## 16.22 Testes de regressão adicionais do LOAD_TILE (2026-11-22)
+
+- Ampliada a suíte para cobrir a troca das metades de 32 bits em linhas ímpares com texels de 16 bits, incluindo verificação da ordem big-endian e do stride de origem da imagem.
+- Adicionado teste que confirma que LOAD_TILE de 32 bits retorna `Unsupported` e não altera a TMEM, evitando aceitar silenciosamente uma cópia linear incorreta.
+- A primeira versão do cenário 16-bit foi corrigida para respeitar a largura da imagem: a segunda linha começa em `base + image.width * 2`, não imediatamente após os dois texels selecionados da primeira linha.
+- **Status:** testes adicionados ao branch `main`; aguardando CI do commit de correção. Não considerar esta etapa validada até `native-host-tests` e `assemble-debug` concluírem.
+- **Próxima investigação:** implementar o caminho especial de 32 bits somente após definir e testar o mapeamento de bancos/metades TMEM e o comportamento de LOAD_TILE versus LOAD_BLOCK. A rejeição explícita permanece intencional.
