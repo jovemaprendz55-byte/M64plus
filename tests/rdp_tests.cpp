@@ -329,6 +329,20 @@ void testRdpConvertAndKeyStateCommands() {
     require(state.keyRCommand == keyR, "SET_KEY_R retains raw command");
 }
 
+
+void testRdpPrimitiveDepthCommand() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint64_t command = (0x2EULL << 56U) | (0xBEEFULL << 16U) | 0x8123ULL;
+    require(bus.write64(0x860U, command), "seed SET_PRIM_DEPTH command");
+    require(bus.write32(Bus::kDpStart, 0x860U), "set DPC start for primitive depth");
+    require(bus.write32(Bus::kDpEnd, 0x868U), "publish primitive depth command");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed, "SET_PRIM_DEPTH is processed");
+    require(state.hasPrimDepth && state.primDepth == 0xBEEFU && state.primDeltaZ == 0x8123U, "SET_PRIM_DEPTH extracts 16-bit Z and delta-Z registers");
+    require(state.primDepthCommand == command, "SET_PRIM_DEPTH retains raw command");
+}
+
 void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
@@ -363,6 +377,7 @@ int main() {
     testRdpOtherModesAndCombineDecoding();
     testRdpColorAndDepthStateCommands();
     testRdpConvertAndKeyStateCommands();
+    testRdpPrimitiveDepthCommand();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
