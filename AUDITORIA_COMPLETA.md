@@ -723,3 +723,24 @@ Implementadas em 2026-11-22:
 - O teste de comando reservado foi atualizado para opcode `0x31`, que permanece não implementado.
 - **Limite:** esta etapa somente interpreta os cabeçalhos. Não lê texels da RDRAM, não escreve na TMEM, não calcula stride/padding, não executa DXT/interleaving e não expande TLUT. A TMEM continua sem ser alimentada e não há amostragem ou renderização de texturas.
 - Referências: SGI/Nintendo RDP Command Summary (campos de Load TLUT) e Nintendo 64 Programming Manual, capítulo 13, seções de Tile Loading e Texture Loading.
+
+
+## 16.12 LOAD_TILE — primeira transferência de texels para TMEM (2026-11-22)
+
+**Implementado nesta etapa:** o comando LOAD_TILE (0x34) agora realiza uma primeira transferência lógica quando SET_TEXTURE_IMAGE e SET_TILE estão configurados:
+- interpreta SL/TL/SH/TH como coordenadas 10.2 e usa as coordenadas inteiras;
+- calcula a origem da região em RDRAM com base na largura e no tamanho do texel da imagem;
+- copia texels de 4, 8, 16 ou 32 bits para TMEM;
+- respeita LINE do descritor SET_TILE como stride em unidades de 64 bits;
+- mantém ordem big-endian e empacotamento de nibbles para texels de 4 bits;
+- valida toda a origem antes de modificar TMEM;
+- adiciona testes DPC para sub-retângulo 8-bit em múltiplas linhas e dados 4-bit empacotados.
+
+**Limitações / investigação pendente:**
+- transferência linear lógica; ainda não reproduz a organização física real de TMEM, swizzle de bancos/halfwords em linhas ímpares ou regras específicas de formato;
+- coordenadas fracionárias são truncadas para texel inteiro;
+- LOAD_BLOCK e LOAD_TLUT continuam sem transferência de dados;
+- não há amostragem de textura nem rasterização;
+- ausência de SET_TEXTURE_IMAGE/SET_TILE ou leitura inválida retorna Unsupported depois que o comando foi consumido.
+
+**Validação:** testes nativos e compilação Android desta alteração dependem do workflow do commit; não declarar aprovados até o GitHub Actions concluir.
