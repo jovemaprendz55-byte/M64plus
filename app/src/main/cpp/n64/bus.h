@@ -78,7 +78,11 @@ public:
     void setMiInterrupt(unsigned source, bool asserted) noexcept;
     std::uint32_t miInterruptMask() const noexcept;
     bool miInterruptPending() const noexcept;
-    // Fetch one 64-bit RDP command from the active DPC command stream.
+    // Inspect the next command word without advancing DPC_CURRENT.
+    bool peekDpCommand(std::uint64_t& command) const noexcept;
+    // Consume a complete command atomically; DPC_CURRENT advances only on success.
+    bool readDpCommandWords(std::uint64_t* words, std::size_t count) noexcept;
+    // Convenience wrapper for consuming one 64-bit word.
     bool readDpCommand(std::uint64_t& command) noexcept;
     std::uint32_t dpCommandsRemaining() const noexcept;
     bool spHalted() const noexcept { return (spStatus_ & kSpHalt) != 0U; }
