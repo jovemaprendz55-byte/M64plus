@@ -590,3 +590,14 @@ Implementadas em 2026-11-22:
 ### Próxima etapa
 - Criar testes de integração DPC/RDP para garantir que um comando multi-palavra só seja retirado do fluxo quando todas as palavras estiverem disponíveis.
 - Depois implementar a dispatch de comandos de sincronização e estado, mantendo renderização marcada como ausente até existir pipeline de pixels validado.
+
+
+### 16.1. Consumo atômico de comandos DPC/RDP (2026-11-22)
+
+- O barramento agora oferece `peekDpCommand()` para consultar o cabeçalho sem avançar DPC_CURRENT.
+- `readDpCommandWords()` consome uma quantidade completa de palavras de 64 bits em uma única operação lógica. Verifica primeiro se todo o comando está disponível e, em modo RDRAM, se todo o intervalo cabe na memória.
+- Se o comando estiver incompleto, congelado, desalinhado ou fora dos limites, a função falha sem avançar DPC_CURRENT e sem modificar o buffer de saída.
+- No modo XBUS, as leituras usam a janela circular de 4 KiB da SP DMEM.
+- `readDpCommand()` foi mantido como conveniência para consumir uma única palavra e agora usa o caminho atômico.
+- Teste de regressão: Texture Rectangle de duas palavras com apenas a primeira palavra publicada; a leitura é recusada e o cursor permanece intacto. Após publicar a segunda palavra, ambas são consumidas e DPC_CURRENT avança oito bytes por palavra.
+- **Limite:** o RDP ainda precisa chamar o decoder, determinar o comprimento e solicitar o bloco completo. Esta alteração fornece a primitiva transacional, mas não implementa dispatch, rasterização ou framebuffer.
