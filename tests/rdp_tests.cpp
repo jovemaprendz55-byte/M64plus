@@ -502,7 +502,7 @@ void testLoadTileSplits32BitRgbaAcrossTmemBanks() {
     const std::uint64_t setImage =
         (0x3DULL << 56U) | (3ULL << 51U) | (1ULL << 32U) | 0x1A00ULL;
     const std::uint64_t setTile =
-        (0x35ULL << 56U) | (3ULL << 51U) | (1ULL << 41U);
+        (0x35ULL << 56U) | (3ULL << 51U) | (1ULL << 41U) | (2ULL << 32U);
     const std::uint64_t loadTile =
         (0x34ULL << 56U) | (4ULL << 12U) | 4ULL;
     require(bus.write64(0xAA0U, setImage) &&
@@ -517,25 +517,25 @@ void testLoadTileSplits32BitRgbaAcrossTmemBanks() {
                 "RGBA32 LOAD_TILE command executes");
 
     std::uint8_t value = 0U;
-    require(state.tmem.readByte(0U, value) && value == 0x11U &&
-            state.tmem.readByte(1U, value) && value == 0x22U &&
-            state.tmem.readByte(2U, value) && value == 0x55U &&
-            state.tmem.readByte(3U, value) && value == 0x66U,
-            "RGBA32 LOAD_TILE stores RG pairs in the lower TMEM bank");
-    require(state.tmem.readByte(0x800U, value) && value == 0x33U &&
-            state.tmem.readByte(0x801U, value) && value == 0x44U &&
-            state.tmem.readByte(0x802U, value) && value == 0x77U &&
-            state.tmem.readByte(0x803U, value) && value == 0x88U,
-            "RGBA32 LOAD_TILE stores BA pairs in the upper TMEM bank");
-    require(state.tmem.readByte(12U, value) && value == 0x99U &&
-            state.tmem.readByte(13U, value) && value == 0xAAU &&
-            state.tmem.readByte(14U, value) && value == 0xDDU &&
-            state.tmem.readByte(15U, value) && value == 0xEEU,
+    require(state.tmem.readByte(16U, value) && value == 0x11U &&
+            state.tmem.readByte(17U, value) && value == 0x22U &&
+            state.tmem.readByte(18U, value) && value == 0x55U &&
+            state.tmem.readByte(19U, value) && value == 0x66U,
+            "RGBA32 LOAD_TILE stores RG pairs at a nonzero base in the lower TMEM bank");
+    require(state.tmem.readByte(0x810U, value) && value == 0x33U &&
+            state.tmem.readByte(0x811U, value) && value == 0x44U &&
+            state.tmem.readByte(0x812U, value) && value == 0x77U &&
+            state.tmem.readByte(0x813U, value) && value == 0x88U,
+            "RGBA32 LOAD_TILE stores BA pairs at the matching nonzero base in the upper TMEM bank");
+    require(state.tmem.readByte(28U, value) && value == 0x99U &&
+            state.tmem.readByte(29U, value) && value == 0xAAU &&
+            state.tmem.readByte(30U, value) && value == 0xDDU &&
+            state.tmem.readByte(31U, value) && value == 0xEEU,
             "RGBA32 LOAD_TILE applies odd-row halfword swap in lower bank");
-    require(state.tmem.readByte(0x80CU, value) && value == 0xBBU &&
-            state.tmem.readByte(0x80DU, value) && value == 0xCCU &&
-            state.tmem.readByte(0x80EU, value) && value == 0xF0U &&
-            state.tmem.readByte(0x80FU, value) && value == 0x0FU,
+    require(state.tmem.readByte(0x81CU, value) && value == 0xBBU &&
+            state.tmem.readByte(0x81DU, value) && value == 0xCCU &&
+            state.tmem.readByte(0x81EU, value) && value == 0xF0U &&
+            state.tmem.readByte(0x81FU, value) && value == 0x0FU,
             "RGBA32 LOAD_TILE applies odd-row halfword swap in upper bank");
 }
 
