@@ -465,6 +465,41 @@ void testLoadTileCopiesTextureImageIntoTmem() {
             "4-bit LOAD_TILE preserves packed nibble order");
 }
 
+void testLoadTlutReplicatesEntriesIntoHighTmem() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    require(bus.write16(0x1400U, 0xF801U) &&
+            bus.write16(0x1402U, 0x07C1U) &&
+            bus.write16(0x1404U, 0x003FU), "seed three 16-bit TLUT entries");
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (2ULL << 51U) | 0x1400ULL;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (2ULL << 51U) | (256ULL << 32U);
+    const std::uint64_t loadTlut =
+        (0x30ULL << 56U) | (2ULL << 14U);
+    require(bus.write64(0x980U, setImage) &&
+            bus.write64(0x988U, setTile) &&
+            bus.write64(0x990U, loadTlut), "seed TLUT load sequence");
+    require(bus.write32(Bus::kDpStart, 0x980U) &&
+            bus.write32(Bus::kDpEnd, 0x998U), "publish TLUT load sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TEXTURE_IMAGE configures 16-bit palette source");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE configures high-half TMEM destination");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "LOAD_TLUT transfers three palette entries");
+
+    std::uint64_t word = 0U;
+    require(state.tmem.read64(0x800U, word) && word == 0xF801F801F801F801ULL,
+            "LOAD_TLUT quadricates first 16-bit palette entry");
+    require(state.tmem.read64(0x808U, word) && word == 0x07C107C107C107C1ULL,
+            "LOAD_TLUT quadricates second palette entry");
+    require(state.tmem.read64(0x810U, word) && word == 0x003F003F003F003FULL,
+            "LOAD_TLUT quadricates third palette entry");
+}
+
 void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
@@ -503,6 +538,7 @@ int main() {
     testRdpTextureMemory();
     testRdpTextureLoadCommandFields();
     testLoadTileCopiesTextureImageIntoTmem();
+    testLoadTlutReplicatesEntriesIntoHighTmem();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
