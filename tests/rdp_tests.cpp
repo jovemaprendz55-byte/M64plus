@@ -149,6 +149,66 @@ void testRdpBasicStateCommands() {
             "SET_COLOR_IMAGE raw command retained");
 }
 
+
+void testRdpStateFieldDecoding() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+
+    const std::uint64_t scissor =
+        (0x2DULL << 56U) | (0x123ULL << 44U) | (0x234ULL << 32U) |
+        (1ULL << 25U) | (1ULL << 24U) | (0x345ULL << 12U) | 0x456ULL;
+    const std::uint64_t tile =
+        (0x35ULL << 56U) | (5ULL << 53U) | (2ULL << 51U) |
+        (0x101ULL << 41U) | (0x155ULL << 32U) | (6ULL << 24U) |
+        (0xAULL << 20U) | (1ULL << 19U) | (1ULL << 18U) |
+        (0xBULL << 14U) | (0xCULL << 10U) | (1ULL << 9U) |
+        (1ULL << 8U) | (0xDULL << 4U) | 0xEULL;
+    const std::uint64_t tileSize =
+        (0x32ULL << 56U) | (0x111ULL << 44U) | (0x222ULL << 32U) |
+        (6ULL << 24U) | (0x333ULL << 12U) | 0x444ULL;
+    const std::uint64_t textureImage =
+        (0x3DULL << 56U) | (3ULL << 53U) | (2ULL << 51U) |
+        (0x155ULL << 32U) | 0x01234567ULL;
+    const std::uint64_t colorImage =
+        (0x3FULL << 56U) | (4ULL << 53U) | (3ULL << 51U) |
+        (0x2AAULL << 32U) | 0x02345678ULL;
+    const std::uint64_t commands[] = {scissor, tile, tileSize, textureImage, colorImage};
+
+    for (std::size_t i = 0; i < 5U; ++i)
+        require(bus.write64(0x780U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed RDP field-decoding commands");
+    require(bus.write32(Bus::kDpStart, 0x780U), "set DPC start for field decoding");
+    require(bus.write32(Bus::kDpEnd, 0x7A8U), "publish field-decoding commands");
+    for (std::size_t i = 0; i < 5U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "RDP field-decoding command is processed");
+
+    require(state.scissor.xh == 0x123U && state.scissor.yh == 0x234U &&
+            state.scissor.xl == 0x345U && state.scissor.yl == 0x456U &&
+            state.scissor.fieldEnable && state.scissor.oddLine,
+            "SET_SCISSOR extracts 10.2 coordinates and field flags");
+    require(state.tiles[6].format == 5U && state.tiles[6].size == 2U &&
+            state.tiles[6].line == 0x101U && state.tiles[6].tmem == 0x155U &&
+            state.tiles[6].palette == 0xAU && state.tiles[6].clampT &&
+            state.tiles[6].mirrorT && state.tiles[6].maskT == 0xBU &&
+            state.tiles[6].shiftT == 0xCU && state.tiles[6].clampS &&
+            state.tiles[6].mirrorS && state.tiles[6].maskS == 0xDU &&
+            state.tiles[6].shiftS == 0xEU,
+            "SET_TILE extracts descriptor, TMEM and S/T sampling fields");
+    require(state.tileSizes[6].sl == 0x111U && state.tileSizes[6].tl == 0x222U &&
+            state.tileSizes[6].sh == 0x333U && state.tileSizes[6].th == 0x444U,
+            "SET_TILE_SIZE extracts four 10.2 coordinates");
+    require(state.textureImage.format == 3U && state.textureImage.size == 2U &&
+            state.textureImage.width == 0x156U &&
+            state.textureImage.address == 0x01234567U,
+            "SET_TEXTURE_IMAGE extracts format, size, width plus one and address");
+    require(state.colorImage.format == 4U && state.colorImage.size == 3U &&
+            state.colorImage.width == 0x2ABU &&
+            state.colorImage.address == 0x02345678U,
+            "SET_COLOR_IMAGE extracts format, size, width plus one and address");
+}
+
 void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
@@ -179,6 +239,7 @@ int main() {
     testDpcCommandStreamIntegration();
     testRdpSynchronizationCommands();
     testRdpBasicStateCommands();
+    testRdpStateFieldDecoding();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
