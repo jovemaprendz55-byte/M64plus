@@ -774,3 +774,19 @@ Foi implementado um primeiro caminho de transferência para LOAD_BLOCK (0x33):
 - adiciona testes para fluxo de oito texels de 8 bits, retenção do campo DXT e fluxo empacotado de 4 bits.
 
 **Limitações:** esta etapa é deliberadamente uma transferência linear lógica. O valor DXT é decodificado e preservado, mas ainda não controla o avanço de linha nem o interleave/swizzle das palavras de TMEM. Também faltam o tratamento de formato por bancos, casos de fronteira da TMEM, e comparação com um oracle de hardware/emulador de referência. Portanto, não considerar LOAD_BLOCK cycle-accurate ou fisicamente fiel ainda. Nenhuma amostragem de textura ou rasterização foi adicionada.
+
+
+## 16.15 LOAD_BLOCK — acumulador DXT e troca das linhas ímpares (2026-11-22)
+
+O caminho LOAD_BLOCK foi ampliado para aplicar o comportamento de DXT documentado:
+- os texels são preparados em um buffer temporário de transferência, preservando o empacotamento 4-bit e a ordem big-endian;
+- a cada palavra completa de 64 bits, o acumulador fracionário recebe DXT;
+- cada carry em 0x800 incrementa o contador de linha;
+- palavras pertencentes a linhas ímpares têm suas duas metades de 32 bits trocadas;
+- a transferência total é limitada a 4 KiB de TMEM, além do limite de 2.048 texels;
+- LOAD_BLOCK atualiza SL/TL/SH no descritor do tile, conforme o comportamento dos comandos de carga;
+- teste específico usa DXT=0x400 para comprovar que a terceira palavra (primeira da linha ímpar) troca os dois grupos de quatro bytes.
+
+**Limitações:** o algoritmo ainda é um modelo funcional simplificado para palavras completas de 64 bits. O último fragmento menor que oito bytes não recebe troca de metades; não há validação por comparação binária com hardware real ou com um RDP de referência. A organização por bancos de TMEM e os formatos YUV/RGBA ainda precisam de tratamento específico. Não há sampler nem rasterizador.
+
+**Referências:** Nintendo 64 Programming Manual, seção 13.9.3 (Load Block), descreve o acumulador DXT, incremento de linha e troca das linhas ímpares; RDP Command Summary também documenta o uso de DXT para interleaving.
