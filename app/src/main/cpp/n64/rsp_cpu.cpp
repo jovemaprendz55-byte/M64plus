@@ -742,12 +742,17 @@ bool RspCpu::step(Bus& bus) noexcept {
             breakAfterDelay = true;
             writeRegister = false;
             break;
+        case 0x20U: result = a + b; break; // ADD
         case 0x21U: result = a + b; break; // ADDU
+        case 0x22U: result = a - b; break; // SUB
         case 0x23U: result = a - b; break; // SUBU
         case 0x24U: result = a & b; break;
         case 0x25U: result = a | b; break;
         case 0x26U: result = a ^ b; break;
         case 0x27U: result = ~(a | b); break;
+        case 0x2AU: result = static_cast<std::int32_t>(a) <
+            static_cast<std::int32_t>(b) ? 1U : 0U; break; // SLT
+        case 0x2BU: result = a < b ? 1U : 0U; break; // SLTU
         default: halted_ = true; faulted_ = true; return false;
         }
         if (function != 0x08U && function != 0x09U && function != 0x0DU) writeRegister = true;
@@ -806,9 +811,21 @@ bool RspCpu::step(Bus& bus) noexcept {
         branchTarget = scheduleBranch ? relativeTarget() : (nextPc + 4U) & kPcMask;
         scheduleBranch = true;
         break;
+    case 0x08U: // ADDI (RSP scalar arithmetic wraps at 32 bits)
     case 0x09U: // ADDIU
         destination = rt;
         result = a + signExtend16(immediate);
+        writeRegister = true;
+        break;
+    case 0x0AU: // SLTI
+        destination = rt;
+        result = static_cast<std::int32_t>(a) <
+            static_cast<std::int32_t>(signExtend16(immediate)) ? 1U : 0U;
+        writeRegister = true;
+        break;
+    case 0x0BU: // SLTIU
+        destination = rt;
+        result = a < signExtend16(immediate) ? 1U : 0U;
         writeRegister = true;
         break;
     case 0x0CU: destination = rt; result = a & immediate; writeRegister = true; break;
