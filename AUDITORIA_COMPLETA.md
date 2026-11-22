@@ -1017,3 +1017,13 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Commits na `main`: `8c361f836f105d1a0183f4d01b79ea4edc07b52b` (interface), `708b165138c05280a88eb07f1541c4f4d8b4a74b` (implementação), `26b478360c6d74c118aea3e5156c93ebffc427a4` (teste) e `08d00b33ba8f3a5b830a678afb91a43b0ee35ac9` (CMake).
 - **Escopo:** a máquina agora conserva e processa comandos RDP que já têm implementação de estado/carga. Triângulos, retângulos de textura e demais comandos de desenho ainda não rasterizam pixels; este passo não cria framebuffer renderizado nem altera a tela Android.
 - **Validação:** aguarda o CI do commit mais recente; não declarar os novos testes aprovados até o workflow terminar.
+
+
+## 17.4 Ciclo de vida JNI da máquina nativa persistente (2026-11-22)
+
+- `native-lib.cpp` agora expõe operações JNI para criar, destruir, reiniciar e consultar o PC da CPU de uma instância `N64Machine` persistente. A alocação usa `std::nothrow` ; chamadas de reset/consulta verificam handle nulo.
+- `MainActivity` cria a máquina durante `onCreate`, registra no Logcat o estado de criação e o PC inicial, e libera a instância em `onDestroy`.
+- Commits na `main`: JNI `a7044f99aa3a859750a55fe4257d76dceea80f18`; integração Android `ef3628067c12e0e113b296464eb8fe99e4398805`.
+- Workflows acionados: [#45048490439](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45048490439) e [#45048493316](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45048493316). Nos dois, `native-host-tests` concluiu com sucesso; `assemble-debug` ainda estava em execução no momento desta atualização. O resultado Android deve ser confirmado antes de declarar a ponte validada.
+- **Escopo:** a atividade agora mantém a instância nativa durante sua vida útil, mas ainda não executa CPU/RSP em loop, não carrega ROM, não conecta framebuffer ao renderer e não rasteriza comandos RDP. O triângulo GLES continua sendo apenas diagnóstico.
+- **Próximas etapas:** validar o build Android; definir sincronização e orçamento de execução entre thread de emulação e thread GL; depois implementar carregamento de ROM/boot e produzir pixels reais antes de substituir o triângulo.
