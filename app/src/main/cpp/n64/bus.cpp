@@ -29,6 +29,7 @@ void Bus::reset() noexcept {
     dpBufferBusy_ = 0;
     dpPipeBusy_ = 0;
     dpTmem_ = 0;
+    dpXbusDmemDma_ = false;
 }
 
 BusRegion Bus::region(std::uint32_t address) const noexcept {
@@ -342,6 +343,31 @@ bool Bus::performSpDma(std::uint32_t lengthRegister, bool dramToSp) noexcept {
 }
 
 
+
+std::uint32_t Bus::dpCommandsRemaining() const noexcept {
+    if (dpCurrent_ >= dpEnd_) return 0U;
+    return (dpEnd_ - dpCurrent_) / 8U;
+}
+
+bool Bus::readDpCommand(std::uint64_t& command) noexcept {
+    if ((dpStatus_ & kDpFreeze) != 0U || dpCurrent_ > dpEnd_ ||
+        dpEnd_ - dpCurrent_ < 8U || (dpCurrent_ & 7U) != 0U)
+        return false;
+
+    bool readOk = false;
+    if (dpXbusDmemDma_) {
+        const std::uint32_t dmemAddress =
+            kSpDmemBase + (dpCurrent_ & 0x0FF8U);
+        readOk = read64(dmemAddress, command);
+    } else {
+        readOk = rdram_.read64(dpCurrent_, command);
+    }
+    if (!readOk) return false;
+
+    dpCurrent_ += 8U;
+    return true;
+}
+
 bool Bus::readDpRegister(std::uint32_t address, std::uint32_t& value) const noexcept {
     switch (address) {
     case kDpStart: value = dpStart_; return true;
@@ -363,7 +389,7 @@ bool Bus::writeDpRegister(std::uint32_t address, std::uint32_t value) noexcept {
         dpCurrent_ = dpStart_;
         return true;
     case kDpEnd:
-        // Record the submitted end address. RDP command execution is not present yet.
+        // Publish the exclusive end address; the RDP pulls commands through readDpCommand().
         dpEnd_ = value & 0x00FFFFF8U;
         return true;
     case kDpCurrent:
@@ -373,8 +399,10 @@ bool Bus::writeDpRegister(std::uint32_t address, std::uint32_t value) noexcept {
     case kDpTmem:
         return true; // Read-only hardware registers ignore writes.
     case kDpStatus:
-        if ((value & (1U << 0U)) != 0U) dpStatus_ &= ~kDpXbusDmemDma;
-        if ((value & (1U << 1U)) != 0U) dpStatus_ |= kDpXbusDmemDma;
+        if ((value & (1U << 0U)) != 0U) dpXbusDmemDma_ = false;
+        if ((value & (1U << 1U)) != 0U) dpXbusDmemDma_ = true;
+        dpStatus_ = (dpStatus_ & ~kDpXbusDmemDma) |
+            (dpXbusDmemDma_ ? kDpXbusDmemDma : 0U);
         if ((value & (1U << 2U)) != 0U) dpStatus_ &= ~kDpFreeze;
         if ((value & (1U << 3U)) != 0U) dpStatus_ |= kDpFreeze;
         if ((value & (1U << 4U)) != 0U) dpStatus_ &= ~kDpFlush;
