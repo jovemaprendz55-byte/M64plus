@@ -128,7 +128,7 @@ struct RdpSyncState final {
     std::uint64_t syncTileCount = 0;
     std::uint64_t syncFullCount = 0;
 
-    // Raw one-word state commands are retained until field-level decoding is added.
+    // Raw command words are retained alongside decoded state for diagnostics.
     std::uint64_t scissorCommand = 0;
     std::uint64_t otherModesCommand = 0;
     std::uint64_t combineCommand = 0;
