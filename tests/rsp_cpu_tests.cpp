@@ -72,6 +72,38 @@ void testCop0SpRegisterMoves() {
     require(!rsp.faulted(), "supported SP COP0 moves do not fault");
 }
 
+
+void testCop0DpRegisterMoves() {
+    Bus bus;
+    RspCpu rsp;
+    const auto cop0 = [](unsigned move, unsigned rt, unsigned rd) {
+        return (0x10U << 26U) | (move << 21U) | (rt << 16U) | (rd << 11U);
+    };
+    const std::uint32_t program[] = {
+        iType(0x09, 0, 1, 0x1000),
+        cop0(4, 1, 8),             // MTC0 DPC_START
+        iType(0x09, 0, 2, 0x1100),
+        cop0(4, 2, 9),             // MTC0 DPC_END
+        cop0(0, 3, 8),             // MFC0 DPC_START
+        cop0(0, 4, 9),             // MFC0 DPC_END
+        iType(0x09, 0, 5, 0x0002),
+        cop0(4, 5, 11),            // MTC0 DPC_STATUS: set XBUS_DMEM_DMA
+        cop0(0, 6, 11),            // MFC0 DPC_STATUS
+        cop0(0, 7, 10)             // MFC0 DPC_CURRENT
+    };
+    for (unsigned i = 0; i < sizeof(program) / sizeof(program[0]); ++i)
+        put(bus, i * 4U, program[i]);
+    for (unsigned i = 0; i < sizeof(program) / sizeof(program[0]); ++i)
+        require(rsp.step(bus), "execute COP0 DPC register transfer");
+    require(rsp.reg(3) == 0x1000U, "RSP MFC0 reads DPC_START");
+    require(rsp.reg(4) == 0x1100U, "RSP MFC0 reads DPC_END");
+    require(rsp.reg(6) == Bus::kDpXbusDmemDma,
+            "RSP MFC0 reads DPC_STATUS after MTC0 command");
+    require(rsp.reg(7) == 0x1000U,
+            "RSP MFC0 reads DPC_CURRENT initialized from DPC_START");
+    require(!rsp.faulted(), "DPC COP0 moves are supported");
+}
+
 void testArithmeticAndMemory() {
     Bus bus;
     RspCpu rsp;
@@ -1146,6 +1178,7 @@ void testCop2VectorAndControlMoves() {
 int main() {
     testUnsupportedInstructionFaultIsLatched();
     testCop0SpRegisterMoves();
+    testCop0DpRegisterMoves();
     testArithmeticAndMemory();
     testBranchDelaySlot();
     testScalarAddAndSetLessThan();
