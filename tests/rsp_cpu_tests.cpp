@@ -107,6 +107,30 @@ void testBranchDelaySlot() {
     require(rsp.halted(), "target BREAK halts");
     require(!rsp.faulted(), "BREAK after a branch is not an execution fault");
 }
+void testScalarAddAndSetLessThan() {
+    Bus bus;
+    RspCpu rsp;
+    put(bus, 0x00, iType(0x0F, 0, 1, 0xFFFF));
+    put(bus, 0x04, iType(0x0D, 1, 1, 0xFFFF)); // -1
+    put(bus, 0x08, iType(0x08, 1, 2, 1)); // ADDI -> 0
+    put(bus, 0x0C, iType(0x0A, 1, 3, 1)); // SLTI -1 < 1
+    put(bus, 0x10, iType(0x0B, 1, 4, 1)); // SLTIU -1 < 1 unsigned false
+    put(bus, 0x14, (1U << 21U) | (2U << 16U) | (5U << 11U) | 0x20U); // ADD
+    put(bus, 0x18, (1U << 21U) | (2U << 16U) | (6U << 11U) | 0x22U); // SUB
+    put(bus, 0x1C, (1U << 21U) | (2U << 16U) | (7U << 11U) | 0x2AU); // SLT
+    put(bus, 0x20, (1U << 21U) | (2U << 16U) | (8U << 11U) | 0x2BU); // SLTU
+    for (unsigned i = 0; i < 9U; ++i)
+        require(rsp.step(bus), "execute scalar arithmetic and comparisons");
+    require(rsp.reg(2) == 0U, "ADDI wraps at 32 bits");
+    require(rsp.reg(3) == 1U, "SLTI performs signed comparison");
+    require(rsp.reg(4) == 0U, "SLTIU performs unsigned comparison");
+    require(rsp.reg(5) == 0xFFFFFFFEU, "ADD performs 32-bit addition");
+    require(rsp.reg(6) == 0xFFFFFFFEU, "SUB performs 32-bit subtraction");
+    require(rsp.reg(7) == 1U, "SLT performs signed comparison");
+    require(rsp.reg(8) == 0U, "SLTU performs unsigned comparison");
+    require(!rsp.faulted(), "scalar arithmetic and comparisons are supported");
+}
+
 void testScalarVariableShiftsAndJalr() {
     Bus bus;
     RspCpu rsp;
@@ -1091,6 +1115,7 @@ int main() {
     testCop0SpRegisterMoves();
     testArithmeticAndMemory();
     testBranchDelaySlot();
+    testScalarAddAndSetLessThan();
     testScalarVariableShiftsAndJalr();
     testByteAndHalfwordMemory();
     testRegimmBranches();
