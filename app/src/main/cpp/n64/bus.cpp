@@ -349,23 +349,49 @@ std::uint32_t Bus::dpCommandsRemaining() const noexcept {
     return (dpEnd_ - dpCurrent_) / 8U;
 }
 
-bool Bus::readDpCommand(std::uint64_t& command) noexcept {
+bool Bus::peekDpCommand(std::uint64_t& command) const noexcept {
     if ((dpStatus_ & kDpFreeze) != 0U || dpCurrent_ > dpEnd_ ||
         dpEnd_ - dpCurrent_ < 8U || (dpCurrent_ & 7U) != 0U)
         return false;
 
-    bool readOk = false;
     if (dpXbusDmemDma_) {
         const std::uint32_t dmemAddress =
             kSpDmemBase + (dpCurrent_ & 0x0FF8U);
-        readOk = read64(dmemAddress, command);
-    } else {
-        readOk = rdram_.read64(dpCurrent_, command);
+        return read64(dmemAddress, command);
     }
-    if (!readOk) return false;
+    return rdram_.read64(dpCurrent_, command);
+}
 
-    dpCurrent_ += 8U;
+bool Bus::readDpCommandWords(std::uint64_t* words, std::size_t count) noexcept {
+    if (words == nullptr || count == 0U ||
+        (dpStatus_ & kDpFreeze) != 0U || dpCurrent_ > dpEnd_ ||
+        (dpCurrent_ & 7U) != 0U ||
+        count > static_cast<std::size_t>((dpEnd_ - dpCurrent_) / 8U) ||
+        count > static_cast<std::size_t>(UINT32_MAX / 8U))
+        return false;
+
+    const std::uint64_t byteCount = static_cast<std::uint64_t>(count) * 8U;
+    if (!dpXbusDmemDma_ &&
+        static_cast<std::uint64_t>(dpCurrent_) + byteCount > Rdram::kSize)
+        return false;
+
+    // Validate the complete range before writing output or moving the cursor.
+    // XBUS accesses wrap inside the 4 KiB SP DMEM window.
+    for (std::size_t i = 0; i < count; ++i) {
+        const std::uint32_t address = dpXbusDmemDma_
+            ? kSpDmemBase + ((dpCurrent_ + static_cast<std::uint32_t>(i * 8U)) & 0x0FF8U)
+            : dpCurrent_ + static_cast<std::uint32_t>(i * 8U);
+        std::uint64_t value = 0;
+        if (!read64(address, value)) return false;
+        words[i] = value;
+    }
+
+    dpCurrent_ += static_cast<std::uint32_t>(byteCount);
     return true;
+}
+
+bool Bus::readDpCommand(std::uint64_t& command) noexcept {
+    return readDpCommandWords(&command, 1U);
 }
 
 bool Bus::readDpRegister(std::uint32_t address, std::uint32_t& value) const noexcept {
