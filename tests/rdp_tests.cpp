@@ -552,7 +552,7 @@ void testLoadTileRgba32UpperBankStaysAlignedAcrossBankWrap() {
                 "seed RGBA32 source crossing lower TMEM bank boundary");
 
     const std::uint64_t setImage =
-        (0x3DULL << 56U) | (3ULL << 51U) | (1ULL << 32U) | 0x1B00ULL;
+        (0x3DULL << 56U) | (3ULL << 51U) | 0x1B00ULL;
     const std::uint64_t setTile =
         (0x35ULL << 56U) | (3ULL << 51U) |
         (1ULL << 41U) | (255ULL << 32U);
