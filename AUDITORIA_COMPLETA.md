@@ -1006,3 +1006,14 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - `native-lib.cpp` contém atualmente vários self-tests JNI, não uma instância de máquina persistente para execução de ROM. `N64Machine` agrega Bus/CPU/RSP, mas ainda não possui `RdpSyncState` nem ciclo de processamento RDP. O `Bus` já expõe `rdram()`, permitindo futuramente ler a imagem da RDRAM sem duplicar memória.
 - Próxima etapa técnica: definir a propriedade e o ciclo de vida de uma máquina nativa persistente, agregar estado RDP à máquina e fornecer uma API JNI segura para obter um snapshot de pixels. Depois, o renderer poderá fazer upload para textura GLES na própria thread GL. Não remover o triângulo de diagnóstico até existir imagem válida.
 - **Limitação funcional atual:** o conversor de framebuffer e seus testes estão integrados ao build, mas ainda não há uma fonte real de framebuffer produzida por comandos de desenho RDP; portanto, esta versão não renderiza jogos nem substitui o triângulo por uma imagem de ROM.
+
+
+## 17.3 Estado RDP integrado à máquina compartilhada (2026-11-22)
+
+- `N64Machine` agora possui `RdpSyncState` como parte do estado persistente da máquina, além de Bus, CPU principal e RSP. `reset()` limpa também o estado RDP.
+- Adicionada `runRdp(commandBudget)`: consome no máximo o orçamento informado, usando `RdpCommandProcessor::processNext`. Comandos não suportados continuam sendo reportados pelo processador e são consumidos, mas não são tratados como renderizados.
+- Adicionados testes de integração que escrevem `SET_COLOR_IMAGE` no fluxo DPC, executam a máquina e verificam formato RGBA, tamanho 16-bit, largura 320, endereço 0x2000 e limpeza após reset.
+- `rdp.cpp` foi incluído no alvo de testes da máquina no CMake raiz.
+- Commits na `main`: `8c361f836f105d1a0183f4d01b79ea4edc07b52b` (interface), `708b165138c05280a88eb07f1541c4f4d8b4a74b` (implementação), `26b478360c6d74c118aea3e5156c93ebffc427a4` (teste) e `08d00b33ba8f3a5b830a678afb91a43b0ee35ac9` (CMake).
+- **Escopo:** a máquina agora conserva e processa comandos RDP que já têm implementação de estado/carga. Triângulos, retângulos de textura e demais comandos de desenho ainda não rasterizam pixels; este passo não cria framebuffer renderizado nem altera a tela Android.
+- **Validação:** aguarda o CI do commit mais recente; não declarar os novos testes aprovados até o workflow terminar.
