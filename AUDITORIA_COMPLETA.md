@@ -986,3 +986,13 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - O workflow seguinte, disparado pelo commit de auditoria, também concluiu com sucesso: [#45025241020](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45025241020), com `native-host-tests` e `assemble-debug` success.
 - **Escopo da validação:** confirma testes automatizados e compilação. Não demonstra que LOAD_TILE 4-bit tenha fidelidade completa em hardware, nem que o emulador renderize jogos.
 - Próxima frente proposta: desenhar uma interface explícita de framebuffer entre a memória de imagem do RDP e o renderer Android. Antes de integrar, especificar formato de pixel, stride/largura, altura, sincronização de thread e propriedade do buffer; manter a tela de diagnóstico como fallback até existir framebuffer válido.
+
+
+## 17.1 Primeira estrutura de framebuffer RDP (2026-11-22)
+
+- Criada a classe `RdpFramebuffer` em `app/src/main/cpp/n64/framebuffer.h/.cpp` para converter uma região de color image da RDRAM em pixels `0xAARRGGBB`, formato conveniente para a futura ponte JNI/Android.
+- Formatos inicialmente aceitos: RGBA16 (5551) e RGBA32 (8888), ambos com leitura big-endian por meio da classe RDRAM existente. RGBA16 expande os canais de 5 bits para 8 bits e converte o bit alpha; RGBA32 reorganiza RGBA para ARGB.
+- A função recebe explicitamente a altura porque o descritor SET_COLOR_IMAGE fornece a largura, mas não a altura. A área é tratada como linhas contíguas com stride igual à largura; ainda não há suporte a stride separado, formatos CI/IA/I/YUV, resolução dinâmica automática ou sincronização com a GPU.
+- Validação defensiva: formato, tamanho, dimensões máximas (1024x1024), quantidade de pixels e faixa completa na RDRAM. O buffer de saída só é substituído depois que toda a conversão termina com sucesso.
+- Criado `tests/framebuffer_tests.cpp` cobrindo cores RGBA16, conversão RGBA32, ordem de bytes, alpha, formato inválido, dimensões excessivas e endereço fora da RDRAM. Registrado novo alvo CTest `m64plus_framebuffer_tests` e inclusão do novo arquivo na biblioteca Android.
+- **Status:** implementação enviada à `main`; aguarda CI. Mesmo após CI verde, isso será somente o conversor de memória para pixels. Ainda falta conectar a instância real de RDRAM/RDP da máquina ao JNI, enviar o buffer para a thread GL e substituir o triângulo por textura. Não há rasterizador RDP nem renderização de jogos nesta etapa.
