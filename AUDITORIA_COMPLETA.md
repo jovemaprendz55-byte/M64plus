@@ -744,3 +744,19 @@ Implementadas em 2026-11-22:
 - ausência de SET_TEXTURE_IMAGE/SET_TILE ou leitura inválida retorna Unsupported depois que o comando foi consumido.
 
 **Validação:** testes nativos e compilação Android desta alteração dependem do workflow do commit; não declarar aprovados até o GitHub Actions concluir.
+
+
+## 16.13 LOAD_TLUT — expansão de entradas de paleta (2026-11-22)
+
+Foi implementada a transferência inicial do comando LOAD_TLUT (0x30):
+- exige SET_TEXTURE_IMAGE em 16 bits e um descritor SET_TILE válido;
+- calcula a quantidade como (SH >> 2) + 1, conforme o campo count usado pelas macros GBI;
+- exige endereço TMEM na metade alta (palavras 256 a 511) e limita a 256 entradas;
+- lê cada cor de 16 bits da RDRAM em big-endian e replica quatro vezes para preencher uma palavra TMEM de 64 bits;
+- valida todas as leituras de origem antes de alterar TMEM;
+- atualiza o tamanho do tile associado com os campos do comando de carga;
+- adiciona teste com três entradas de paleta e verificação das três palavras de 64 bits.
+
+**Limitações:** não há ainda interpretação de formato RGBA16 versus IA16 durante a amostragem, nem leitura de índices CI pelo sampler (ainda inexistente). A implementação não simula temporização/pipeline do carregamento. O caminho LOAD_BLOCK continua apenas decodificado, sem transferência de texels.
+
+Referências técnicas consultadas: Nintendo 64 Programming Manual, capítulo 13.9 (LOAD_TLUT expande cada cor de 16 bits para uma palavra de 64 bits na metade alta da TMEM); SGI/Nintendo Ultra64 RDP Command Summary, tabela LOAD_TLUT (SL/SH, count e exigência de endereço TMEM na metade alta); macros GBI gDPLoadTLUTCmd (count codificado em bits 23:14).
