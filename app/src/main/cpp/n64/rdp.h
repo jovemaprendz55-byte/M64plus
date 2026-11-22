@@ -31,4 +31,24 @@ public:
     static bool fetchNext(Bus& bus, RdpCommandPacket& packet) noexcept;
 };
 
+enum class RdpProcessResult : std::uint8_t {
+    NoCommand,
+    Processed,
+    Unsupported
+};
+
+struct RdpSyncState final {
+    std::uint64_t syncLoadCount = 0;
+    std::uint64_t syncPipeCount = 0;
+    std::uint64_t syncTileCount = 0;
+    std::uint64_t syncFullCount = 0;
+};
+
+class RdpCommandProcessor final {
+public:
+    // Processes the next command that has a supported non-rendering implementation.
+    // Unsupported commands are consumed and reported explicitly; no pixels are rendered.
+    static RdpProcessResult processNext(Bus& bus, RdpSyncState& state) noexcept;
+};
+
 } // namespace m64plus::n64
