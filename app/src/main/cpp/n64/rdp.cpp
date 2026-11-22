@@ -91,6 +91,72 @@ bool loadTileTexels(Bus& bus, RdpSyncState& state,
     return true;
 }
 
+bool loadBlockTexels(Bus& bus, RdpSyncState& state,
+                      const RdpTextureLoadState& load) noexcept {
+    if (!state.hasTextureImage || !state.hasTile[load.tile] ||
+        load.sh < load.sl || ((load.sh - load.sl) & 0x03U) != 0U) return false;
+    const RdpImageState& image = state.textureImage;
+    const RdpTileState& tile = state.tiles[load.tile];
+    const unsigned bitsPerTexel = image.size == 0U ? 4U
+        : (image.size == 1U ? 8U : (image.size == 2U ? 16U : 32U));
+    const std::uint32_t count =
+        (static_cast<std::uint32_t>(load.sh - load.sl) >> 2U) + 1U;
+    if (count == 0U || count > 2048U) return false;
+    const std::uint64_t firstTexel =
+        static_cast<std::uint64_t>(load.tl >> 2U) * image.width + (load.sl >> 2U);
+    const std::uint64_t totalBits = static_cast<std::uint64_t>(count) * bitsPerTexel;
+    const std::uint64_t sourceFirstBit = firstTexel * bitsPerTexel;
+    const std::uint64_t sourceFirstByte = sourceFirstBit / 8U;
+    const std::uint64_t sourceBytes =
+        ((sourceFirstBit & 7U) + totalBits + 7U) / 8U;
+    for (std::uint64_t byte = 0; byte < sourceBytes; ++byte) {
+        const std::uint64_t address =
+            static_cast<std::uint64_t>(image.address) + sourceFirstByte + byte;
+        std::uint8_t ignored = 0;
+        if (address > UINT32_MAX ||
+            !bus.read8(static_cast<std::uint32_t>(address), ignored)) return false;
+    }
+
+    const std::uint64_t destinationBase =
+        static_cast<std::uint64_t>(tile.tmem) * 8U;
+    for (std::uint32_t i = 0; i < count; ++i) {
+        const std::uint64_t sourceTexel = firstTexel + i;
+        if (bitsPerTexel == 4U) {
+            const std::uint64_t sourceAddress =
+                static_cast<std::uint64_t>(image.address) + sourceTexel / 2U;
+            std::uint8_t sourceByte = 0;
+            if (sourceAddress > UINT32_MAX ||
+                !bus.read8(static_cast<std::uint32_t>(sourceAddress), sourceByte)) return false;
+            const std::uint8_t nibble = (sourceTexel & 1U) != 0U
+                ? static_cast<std::uint8_t>(sourceByte & 0x0FU)
+                : static_cast<std::uint8_t>(sourceByte >> 4U);
+            const std::uint16_t destinationAddress =
+                static_cast<std::uint16_t>((destinationBase + i / 2U) & 0x0FFFU);
+            std::uint8_t destinationByte = 0;
+            state.tmem.readByte(destinationAddress, destinationByte);
+            destinationByte = (i & 1U) != 0U
+                ? static_cast<std::uint8_t>((destinationByte & 0xF0U) | nibble)
+                : static_cast<std::uint8_t>((destinationByte & 0x0FU) | (nibble << 4U));
+            state.tmem.writeByte(destinationAddress, destinationByte);
+        } else {
+            const unsigned bytesPerTexel = bitsPerTexel / 8U;
+            for (unsigned byte = 0; byte < bytesPerTexel; ++byte) {
+                const std::uint64_t sourceAddress =
+                    static_cast<std::uint64_t>(image.address) +
+                    sourceTexel * bytesPerTexel + byte;
+                std::uint8_t value = 0;
+                if (sourceAddress > UINT32_MAX ||
+                    !bus.read8(static_cast<std::uint32_t>(sourceAddress), value)) return false;
+                const std::uint64_t destinationAddress =
+                    destinationBase + static_cast<std::uint64_t>(i) * bytesPerTexel + byte;
+                state.tmem.writeByte(
+                    static_cast<std::uint16_t>(destinationAddress & 0x0FFFU), value);
+            }
+        }
+    }
+    return true;
+}
+
 bool loadTlutEntries(Bus& bus, RdpSyncState& state,
                      const RdpTextureLoadState& load) noexcept {
     if (!state.hasTextureImage || !state.hasTile[load.tile] ||
@@ -245,6 +311,10 @@ RdpProcessResult RdpCommandProcessor::processNext(
         state.hasTextureLoad = true;
         if (load.kind == RdpTextureLoadKind::Tile &&
             !loadTileTexels(bus, state, load)) {
+            return RdpProcessResult::Unsupported;
+        }
+        if (load.kind == RdpTextureLoadKind::Block &&
+            !loadBlockTexels(bus, state, load)) {
             return RdpProcessResult::Unsupported;
         }
         if (load.kind == RdpTextureLoadKind::Tlut &&
