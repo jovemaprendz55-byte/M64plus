@@ -3,6 +3,16 @@
 #include "n64/bus.h"
 
 namespace m64plus::n64 {
+namespace {
+std::int16_t signExtend9(std::uint64_t value) noexcept {
+    const std::uint16_t bits = static_cast<std::uint16_t>(value & 0x01FFU);
+    const std::int16_t signedValue = static_cast<std::int16_t>(bits);
+    return (bits & 0x0100U) != 0U
+        ? static_cast<std::int16_t>(signedValue - 0x0200)
+        : signedValue;
+}
+} // namespace
+
 
 RdpCommandInfo RdpCommandDecoder::decode(std::uint64_t header) noexcept {
     const auto opcode = static_cast<std::uint8_t>((header >> 56U) & 0x3FU);
@@ -67,6 +77,42 @@ RdpProcessResult RdpCommandProcessor::processNext(
         // MI interrupt source 5 is the Display Processor.
         bus.setMiInterrupt(5U, true);
         return RdpProcessResult::Processed;
+    case 0x2AU: { // SET_KEY_GB
+        const std::uint64_t command = packet.words[0];
+        state.keyGbCommand = command;
+        state.keyGb = {
+            static_cast<std::uint16_t>((command >> 44U) & 0x0FFFU),
+            static_cast<std::uint16_t>((command >> 32U) & 0x0FFFU),
+            static_cast<std::uint8_t>((command >> 24U) & 0xFFU),
+            static_cast<std::uint8_t>((command >> 16U) & 0xFFU),
+            static_cast<std::uint8_t>((command >> 8U) & 0xFFU),
+            static_cast<std::uint8_t>(command & 0xFFU)
+        };
+        state.hasKeyGb = true;
+        return RdpProcessResult::Processed;
+    }
+    case 0x2BU: { // SET_KEY_R
+        const std::uint64_t command = packet.words[0];
+        state.keyRCommand = command;
+        state.keyR = {
+            static_cast<std::uint16_t>((command >> 16U) & 0x0FFFU),
+            static_cast<std::uint8_t>((command >> 8U) & 0xFFU),
+            static_cast<std::uint8_t>(command & 0xFFU)
+        };
+        state.hasKeyR = true;
+        return RdpProcessResult::Processed;
+    }
+    case 0x2CU: { // SET_CONVERT
+        const std::uint64_t command = packet.words[0];
+        state.convertCommand = command;
+        state.convert.coefficients = {{
+            signExtend9(command >> 45U), signExtend9(command >> 36U),
+            signExtend9(command >> 27U), signExtend9(command >> 18U),
+            signExtend9(command >> 9U), signExtend9(command)
+        }};
+        state.hasConvert = true;
+        return RdpProcessResult::Processed;
+    }
     case 0x2DU: { // SET_SCISSOR
         const std::uint64_t command = packet.words[0];
         state.scissorCommand = command;
