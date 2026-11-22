@@ -370,6 +370,10 @@ void testRdpTextureLoadCommandFields() {
     using namespace m64plus::n64;
     Bus bus;
     RdpSyncState state{};
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (63ULL << 32U);
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (8ULL << 41U) | (7ULL << 24U);
     const std::uint64_t commands[] = {
         (0x30ULL << 56U) | (0x012ULL << 44U) | (0x003ULL << 32U) |
             (5ULL << 24U) | (0x045ULL << 12U) | 0x006ULL,
@@ -378,17 +382,23 @@ void testRdpTextureLoadCommandFields() {
         (0x34ULL << 56U) | (0x031ULL << 44U) | (0x007ULL << 32U) |
             (7ULL << 24U) | (0x098ULL << 12U) | 0x00AULL
     };
+    require(bus.write64(0x880U, setImage) && bus.write64(0x888U, setTile),
+            "seed image and tile state for LOAD_TILE");
     for (std::size_t i = 0; i < 3U; ++i)
-        require(bus.write64(0x880U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+        require(bus.write64(0x890U + static_cast<std::uint32_t>(i * 8U), commands[i]),
                 "seed RDP texture load command");
     require(bus.write32(Bus::kDpStart, 0x880U), "set DPC start for texture loads");
-    require(bus.write32(Bus::kDpEnd, 0x898U), "publish texture load commands");
+    require(bus.write32(Bus::kDpEnd, 0x8A8U), "publish texture load commands");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TEXTURE_IMAGE is processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE is processed");
     const RdpTextureLoadKind expectedKinds[] = {
         RdpTextureLoadKind::Tlut, RdpTextureLoadKind::Block, RdpTextureLoadKind::Tile
     };
     for (std::size_t i = 0; i < 3U; ++i) {
         require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
-                "texture load command header is decoded");
+                "texture load command is decoded and handled");
         require(state.hasTextureLoad && state.lastTextureLoad.kind == expectedKinds[i],
                 "texture load kind is identified");
         require(state.lastTextureLoad.rawCommand == commands[i],
