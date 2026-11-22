@@ -49,6 +49,29 @@ void testUnsupportedInstructionFaultIsLatched() {
             "explicit PC change clears fault state");
 }
 
+void testCop0SpRegisterMoves() {
+    Bus bus;
+    RspCpu rsp;
+    const auto cop0 = [](unsigned move, unsigned rt, unsigned rd) {
+        return (0x10U << 26U) | (move << 21U) | (rt << 16U) | (rd << 11U);
+    };
+    put(bus, 0x00, iType(0x09, 0, 1, 0x0001));
+    put(bus, 0x04, cop0(4, 1, 0)); // MTC0 SP_MEM_ADDR
+    put(bus, 0x08, cop0(0, 2, 0)); // MFC0 SP_MEM_ADDR
+    put(bus, 0x0C, iType(0x09, 0, 3, 0x0001));
+    put(bus, 0x10, cop0(4, 3, 4)); // MTC0 SP_STATUS: clear HALT
+    put(bus, 0x14, cop0(0, 4, 4)); // MFC0 SP_STATUS
+    put(bus, 0x18, cop0(0, 5, 7)); // MFC0 SP_SEMAPHORE (read sets it)
+    put(bus, 0x1C, cop0(0, 6, 7)); // second read observes set semaphore
+    for (unsigned i = 0; i < 8U; ++i)
+        require(rsp.step(bus), "execute COP0 SP register transfer");
+    require(rsp.reg(2) == 1U, "MFC0 reads SP_MEM_ADDR");
+    require(rsp.reg(4) == 0U, "MTC0 SP_STATUS clears HALT and MFC0 reads it");
+    require(rsp.reg(5) == 0U && rsp.reg(6) == 1U,
+            "MFC0 SP_SEMAPHORE reads then sets the semaphore");
+    require(!rsp.faulted(), "supported SP COP0 moves do not fault");
+}
+
 void testArithmeticAndMemory() {
     Bus bus;
     RspCpu rsp;
@@ -1033,7 +1056,7 @@ void testCop2VectorAndControlMoves() {
 
 int main() {
     testUnsupportedInstructionFaultIsLatched();
-    testArithmeticAndMemory();
+    testCop0SpRegisterMoves();\n    testArithmeticAndMemory();
     testBranchDelaySlot();
     testByteAndHalfwordMemory();
     testRegimmBranches();
