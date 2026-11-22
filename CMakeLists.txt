@@ -37,3 +37,12 @@ target_include_directories(m64plus_machine_tests PRIVATE app/src/main/cpp)
 target_compile_features(m64plus_machine_tests PRIVATE cxx_std_17)
 target_compile_options(m64plus_machine_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME m64plus_machine_tests COMMAND m64plus_machine_tests)
+
+add_executable(m64plus_rdp_tests
+    tests/rdp_tests.cpp
+    app/src/main/cpp/n64/rdp.cpp
+)
+target_include_directories(m64plus_rdp_tests PRIVATE app/src/main/cpp)
+target_compile_features(m64plus_rdp_tests PRIVATE cxx_std_17)
+target_compile_options(m64plus_rdp_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME m64plus_rdp_tests COMMAND m64plus_rdp_tests)
