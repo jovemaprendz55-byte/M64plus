@@ -713,3 +713,13 @@ Implementadas em 2026-11-22:
 - **Limite importante:** a TMEM está pronta como armazenamento básico, mas ainda não recebe dados dos comandos `LOAD_TILE`, `LOAD_BLOCK` ou `LOAD_TLUT`. Swizzle de bancos/halfwords, expansão TLUT e regras de transferência por formato ainda não foram implementados. Nenhuma textura pode ser amostrada ou renderizada nesta etapa.
 - Referência arquitetural: Nintendo 64 Programming Manual, capítulo 13 (Texture Mapping), descreve TMEM on-chip de 4 KiB, tiles e caminhos de carga.
 
+
+
+### 16.11. Decodificação inicial dos comandos de carga de textura (2026-11-22)
+
+- O processador reconhece os cabeçalhos `LOAD_TLUT (0x30)`, `LOAD_BLOCK (0x33)` e `LOAD_TILE (0x34)`.
+- Criado estado tipado comum com tipo de carga, índice de tile, SL/TL/SH e TH ou DXT, além da palavra bruta.
+- Testes integrados pelo fluxo DPC verificam os três tipos e os campos do comando `LOAD_TILE`.
+- O teste de comando reservado foi atualizado para opcode `0x31`, que permanece não implementado.
+- **Limite:** esta etapa somente interpreta os cabeçalhos. Não lê texels da RDRAM, não escreve na TMEM, não calcula stride/padding, não executa DXT/interleaving e não expande TLUT. A TMEM continua sem ser alimentada e não há amostragem ou renderização de texturas.
+- Referências: SGI/Nintendo RDP Command Summary (campos de Load TLUT) e Nintendo 64 Programming Manual, capítulo 13, seções de Tile Loading e Texture Loading.
