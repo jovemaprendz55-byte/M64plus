@@ -717,11 +717,25 @@ bool RspCpu::step(Bus& bus) noexcept {
         switch (function) {
         case 0x00U: result = b << shift; break; // SLL
         case 0x02U: result = b >> shift; break; // SRL
+        case 0x03U: result = static_cast<std::uint32_t>(
+            static_cast<std::int32_t>(b) >> shift); break; // SRA
+        case 0x04U: result = b << (a & 31U); break; // SLLV
+        case 0x06U: result = b >> (a & 31U); break; // SRLV
+        case 0x07U: result = static_cast<std::uint32_t>(
+            static_cast<std::int32_t>(b) >> (a & 31U)); break; // SRAV
         case 0x08U: // JR
             if (inDelaySlot) { halted_ = true; faulted_ = true; return false; }
             scheduleBranch = true;
             branchTarget = a & kPcMask;
             writeRegister = false;
+            break;
+        case 0x09U: // JALR
+            if (inDelaySlot) { halted_ = true; faulted_ = true; return false; }
+            scheduleBranch = true;
+            branchTarget = a & kPcMask;
+            destination = rd;
+            result = (nextPc + 4U) & kPcMask;
+            writeRegister = true;
             break;
         case 0x0DU: // BREAK
             if (inDelaySlot) { halted_ = true; faulted_ = true; return false; }
@@ -736,7 +750,7 @@ bool RspCpu::step(Bus& bus) noexcept {
         case 0x27U: result = ~(a | b); break;
         default: halted_ = true; faulted_ = true; return false;
         }
-        if (function != 0x08U && function != 0x0DU) writeRegister = true;
+        if (function != 0x08U && function != 0x09U && function != 0x0DU) writeRegister = true;
         break;
     case 0x10U: { // COP0: scalar moves to/from SP control registers.
         if (rs == 0U) { // MFC0
