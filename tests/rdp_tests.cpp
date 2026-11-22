@@ -306,6 +306,29 @@ void testRdpColorAndDepthStateCommands() {
             "SET_Z_IMAGE extracts 26-bit DRAM address");
 }
 
+
+void testRdpConvertAndKeyStateCommands() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint64_t convert = (0x2CULL << 56U) | (0x1FFULL << 45U) | (0x001ULL << 36U) | (0x100ULL << 27U) | (0x0FFULL << 18U) | (0x180ULL << 9U) | 0x07FULL;
+    const std::uint64_t keyGb = (0x2AULL << 56U) | (0xABCULL << 44U) | (0x123ULL << 32U) | (0x45ULL << 24U) | (0x67ULL << 16U) | (0x89ULL << 8U) | 0xABULL;
+    const std::uint64_t keyR = (0x2BULL << 56U) | (0xDEFULL << 16U) | (0xCDULL << 8U) | 0xEFULL;
+    const std::uint64_t commands[] = {convert, keyGb, keyR};
+    for (std::size_t i = 0; i < 3U; ++i)
+        require(bus.write64(0x840U + static_cast<std::uint32_t>(i * 8U), commands[i]), "seed RDP convert/key command");
+    require(bus.write32(Bus::kDpStart, 0x840U), "set DPC start for convert/key");
+    require(bus.write32(Bus::kDpEnd, 0x858U), "publish convert/key commands");
+    for (std::size_t i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed, "RDP convert/key command is processed");
+    require(state.hasConvert && state.convert.coefficients[0] == -1 && state.convert.coefficients[1] == 1 && state.convert.coefficients[2] == -256 && state.convert.coefficients[3] == 255 && state.convert.coefficients[4] == -128 && state.convert.coefficients[5] == 127, "SET_CONVERT extracts and sign-extends six 9-bit coefficients");
+    require(state.convertCommand == convert, "SET_CONVERT retains raw command");
+    require(state.hasKeyGb && state.keyGb.widthG == 0xABCU && state.keyGb.widthB == 0x123U && state.keyGb.centerG == 0x45U && state.keyGb.scaleG == 0x67U && state.keyGb.centerB == 0x89U && state.keyGb.scaleB == 0xABU, "SET_KEY_GB extracts green and blue key controls");
+    require(state.keyGbCommand == keyGb, "SET_KEY_GB retains raw command");
+    require(state.hasKeyR && state.keyR.width == 0xDEFU && state.keyR.center == 0xCDU && state.keyR.scale == 0xEFU, "SET_KEY_R extracts red key controls");
+    require(state.keyRCommand == keyR, "SET_KEY_R retains raw command");
+}
+
 void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
@@ -339,6 +362,7 @@ int main() {
     testRdpStateFieldDecoding();
     testRdpOtherModesAndCombineDecoding();
     testRdpColorAndDepthStateCommands();
+    testRdpConvertAndKeyStateCommands();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
