@@ -50,6 +50,8 @@ bool loadTileTexels(Bus& bus, RdpSyncState& state,
         const std::uint64_t destinationRow =
             destinationBase + static_cast<std::uint64_t>(row) * destinationStride;
         for (std::uint32_t column = 0; column < rowTexels; ++column) {
+            const std::uint64_t sourceTexel =
+                static_cast<std::uint64_t>(y0 + row) * image.width + x0 + column;
             const std::uint64_t destinationTexel =
                 destinationRow + (static_cast<std::uint64_t>(column) * bitsPerTexel) / 8U;
             if (bitsPerTexel == 4U) {
