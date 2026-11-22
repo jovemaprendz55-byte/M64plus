@@ -961,3 +961,11 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Workflow [#45024990879](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45024990879), commit de teste `86ec0bb1e0405b471c6d9a8e1d632e05cf219f6f`: `native-host-tests` success e `assemble-debug` success; upload do APK success.
 - Artefato `m64plus-debug-apk`, ID `14755820040`, tamanho 576.614 bytes, não expirado na consulta de 2026-11-22.
 - Esse CI valida o teste de regressão 16-bit restaurado e o teste RGBA32 de wrap, além dos demais testes automatizados e compilação Android. Não valida precisão de hardware nem compatibilidade com ROMs comerciais.
+
+
+## 16.30 Teste dedicado de LOAD_TILE 4-bit (2026-11-22)
+
+- Adicionado teste com imagem CI/4-bit de quatro texels por linha e duas linhas, verificando empacotamento de nibble alto/baixo e troca dos dois blocos de 32 bits na linha ímpar.
+- Vetor esperado: primeira linha em TMEM 0x00/0x01 (`0x12, 0x34`); segunda linha em 0x0C/0x0D (`0x56, 0x78`) com `line=1`.
+- Teste enviado à `main` no commit `41aa27c14ad76e9950d4a2bd187ea85d7a7047f2`. CI pendente.
+- Limitação: esse teste confirma o modelo implementado de nibble packing e odd-row swizzle, mas não estabelece sozinho que a transferência direta 4-bit reproduz todo comportamento de hardware; comparar com implementação de referência continua necessário.
