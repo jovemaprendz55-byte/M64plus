@@ -343,6 +343,28 @@ void testRdpPrimitiveDepthCommand() {
     require(state.primDepthCommand == command, "SET_PRIM_DEPTH retains raw command");
 }
 
+
+void testRdpTextureMemory() {
+    using namespace m64plus::n64;
+    RdpTextureMemory tmem{};
+    std::uint8_t byte = 0xFFU;
+    require(tmem.readByte(0U, byte) && byte == 0U, "TMEM starts cleared");
+    require(tmem.writeByte(0x0123U, 0xA5U), "write TMEM byte");
+    require(tmem.readByte(0x0123U, byte) && byte == 0xA5U, "read back TMEM byte");
+    constexpr std::uint64_t word = 0x0123456789ABCDEFULL;
+    require(tmem.write64(0x0200U, word), "write TMEM 64-bit word");
+    std::uint64_t actual = 0U;
+    require(tmem.read64(0x0200U, actual) && actual == word, "TMEM 64-bit big-endian round trip");
+    constexpr std::uint64_t wrappingWord = 0xFEDCBA9876543210ULL;
+    require(tmem.write64(0x0FFCU, wrappingWord), "write TMEM word crossing 4 KiB boundary");
+    require(tmem.read64(0x0FFCU, actual) && actual == wrappingWord, "TMEM wraps at 4 KiB boundary");
+    require(tmem.writeByte(0x1000U, 0x5AU), "write address beyond TMEM wraps");
+    require(tmem.readByte(0U, byte) && byte == 0x5AU, "TMEM 12-bit address mask");
+    tmem.reset();
+    require(tmem.readByte(0U, byte) && byte == 0U &&
+            tmem.readByte(0x0FFCU, byte) && byte == 0U, "TMEM reset clears memory");
+}
+
 void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
@@ -378,6 +400,7 @@ int main() {
     testRdpColorAndDepthStateCommands();
     testRdpConvertAndKeyStateCommands();
     testRdpPrimitiveDepthCommand();
+    testRdpTextureMemory();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
