@@ -21,7 +21,9 @@ RdpCommandInfo RdpCommandDecoder::decode(std::uint64_t header) noexcept {
     // All six-bit opcode values have a defined framing length. This flag
     // distinguishes currently documented command families from reserved
     // encodings; unknown commands still consume their one-word header.
-    const bool known = opcode <= 0x3FU;
+    const bool known =
+        (opcode >= 0x08U && opcode <= 0x0FU) ||
+        (opcode >= 0x24U && opcode <= 0x3FU);
     return {opcode, words, known};
 }
 
