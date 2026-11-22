@@ -939,3 +939,8 @@ Referências: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md ; htt
 - Código enviado à `main`: `e693b2cf918a0f669afc0aa569c686442c8f5c36`; teste enviado à `main`: `48395912d256e9922bb2884794594b9be6ec1287`.
 - **Status:** correção ainda não considerada validada até o CI concluir. A prova atual é um teste unitário determinístico; ainda falta comparação contra ParaLLEl-RDP/Angrylion ou hardware para todos os alinhamentos e limites.
 - Referência usada para a regra de endereço: RustyN64 RDP notes, seção “The TMEM loads”, que descreve a separação RG/BA e o mascaramento em 0x7FF: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md .
+
+
+### Ajuste do vetor de limite RGBA32
+
+Ao revisar o novo vetor antes do CI, foi corrigido o campo WIDTH de SET_TEXTURE_IMAGE: o campo codifica largura menos um, portanto o teste de uma coluna deve gravar zero nesse campo. Sem esse ajuste, a segunda linha apontaria para além dos oito bytes de origem preparados. Correção enviada no commit `709b23f47fd7e22e7a2600e38e17c89584ee3c72`; o CI desse commit é o que deve ser usado para validar o teste final.
