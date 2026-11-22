@@ -496,3 +496,10 @@ A auditoria ainda deve continuar por:
 - Os primeiros workflows da adição COP0 falharam por um caractere literal de escape de nova linha inserido indevidamente na chamada do teste em main; o código de produção compilou.
 - A chamada foi corrigida para uma quebra de linha real. A revisão posterior de shifts/JALR também está incluída nos workflows mais recentes.
 - A validação final deve considerar os workflows posteriores a esta correção, não os runs iniciais com erro de formatação.
+
+
+### Continuação do RSP — aritmética e comparações escalares (2026-11-22)
+- Adicionados ADD, ADDI, SUB, SLT, SLTU, SLTI e SLTIU ao subconjunto escalar do RSP.
+- ADD/ADDI e SUB usam aritmética de 32 bits com wrap, conforme a unidade escalar sem exceções aritméticas do RSP; comparações signed e unsigned são separadas.
+- Testes cobrem valores negativos, limites de 32 bits e comparações signed/unsigned.
+- CI pendente.
