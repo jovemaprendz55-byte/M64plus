@@ -447,6 +447,74 @@ void testLoadTileCopiesTextureImageIntoTmem() {
             "LOAD_TILE preserves the odd-row texels after halfword swap");
 }
 
+
+void testLoadTileSwizzlesOddRowsFor16BitTexels() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    require(bus.write16(0x1800U, 0x1122U) &&
+            bus.write16(0x1802U, 0x3344U) &&
+            bus.write16(0x1804U, 0x5566U) &&
+            bus.write16(0x1806U, 0x7788U),
+            "seed two-row 16-bit LOAD_TILE texture");
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (2ULL << 51U) | (3ULL << 32U) | 0x1800ULL;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (2ULL << 51U) | (1ULL << 41U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 32U) | (4ULL << 12U) | 4ULL;
+    require(bus.write64(0xA80U, setImage) &&
+            bus.write64(0xA88U, setTile) &&
+            bus.write64(0xA90U, loadTile),
+            "seed 16-bit LOAD_TILE command sequence");
+    require(bus.write32(Bus::kDpStart, 0xA80U) &&
+            bus.write32(Bus::kDpEnd, 0xA98U),
+            "publish 16-bit LOAD_TILE command sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) ==
+                    RdpProcessResult::Processed,
+                "16-bit LOAD_TILE command executes");
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0x11U &&
+            state.tmem.readByte(1U, value) && value == 0x22U &&
+            state.tmem.readByte(2U, value) && value == 0x33U &&
+            state.tmem.readByte(3U, value) && value == 0x44U,
+            "16-bit LOAD_TILE preserves first-row big-endian texels");
+    require(state.tmem.readByte(12U, value) && value == 0x55U &&
+            state.tmem.readByte(13U, value) && value == 0x66U &&
+            state.tmem.readByte(14U, value) && value == 0x77U &&
+            state.tmem.readByte(15U, value) && value == 0x88U,
+            "16-bit LOAD_TILE swaps odd-row 32-bit halves");
+}
+
+void testLoadTileRejects32BitTexelsWithoutChangingTmem() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    state.tmem.writeByte(0U, 0xA5U);
+    require(bus.write32(0x1A00U, 0x12345678U),
+            "seed 32-bit LOAD_TILE source");
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (3ULL << 51U) | (1ULL << 32U) | 0x1A00ULL;
+    const std::uint64_t setTile = (0x35ULL << 56U) | (3ULL << 51U);
+    const std::uint64_t loadTile = (0x34ULL << 56U);
+    require(bus.write64(0xAA0U, setImage) &&
+            bus.write64(0xAA8U, setTile) &&
+            bus.write64(0xAB0U, loadTile),
+            "seed unsupported 32-bit LOAD_TILE sequence");
+    require(bus.write32(Bus::kDpStart, 0xAA0U) &&
+            bus.write32(Bus::kDpEnd, 0xAB8U),
+            "publish unsupported 32-bit LOAD_TILE sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
+            RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "32-bit LOAD_TILE setup commands execute");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "32-bit LOAD_TILE is explicitly unsupported");
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0xA5U,
+            "unsupported 32-bit LOAD_TILE leaves TMEM unchanged");
+}
+
 void testLoadBlockCopiesContiguousTexelsIntoTmem() {
     using namespace m64plus::n64;
     Bus bus;
@@ -693,6 +761,8 @@ int main() {
     testRdpTextureMemory();
     testRdpTextureLoadCommandFields();
     testLoadTileCopiesTextureImageIntoTmem();
+    testLoadTileSwizzlesOddRowsFor16BitTexels();
+    testLoadTileRejects32BitTexelsWithoutChangingTmem();
     testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadBlockDxtSwapsOddLineWords();
     testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines();
