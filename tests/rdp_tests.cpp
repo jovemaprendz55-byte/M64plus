@@ -209,6 +209,66 @@ void testRdpStateFieldDecoding() {
             "SET_COLOR_IMAGE extracts format, size, width plus one and address");
 }
 
+
+void testRdpOtherModesAndCombineDecoding() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint64_t other =
+        (0x2FULL << 56U) | (2ULL << 52U) | (1ULL << 51U) |
+        (1ULL << 49U) | (1ULL << 47U) | (1ULL << 45U) |
+        (1ULL << 43U) | (1ULL << 40U) | (2ULL << 38U) |
+        (1ULL << 36U) | (2ULL << 30U) | (1ULL << 28U) |
+        (3ULL << 26U) | (2ULL << 24U) | (1ULL << 22U) |
+        (3ULL << 20U) | (2ULL << 18U) | (1ULL << 16U) |
+        (1ULL << 14U) | (1ULL << 13U) | (1ULL << 12U) |
+        (2ULL << 10U) | (3ULL << 8U) | (1ULL << 7U) |
+        (1ULL << 6U) | (1ULL << 5U) | (1ULL << 4U) |
+        (1ULL << 3U) | (1ULL << 2U) | (1ULL << 1U) | 1ULL;
+    const std::uint64_t combine =
+        (0x3CULL << 56U) | (0xAULL << 52U) | (0x15ULL << 47U) |
+        (0x5ULL << 44U) | (0x3ULL << 41U) | (0x6ULL << 37U) |
+        (0x1BULL << 32U) | (0xCULL << 28U) | (0x9ULL << 24U) |
+        (0x5ULL << 21U) | (0x2ULL << 18U) | (0x4ULL << 15U) |
+        (0x3ULL << 12U) | (0x6ULL << 9U) | (0x5ULL << 6U) |
+        (0x2ULL << 3U) | 0x7ULL;
+    require(bus.write64(0x7C0U, other), "seed SET_OTHER_MODES command");
+    require(bus.write64(0x7C8U, combine), "seed SET_COMBINE command");
+    require(bus.write32(Bus::kDpStart, 0x7C0U), "set DPC start for modes/combine");
+    require(bus.write32(Bus::kDpEnd, 0x7D0U), "publish modes/combine commands");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_OTHER_MODES is decoded");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_COMBINE is decoded");
+
+    const auto& m = state.otherModes;
+    require(m.cycleType == 2U && m.perspectiveTexture && m.sharpenTexture &&
+            m.textureLut && m.sampleType && m.biLerp0 && m.keyEnable,
+            "SET_OTHER_MODES decodes upper texture and cycle controls");
+    require(m.rgbDither == 2U && m.alphaDither == 1U &&
+            m.blendM1a[0] == 2U && m.blendM1a[1] == 1U &&
+            m.blendM1b[0] == 3U && m.blendM1b[1] == 2U &&
+            m.blendM2a[0] == 1U && m.blendM2a[1] == 3U &&
+            m.blendM2b[0] == 2U && m.blendM2b[1] == 1U,
+            "SET_OTHER_MODES decodes dither and both blender-cycle muxes");
+    require(m.forceBlend && m.alphaCoverageSelect && m.coverageTimesAlpha &&
+            m.zMode == 2U && m.coverageDestination == 3U &&
+            m.colorOnCoverage && m.imageRead && m.zUpdate && m.zCompare &&
+            m.antialias && m.zSourceSelect && m.ditherAlphaEnable && m.alphaCompare,
+            "SET_OTHER_MODES decodes blender, coverage, depth and alpha controls");
+
+    const auto& c0 = state.combine[0];
+    const auto& c1 = state.combine[1];
+    require(c0.colorA == 0xAU && c0.colorB == 0xCU && c0.colorC == 0x15U &&
+            c0.colorD == 4U && c0.alphaA == 5U && c0.alphaB == 3U &&
+            c0.alphaC == 3U && c0.alphaD == 5U,
+            "SET_COMBINE decodes all eight first-cycle selectors");
+    require(c1.colorA == 6U && c1.colorB == 9U && c1.colorC == 0x1BU &&
+            c1.colorD == 5U && c1.alphaA == 5U && c1.alphaB == 2U &&
+            c1.alphaC == 2U && c1.alphaD == 7U,
+            "SET_COMBINE decodes all eight second-cycle selectors");
+}
+
 void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
@@ -240,6 +300,7 @@ int main() {
     testRdpSynchronizationCommands();
     testRdpBasicStateCommands();
     testRdpStateFieldDecoding();
+    testRdpOtherModesAndCombineDecoding();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
