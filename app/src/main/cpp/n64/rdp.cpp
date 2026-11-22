@@ -19,6 +19,8 @@ bool loadTileTexels(Bus& bus, RdpSyncState& state,
     const RdpTileState& tile = state.tiles[load.tile];
     const unsigned bitsPerTexel = image.size == 0U ? 4U
         : (image.size == 1U ? 8U : (image.size == 2U ? 16U : 32U));
+    // 32-bit texels occupy split TMEM banks; a flat byte copy is incorrect.
+    if (bitsPerTexel == 32U) return false;
     const std::uint32_t x0 = load.sl >> 2U;
     const std::uint32_t y0 = load.tl >> 2U;
     const std::uint32_t x1 = load.sh >> 2U;
@@ -64,8 +66,10 @@ bool loadTileTexels(Bus& bus, RdpSyncState& state,
                 const std::uint8_t nibble = sourceLow
                     ? static_cast<std::uint8_t>(sourceByte & 0x0FU)
                     : static_cast<std::uint8_t>(sourceByte >> 4U);
+                const std::uint64_t swizzledDestination =
+                    (row & 1U) != 0U ? (destinationTexel ^ 4U) : destinationTexel;
                 const std::uint16_t destinationAddress =
-                    static_cast<std::uint16_t>(destinationTexel & 0x0FFFU);
+                    static_cast<std::uint16_t>(swizzledDestination & 0x0FFFU);
                 std::uint8_t destinationByte = 0;
                 state.tmem.readByte(destinationAddress, destinationByte);
                 const bool destinationLow = (column & 1U) != 0U;
@@ -81,8 +85,13 @@ bool loadTileTexels(Bus& bus, RdpSyncState& state,
                     std::uint8_t value = 0;
                     if (sourceAddress > UINT32_MAX ||
                         !bus.read8(static_cast<std::uint32_t>(sourceAddress), value)) return false;
+                    const std::uint64_t destinationAddress =
+                        destinationTexel + byte;
+                    const std::uint64_t swizzledDestination =
+                        (row & 1U) != 0U ? (destinationAddress ^ 4U)
+                                         : destinationAddress;
                     state.tmem.writeByte(
-                        static_cast<std::uint16_t>((destinationTexel + byte) & 0x0FFFU),
+                        static_cast<std::uint16_t>(swizzledDestination & 0x0FFFU),
                         value);
                 }
             }
