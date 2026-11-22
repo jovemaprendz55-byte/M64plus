@@ -760,3 +760,17 @@ Foi implementada a transferência inicial do comando LOAD_TLUT (0x30):
 **Limitações:** não há ainda interpretação de formato RGBA16 versus IA16 durante a amostragem, nem leitura de índices CI pelo sampler (ainda inexistente). A implementação não simula temporização/pipeline do carregamento. O caminho LOAD_BLOCK continua apenas decodificado, sem transferência de texels.
 
 Referências técnicas consultadas: Nintendo 64 Programming Manual, capítulo 13.9 (LOAD_TLUT expande cada cor de 16 bits para uma palavra de 64 bits na metade alta da TMEM); SGI/Nintendo Ultra64 RDP Command Summary, tabela LOAD_TLUT (SL/SH, count e exigência de endereço TMEM na metade alta); macros GBI gDPLoadTLUTCmd (count codificado em bits 23:14).
+
+
+## 16.14 LOAD_BLOCK — primeira transferência linear para TMEM (2026-11-22)
+
+Foi implementado um primeiro caminho de transferência para LOAD_BLOCK (0x33):
+- exige SET_TEXTURE_IMAGE e SET_TILE previamente configurados;
+- calcula o número de texels por ((SH - SL) >> 2) + 1 e rejeita coordenadas fora da ordem ou não alinhadas em 10.2;
+- usa TL e SL como posição inicial na imagem de origem;
+- transfere sequencialmente texels de 4, 8, 16 ou 32 bits para TMEM a partir do endereço TMEM do tile;
+- preserva ordem big-endian e o empacotamento de nibbles para 4 bits;
+- limita o tamanho da operação a 2.048 texels e valida a origem inteira antes de escrever;
+- adiciona testes para fluxo de oito texels de 8 bits, retenção do campo DXT e fluxo empacotado de 4 bits.
+
+**Limitações:** esta etapa é deliberadamente uma transferência linear lógica. O valor DXT é decodificado e preservado, mas ainda não controla o avanço de linha nem o interleave/swizzle das palavras de TMEM. Também faltam o tratamento de formato por bancos, casos de fronteira da TMEM, e comparação com um oracle de hardware/emulador de referência. Portanto, não considerar LOAD_BLOCK cycle-accurate ou fisicamente fiel ainda. Nenhuma amostragem de textura ou rasterização foi adicionada.
