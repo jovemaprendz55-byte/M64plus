@@ -206,6 +206,39 @@ void testRegimmBranches() {
     require(rsp.reg(5) == 9U, "not-taken BGEZ falls through after delay slot");
     require(rsp.halted(), "REGIMM program reaches BREAK");
 }
+void testRegimmLinkBranches() {
+    {
+        Bus bus;
+        RspCpu rsp;
+        put(bus, 0x00, iType(0x0F, 0, 1, 0xFFFF)); // r1 = -1
+        put(bus, 0x04, iType(0x01, 1, 16, 2)); // BLTZAL taken -> 0x10
+        put(bus, 0x08, iType(0x09, 0, 2, 7)); // delay slot
+        put(bus, 0x0C, iType(0x09, 0, 3, 99)); // skipped
+        put(bus, 0x10, 0x0000000DU); // BREAK
+        for (unsigned i = 0; i < 4U; ++i)
+            require(rsp.step(bus), "execute taken BLTZAL");
+        require(rsp.reg(31) == 0x0CU, "taken BLTZAL links to PC + 8");
+        require(rsp.reg(2) == 7U && rsp.reg(3) == 0U,
+                "taken BLTZAL executes delay slot and skips fallthrough");
+        require(rsp.halted() && !rsp.faulted(), "taken BLTZAL reaches BREAK");
+    }
+    {
+        Bus bus;
+        RspCpu rsp;
+        put(bus, 0x00, iType(0x0F, 0, 1, 0xFFFF)); // r1 = -1
+        put(bus, 0x04, iType(0x01, 1, 17, 2)); // BGEZAL not taken
+        put(bus, 0x08, iType(0x09, 0, 2, 7)); // delay slot
+        put(bus, 0x0C, iType(0x09, 0, 3, 9)); // fallthrough
+        put(bus, 0x10, 0x0000000DU); // BREAK
+        for (unsigned i = 0; i < 5U; ++i)
+            require(rsp.step(bus), "execute not-taken BGEZAL");
+        require(rsp.reg(31) == 0x0CU, "not-taken BGEZAL still links to PC + 8");
+        require(rsp.reg(2) == 7U && rsp.reg(3) == 9U,
+                "not-taken BGEZAL executes delay slot and falls through");
+        require(rsp.halted() && !rsp.faulted(), "not-taken BGEZAL reaches BREAK");
+    }
+}
+
 void testVectorArithmetic() {
     Bus bus;
     RspCpu rsp;
@@ -1119,6 +1152,7 @@ int main() {
     testScalarVariableShiftsAndJalr();
     testByteAndHalfwordMemory();
     testRegimmBranches();
+    testRegimmLinkBranches();
     testVectorArithmetic();
     testVectorCarryAndLogic();
     testVectorAccumulatorLowAndVsar();
