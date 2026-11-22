@@ -14,6 +14,41 @@ void require(bool condition, const char* message) {
     }
 }
 
+
+void testDpRegisterWindow() {
+    Bus bus;
+    std::uint32_t value = 0;
+    require(bus.region(Bus::kDpStart) == m64plus::n64::BusRegion::DpRegisters,
+            "DPC registers have a dedicated bus region");
+    require(bus.write32(Bus::kDpStart, 0x00123457U), "write DPC_START");
+    require(bus.read32(Bus::kDpStart, value) && value == 0x00123450U,
+            "DPC_START is eight-byte aligned");
+    require(bus.read32(Bus::kDpCurrent, value) && value == 0x00123450U,
+            "DPC_START initializes DPC_CURRENT");
+    require(bus.write32(Bus::kDpEnd, 0x00123807U), "write DPC_END");
+    require(bus.read32(Bus::kDpEnd, value) && value == 0x00123800U,
+            "DPC_END stores aligned command-list end");
+    require(bus.read32(Bus::kDpCurrent, value) && value == 0x00123450U,
+            "writing DPC_END does not pretend RDP consumed commands");
+    require(bus.write32(Bus::kDpStatus, 1U << 1U), "set DPC XBUS mode");
+    require(bus.read32(Bus::kDpStatus, value) &&
+            (value & Bus::kDpXbusDmemDma) != 0U, "DPC XBUS status set");
+    require(bus.write32(Bus::kDpStatus, 1U << 0U), "clear DPC XBUS mode");
+    require(bus.read32(Bus::kDpStatus, value) &&
+            (value & Bus::kDpXbusDmemDma) == 0U, "DPC XBUS status cleared");
+    require(bus.write32(Bus::kDpStatus, 1U << 3U), "freeze DPC");
+    require(bus.read32(Bus::kDpStatus, value) &&
+            (value & Bus::kDpFreeze) != 0U, "DPC freeze status set");
+    require(bus.write32(Bus::kDpStatus, 1U << 2U), "unfreeze DPC");
+    require(bus.read32(Bus::kDpStatus, value) &&
+            (value & Bus::kDpFreeze) == 0U, "DPC freeze status cleared");
+    require(bus.write32(Bus::kDpClock, 99U), "ignore write to read-only DPC clock");
+    require(bus.read32(Bus::kDpClock, value) && value == 0U,
+            "DPC clock remains read-only and zero without RDP");
+    require(!bus.read32(Bus::kDpRegBase + 0x20U, value),
+            "address after DPC register window remains unmapped");
+}
+
 void testDramToSpAndSpToDram() {
     Bus bus;
     for (std::uint32_t i = 0; i < 16; ++i)
@@ -127,6 +162,7 @@ void testOutOfRangeIsRejectedBeforeCopy() {
 } // namespace
 
 int main() {
+    testDpRegisterWindow();
     testDramToSpAndSpToDram();
     testRowsAndSkip();
     testImemBankAndWrapping();
