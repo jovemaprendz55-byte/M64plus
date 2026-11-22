@@ -921,3 +921,11 @@ Referências: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md ; htt
 - Artefato `m64plus-debug-apk`: 576.561 bytes; não expirado na consulta de 2026-11-22. Download disponível na seção Artifacts do workflow.
 - O resultado confirma que os testes automatizados e a compilação Android passam para esse commit. **Não** comprova compatibilidade com jogos, precisão completa do RDP, nem funcionamento de renderização de ROMs.
 - Próxima etapa: fortalecer o teste de rejeição com valores sentinela previamente gravados na TMEM e investigar limites/endereço de destino do caminho RGBA32 sem alterar a lógica até existir referência técnica independente.
+
+
+## 16.27 Teste de não alteração da TMEM com sentinelas (2026-11-22)
+
+- O teste de rejeição de formatos incompatíveis no LOAD_TILE RGBA32 foi fortalecido: antes do comando inválido, grava quatro bytes sentinela nas duas metades da TMEM (endereços 0/1 e 0x800/0x801).
+- Após o resultado `Unsupported`, o teste exige que os quatro valores originais permaneçam intactos. Isso verifica ausência de escrita parcial/sobrescrita nos pontos amostrados, em vez de apenas confirmar que a memória inicialmente zerada continuou zerada.
+- Alteração enviada à `main` no commit `9029eaabb85a5eda2136212d0cb7610b716883a3`; CI ainda precisa ser consultado.
+- **Escopo:** o teste cobre os dois bancos em quatro endereços específicos. Não prova atomicidade para toda a TMEM nem substitui testes de limite, wrap e validação externa.
