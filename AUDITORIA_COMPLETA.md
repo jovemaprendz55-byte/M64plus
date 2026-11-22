@@ -702,3 +702,14 @@ Implementadas em 2026-11-22:
 - Teste integrado verifica os dois campos com valores não triviais e a preservação do comando original.
 - Layout conferido no SGI/Nintendo Ultra64 RDP Command Summary, Tabela 26; a referência da API `gDPSetPrimDepth` descreve os formatos e uso dos valores Z/delta-Z.
 - **Limite:** ainda não há teste de profundidade por pixel, conversão para o formato do Z-buffer, atualização do Z-buffer ou rasterização.
+
+
+### 16.10. Base de memória de textura TMEM (2026-11-22)
+
+- Criada a estrutura `RdpTextureMemory` com 4.096 bytes (4 KiB), correspondente à memória on-chip de texturas do RDP.
+- Implementadas operações de byte e palavra de 64 bits, com representação big-endian, endereçamento de 12 bits e wrap no limite de 4 KiB.
+- Adicionado reset que limpa toda a memória; a estrutura foi integrada ao estado do processador RDP.
+- Testes cobrem memória inicial zerada, leitura/escrita de byte, round-trip de 64 bits, cruzamento do fim da TMEM, wrap de endereço e reset.
+- **Limite importante:** a TMEM está pronta como armazenamento básico, mas ainda não recebe dados dos comandos `LOAD_TILE`, `LOAD_BLOCK` ou `LOAD_TLUT`. Swizzle de bancos/halfwords, expansão TLUT e regras de transferência por formato ainda não foram implementados. Nenhuma textura pode ser amostrada ou renderizada nesta etapa.
+- Referência arquitetural: Nintendo 64 Programming Manual, capítulo 13 (Texture Mapping), descreve TMEM on-chip de 4 KiB, tiles e caminhos de carga.
+
