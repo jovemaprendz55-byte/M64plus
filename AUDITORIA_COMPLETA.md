@@ -996,3 +996,13 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Validação defensiva: formato, tamanho, dimensões máximas (1024x1024), quantidade de pixels e faixa completa na RDRAM. O buffer de saída só é substituído depois que toda a conversão termina com sucesso.
 - Criado `tests/framebuffer_tests.cpp` cobrindo cores RGBA16, conversão RGBA32, ordem de bytes, alpha, formato inválido, dimensões excessivas e endereço fora da RDRAM. Registrado novo alvo CTest `m64plus_framebuffer_tests` e inclusão do novo arquivo na biblioteca Android.
 - **Status:** implementação enviada à `main`; aguarda CI. Mesmo após CI verde, isso será somente o conversor de memória para pixels. Ainda falta conectar a instância real de RDRAM/RDP da máquina ao JNI, enviar o buffer para a thread GL e substituir o triângulo por textura. Não há rasterizador RDP nem renderização de jogos nesta etapa.
+
+
+## 17.2 CI aprovado e auditoria da integração Android do framebuffer (2026-11-22)
+
+- Workflow [#45026072223](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45026072223), commit de auditoria `be39c8c501cbb0fab9515a7dcb572759a8e3b3cf`: `native-host-tests` e `assemble-debug` concluíram com sucesso; a etapa de upload do APK também passou.
+- Artefato `m64plus-debug-apk`, ID `14755846775`, tamanho 597.806 bytes, SHA-256 `f0b20e1f0c1f3f198dcc339a477abfe78899dd7e965557c5e8a0a2bd87df8b30`, expiração prevista em 2027-02-20.
+- Inspeção de `MainActivity.java` e `BootRenderer.java` confirma que a tela ainda é o triângulo de diagnóstico GLES 2.0. Não há método JNI de obtenção do framebuffer nem upload de textura; o renderer não consome pixels do núcleo N64.
+- `native-lib.cpp` contém atualmente vários self-tests JNI, não uma instância de máquina persistente para execução de ROM. `N64Machine` agrega Bus/CPU/RSP, mas ainda não possui `RdpSyncState` nem ciclo de processamento RDP. O `Bus` já expõe `rdram()`, permitindo futuramente ler a imagem da RDRAM sem duplicar memória.
+- Próxima etapa técnica: definir a propriedade e o ciclo de vida de uma máquina nativa persistente, agregar estado RDP à máquina e fornecer uma API JNI segura para obter um snapshot de pixels. Depois, o renderer poderá fazer upload para textura GLES na própria thread GL. Não remover o triângulo de diagnóstico até existir imagem válida.
+- **Limitação funcional atual:** o conversor de framebuffer e seus testes estão integrados ao build, mas ainda não há uma fonte real de framebuffer produzida por comandos de desenho RDP; portanto, esta versão não renderiza jogos nem substitui o triângulo por uma imagem de ROM.
