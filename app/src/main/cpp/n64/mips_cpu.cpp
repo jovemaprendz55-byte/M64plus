@@ -489,7 +489,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
             result = signExtend32(static_cast<std::uint32_t>(cp0_.read(rd)));
             writeRegister = true;
         } else if (rs == 0x04) { // MTC0, select 0 only
-            if ((instruction & 0x7F8U) != 0 || !cp0_.write(rd, gpr_[rt]))
+            if ((instruction & 0x7FFU) != 0 || !cp0_.write(rd, gpr_[rt]))
                 return takeException(ExceptionCode::ReservedInstruction);
         } else if (rs == 0x10) { // COP0 privileged operations
             // ERET/TLB operations use only the CO function field; bits 25:6 are reserved.
