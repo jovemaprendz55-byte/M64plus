@@ -1156,3 +1156,13 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Auditoria final e estado combinado validados no workflow [#45116103405](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45116103405): ambos os jobs concluíram com sucesso.
 - APK `m64plus-debug-apk`, artefato ID `14791966190`, tamanho 624.263 bytes, SHA-256 `e632dc8b1c4307874f3f0338aeba1878e80c85559ddfd84e62332de9f7bb0c82`, expira em 2027-02-21.
 - A validação CI comprova compilação e testes nativos, não execução manual no Android. Falta selecionar ROM real no dispositivo e verificar mensagem de sucesso; nenhum jogo inicia ainda.
+
+
+## 17.12 Controlador PI: primeiro DMA de cartucho para RDRAM (2026-11-23)
+
+- Criada região de registradores PI em `0x04600000` (DRAM_ADDR, CART_ADDR, RD_LEN, WR_LEN, STATUS e temporização dos domínios 1/2).
+- Implementado `PI_WR_LEN` como DMA síncrono de cartucho `.z64` para RDRAM. O tamanho é `length_register + 1`; valida toda a faixa da ROM e RDRAM antes de copiar, atualiza os endereços e sinaliza a interrupção PI (MI source 4).
+- Implementado reconhecimento/acknowledgement de interrupção e registradores de status; `PI_RD_LEN` é explicitamente rejeitado porque o cartucho atualmente é ROM somente-leitura.
+- Adicionado teste de cópia big-endian, avanço dos endereços, interrupção/ack, rejeição fora da ROM sem alteração parcial da RDRAM e direção não suportada.
+- Commits: interface PI `b725878c19dcebdb23884d48ae555332d412a173`; DMA `86ad9dc90fbf78f9d0237aaebbd35885b21ada20`; roteamento PI `ef371c210eb5b37f0d6b268bf21ca58fb211b883`; testes `70d6abe7c63502678cd982d5dbda74edda757f27`.
+- **Validação CI pendente** para a nova região de barramento e DMA. O modelo é síncrono e simplificado; não implementa timings reais, latência, bursts, cartucho gravável ou PI DMA reverso.
