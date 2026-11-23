@@ -481,7 +481,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
         if (inDelaySlot)
             return takeException(ExceptionCode::ReservedInstruction);
         if (rs == 0x00) { // MFC0, select 0 only
-            if ((instruction & 0x7F8U) != 0)
+            if ((instruction & 0x7FFU) != 0)
                 return takeException(ExceptionCode::ReservedInstruction);
             destination = rt;
             result = signExtend32(static_cast<std::uint32_t>(cp0_.read(rd)));
