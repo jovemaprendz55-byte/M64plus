@@ -1678,6 +1678,30 @@ void testCpuDefersTimerInterruptUntilAfterBranchDelaySlot() {
             "target instruction does not execute before deferred interrupt handler");
 }
 
+void testCpuRejectsInvalidBlezBgtzEncodings() {
+    const std::uint32_t invalidBranches[] = {
+        0x19080001U, // BLEZ with rt != 0
+        0x1D080001U, // BGTZ with rt != 0
+        0x59080001U, // BLEZL with rt != 0
+        0x5D080001U  // BGTZL with rt != 0
+    };
+    for (const std::uint32_t instruction : invalidBranches) {
+        N64Machine machine;
+        require(machine.bus().write32(0U, instruction),
+                "write invalid BLEZ/BGTZ encoding");
+        machine.cpu().reset(0xFFFFFFFF80000000ULL);
+        require(machine.runCpuInstructions(1U) == 0U,
+                "invalid BLEZ/BGTZ encoding raises an exception");
+        require(machine.cpu().hasLastException() &&
+                machine.cpu().lastExceptionCode() == 10U,
+                "invalid BLEZ/BGTZ encoding raises Reserved Instruction");
+        require(machine.cpu().lastExceptionInstruction() == instruction,
+                "CPU records the invalid BLEZ/BGTZ instruction");
+        require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+                "invalid BLEZ/BGTZ encoding enters general exception vector");
+    }
+}
+
 void testCpuBranchLikelyDelaySlotSemantics() {
     auto runCase = [](std::uint32_t branch, std::uint64_t left, std::uint64_t right,
                       bool taken, const char* description) {
@@ -1883,6 +1907,7 @@ int main() {
     testCp0CountCompareTimerInterrupt();
     testCpuAcceptsCp0TimerInterruptBetweenInstructions();
     testCpuDefersTimerInterruptUntilAfterBranchDelaySlot();
+    testCpuRejectsInvalidBlezBgtzEncodings();
     testCpuBranchLikelyDelaySlotSemantics();
     testCpuEretRestoresExceptionReturnAddress();
     testCpuEretReturnsToBranchAfterDelaySlotException();
