@@ -1448,9 +1448,8 @@ void testCpuSupervisorModeCannotAccessKseg0OrKseg1() {
             require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
                     "set supervisor mode before KSEG instruction fetch");
             require(machine.stepCpu(), "supervisor KSEG instruction fetch raises exception");
-            require(cpu.hasLastException() &&
-                        cpu.lastExceptionCode() == (address == 0xFFFFFFFFC0000000ULL ? 2U : 4U),
-                    "supervisor SSEG requires TLB translation and KSEG3 is privileged");
+            require(cpu.hasLastException() && cpu.lastExceptionCode() == 4U,
+                    "supervisor KSEG0/KSEG1 instruction fetch raises Address Load");
             require(cpu.pc() == 0xFFFFFFFF80000180ULL,
                     "supervisor KSEG instruction fetch enters general exception vector");
         }
@@ -1465,9 +1464,8 @@ void testCpuSupervisorModeCannotAccessKseg0OrKseg1() {
             require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
                     "set supervisor mode before KSEG load");
             require(machine.stepCpu(), "supervisor KSEG load raises exception");
-            require(cpu.hasLastException() &&
-                        cpu.lastExceptionCode() == (address == 0xFFFFFFFFC0000000ULL ? 2U : 4U),
-                    "supervisor SSEG load requires TLB translation and KSEG3 is privileged");
+            require(cpu.hasLastException() && cpu.lastExceptionCode() == 4U,
+                    "supervisor KSEG0/KSEG1 load raises Address Load");
             require(cpu.pc() == 0xFFFFFFFF80000180ULL,
                     "supervisor KSEG load enters general exception vector");
         }
@@ -1483,9 +1481,8 @@ void testCpuSupervisorModeCannotAccessKseg0OrKseg1() {
             require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
                     "set supervisor mode before KSEG store");
             require(machine.stepCpu(), "supervisor KSEG store raises exception");
-            require(cpu.hasLastException() &&
-                        cpu.lastExceptionCode() == (address == 0xFFFFFFFFC0000000ULL ? 3U : 5U),
-                    "supervisor SSEG store requires TLB translation and KSEG3 is privileged");
+            require(cpu.hasLastException() && cpu.lastExceptionCode() == 5U,
+                    "supervisor KSEG0/KSEG1 store raises Address Store");
             require(cpu.pc() == 0xFFFFFFFF80000180ULL,
                     "supervisor KSEG store enters general exception vector");
         }
