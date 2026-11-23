@@ -1740,6 +1740,57 @@ void testCpuSyscallAndBreakpointInBranchDelaySlot() {
     }
 }
 
+void testCpuSpecialTrapInstructions() {
+    const struct TrapCase {
+        std::uint32_t instruction;
+        std::uint64_t left;
+        std::uint64_t right;
+        bool traps;
+        const char* description;
+    } cases[] = {
+        {0x01090030U, 5U, 5U, true, "TGE traps when signed left >= right"},
+        {0x01090031U, 4U, 5U, false, "TGEU does not trap when left < right"},
+        {0x01090032U, 4U, 5U, true, "TLT traps when signed left < right"},
+        {0x01090033U, 5U, 4U, false, "TLTU does not trap when left >= right"},
+        {0x01090034U, 7U, 7U, true, "TEQ traps when operands are equal"},
+        {0x01090036U, 7U, 8U, true, "TNE traps when operands differ"},
+        {0x01090030U, 4U, 5U, false, "TGE does not trap when left < right"},
+        {0x01090031U, 5U, 4U, true, "TGEU traps when left >= right"},
+        {0x01090032U, 5U, 4U, false, "TLT does not trap when left >= right"},
+        {0x01090033U, 4U, 5U, true, "TLTU traps when left < right"},
+        {0x01090034U, 7U, 8U, false, "TEQ does not trap when operands differ"},
+        {0x01090036U, 7U, 7U, false, "TNE does not trap when operands are equal"},
+        {0x01090030U, 0xFFFFFFFFFFFFFFFFULL, 0U, false,
+         "TGE uses signed comparison for negative values"},
+        {0x01090032U, 0xFFFFFFFFFFFFFFFFULL, 0U, true,
+         "TLT uses signed comparison for negative values"}
+    };
+    for (const auto& item : cases) {
+        N64Machine machine;
+        require(machine.bus().write32(0U, item.instruction),
+                "write SPECIAL trap instruction");
+        machine.cpu().reset(0xFFFFFFFF80000000ULL);
+        machine.cpu().setRegister(8U, item.left);
+        machine.cpu().setRegister(9U, item.right);
+        require(machine.stepCpu(), item.description);
+        if (item.traps) {
+            require(machine.cpu().hasLastException() &&
+                    machine.cpu().lastExceptionCode() == 13U,
+                    "taken SPECIAL trap raises Trap exception");
+            require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+                    "taken SPECIAL trap enters general exception vector");
+            require(machine.cpu().cp0().read(m64plus::n64::Cp0::kEpc) ==
+                    0xFFFFFFFF80000000ULL,
+                    "taken SPECIAL trap records its instruction address");
+        } else {
+            require(!machine.cpu().hasLastException(),
+                    "untaken SPECIAL trap does not raise an exception");
+            require(machine.cpu().pc() == 0xFFFFFFFF80000004ULL,
+                    "untaken SPECIAL trap continues to next instruction");
+        }
+    }
+}
+
 void testCpuRejectsInvalidBlezBgtzEncodings() {
     const std::uint32_t invalidBranches[] = {
         0x19080001U, // BLEZ with rt != 0
@@ -2004,6 +2055,7 @@ int main() {
     testCpuDefersTimerInterruptUntilAfterBranchDelaySlot();
     testCpuSyscallAndBreakpointExceptions();
     testCpuSyscallAndBreakpointInBranchDelaySlot();
+    testCpuSpecialTrapInstructions();
     testCpuRejectsInvalidBlezBgtzEncodings();
     testCpuRejectsInvalidSpecialShiftAndJumpEncodings();
     testCpuBranchLikelyDelaySlotSemantics();
