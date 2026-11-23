@@ -617,6 +617,7 @@ int main() {
     testCpuHiLoMultiplyDivideAndTransfers();
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
+    testCpuUnalignedDoublewordMemoryOperations();
     testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget();
     testCpuRunnerStopsWhenInstructionRaisesException();
     testCartridgeHleBootInitializesRdramDmemAndCpuState();
