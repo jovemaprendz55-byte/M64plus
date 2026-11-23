@@ -1312,8 +1312,8 @@ void testCpuEretRestoresUserPrivilegeFromStatus() {
 
     require(machine.stepCpu(), "exception handler updates EPC");
     require(machine.stepCpu(), "exception handler executes ERET");
-    require(cpu.pc() == 0xFFFFFFFF80000008ULL,
-            "ERET returns to the requested user instruction");
+    require(cpu.pc() == 8U,
+            "ERET returns to the requested user instruction in kuseg");
     require(!cpu.cp0().exceptionLevel(),
             "ERET clears EXL after exception return");
     require((cpu.cp0().read(m64plus::n64::Cp0::kStatus) &
