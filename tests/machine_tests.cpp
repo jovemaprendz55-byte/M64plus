@@ -456,6 +456,52 @@ void testCpuTlbInvalidStoreFaultInvalidatesLoadLinkedReservation() {
 }
 
 
+void testCpuTlbModifiedStoreFaultInvalidatesLoadLinkedReservation() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x368U;
+    constexpr std::uint32_t initial = 0x55AA33CCU;
+    constexpr std::uint64_t virtualAddress = 0x00400000ULL;
+
+    require(bus.write32(0x1000U, 0xC1090000U), "write LL before modified TLB store");
+    require(bus.write32(0x1004U, 0x42000002U), "write TLBWI for clean mapping");
+    require(bus.write32(0x1008U, 0xAD4B0000U), "write SW through clean TLB mapping");
+    require(bus.write32(0x180U, 0xE1090000U), "write SC at TLB modification vector");
+    require(bus.write32(dataAddress, initial), "initialize modified-TLB LL/SC target");
+
+    machine.cpu().reset(0xFFFFFFFF80001000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    machine.cpu().setRegister(10U, virtualAddress);
+    machine.cpu().setRegister(11U, 0xA5A5A5A5U);
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kIndex, 0U),
+            "select TLB entry for clean mapping");
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kEntryHi, virtualAddress),
+            "set virtual page for clean TLB mapping");
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kEntryLo0, 2U),
+            "set valid but clean even-page TLB entry");
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kEntryLo1, 0U),
+            "clear odd-page TLB entry");
+
+    require(machine.stepCpu(), "LL establishes reservation before modified TLB store");
+    machine.cpu().setTlbEnabled(true);
+    require(machine.stepCpu(), "TLBWI installs valid clean translation");
+    require(machine.stepCpu(), "SW through clean TLB entry raises modification exception");
+    require(machine.cpu().hasLastException(), "CPU records TLB modification exception");
+    require(machine.cpu().lastExceptionCode() == 1U,
+            "CPU records TLB Modification exception code");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+            "CPU uses general exception vector for TLB modification");
+    machine.cpu().setTlbEnabled(false);
+    require(machine.stepCpu(), "SC executes at exception vector without reservation");
+
+    std::uint32_t value = 0;
+    require(bus.read32(dataAddress, value) && value == initial,
+            "SC after TLB modification fault does not modify reserved memory");
+    require(machine.cpu().reg(9U) == 0U,
+            "SC reports failure because TLB modification fault invalidated reservation");
+}
+
+
 void testCpuDoublewordLoadLinkedStoreConditional() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -1137,6 +1183,7 @@ int main() {
     testCpuBusStoreFaultInvalidatesLoadLinkedReservation();
     testCpuTlbStoreFaultInvalidatesLoadLinkedReservation();
     testCpuTlbInvalidStoreFaultInvalidatesLoadLinkedReservation();
+    testCpuTlbModifiedStoreFaultInvalidatesLoadLinkedReservation();
     testCpuDoublewordLoadLinkedStoreConditional();
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
