@@ -293,6 +293,26 @@ bool MipsCpu::stepMemory(Memory& memory) {
             writeRegister = false;
             break;
         }
+        case 0x30: // TGE
+            if (static_cast<std::int64_t>(a) >= static_cast<std::int64_t>(b))
+                return takeException(ExceptionCode::Trap);
+            destination = 0; writeRegister = false; break;
+        case 0x31: // TGEU
+            if (a >= b) return takeException(ExceptionCode::Trap);
+            destination = 0; writeRegister = false; break;
+        case 0x32: // TLT
+            if (static_cast<std::int64_t>(a) < static_cast<std::int64_t>(b))
+                return takeException(ExceptionCode::Trap);
+            destination = 0; writeRegister = false; break;
+        case 0x33: // TLTU
+            if (a < b) return takeException(ExceptionCode::Trap);
+            destination = 0; writeRegister = false; break;
+        case 0x34: // TEQ
+            if (a == b) return takeException(ExceptionCode::Trap);
+            destination = 0; writeRegister = false; break;
+        case 0x36: // TNE
+            if (a != b) return takeException(ExceptionCode::Trap);
+            destination = 0; writeRegister = false; break;
         case 0x38: result = b << shift; break; // DSLL
         case 0x3A: result = b >> shift; break; // DSRL
         case 0x3B: result = static_cast<std::uint64_t>(
