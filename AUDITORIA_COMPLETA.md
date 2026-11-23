@@ -1288,3 +1288,14 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 **Validação CI desta etapa:** workflow [45119393427](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45119393427), commit `22da28e913f7f2b5bd540122447fc93f6fab14a3`, branch `main`. Os jobs `native-host-tests` e `assemble-debug` terminaram com **success**. Foi publicado o artefato de depuração `m64plus-debug-apk`, ID `14792434605`, tamanho 641.366 bytes (não expirado na consulta de 23/11/2026).
 
 **Limites:** essa etapa amplia o conjunto de instruções, mas não torna o núcleo MIPS III completo nem garante compatibilidade com jogos comerciais. Permanecem ausentes ou incompletos, entre outros, COP1/FPU, várias operações de 64 bits, instruções de acesso desalinhado, exceções e sincronização de hardware N64. O APK é de depuração; ainda é necessário instalá-lo e validar o comportamento no dispositivo.
+
+
+### 17.20 — Shifts MIPS de 32 e 64 bits (23/11/2026)
+
+- Ampliadas as instruções de deslocamento no grupo SPECIAL: `SLL`, `SRL`, `SRA`, `SLLV`, `SRLV`, `SRAV`, `DSLLV`, `DSRLV`, `DSRAV`, `DSLL`, `DSRL`, `DSRA`, `DSLL32`, `DSRL32` e `DSRA32`.
+- Os deslocamentos de 32 bits produzem resultado com extensão de sinal de 32 bits, enquanto os deslocamentos de 64 bits operam sobre o registrador completo. Nos deslocamentos variáveis, a quantidade é limitada aos 5 ou 6 bits inferiores, conforme a largura.
+- O teste de integração `testCpuHiLoMultiplyDivideAndTransfers` foi estendido para verificar `DSLL`, `DSRL`, `DSRA` e `DSLLV`, além dos testes anteriores de HI/LO.
+- Arquivos: `app/src/main/cpp/n64/mips_cpu.cpp` e `tests/machine_tests.cpp`.
+- **CI pendente na última consulta:** workflows [45133387659](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45133387659) (implementação) e [45133419167](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45133419167) (testes adicionais) estavam em andamento. Não considerar esta etapa aprovada até `native-host-tests` e `assemble-debug` terminarem com sucesso no commit mais recente.
+
+**Limitação:** esta etapa implementa deslocamentos aritméticos/lógicos, mas ainda não cobre o conjunto MIPS III completo. Em particular, COP1/FPU, acessos desalinhados, overflow e outras instruções de 64 bits ainda exigem trabalho e validação.
