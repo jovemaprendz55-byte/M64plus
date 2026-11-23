@@ -445,6 +445,7 @@ void testCpuTlbInvalidStoreFaultInvalidatesLoadLinkedReservation() {
             "CPU records TLB Store exception code for invalid entry");
     require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
             "CPU uses general exception vector for invalid TLB entry");
+    machine.cpu().setTlbEnabled(false);
     require(machine.stepCpu(), "SC executes at general exception vector without reservation");
 
     std::uint32_t value = 0;
