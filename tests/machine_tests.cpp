@@ -436,17 +436,11 @@ void testCpuTlbInvalidStoreFaultInvalidatesLoadLinkedReservation() {
             "clear even-page valid bit in TLB mapping");
     require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kEntryLo1, 0U),
             "clear odd-page valid bit in TLB mapping");
-    machine.cpu().setTlbEnabled(true);
-
     require(machine.stepCpu(), "LL establishes reservation before invalid TLB store");
+    machine.cpu().setTlbEnabled(true);
     require(machine.stepCpu(), "TLBWI installs invalid translation");
     require(machine.stepCpu(), "SW through invalid TLB entry raises TLB store exception");
     require(machine.cpu().hasLastException(), "CPU records invalid TLB store exception");
-    std::cerr << "TLB invalid store diagnostic: code="
-              << static_cast<unsigned>(machine.cpu().lastExceptionCode())
-              << " pc=0x" << std::hex << machine.cpu().lastExceptionPc()
-              << " instruction=0x" << machine.cpu().lastExceptionInstruction()
-              << std::dec << '\n';
     require(machine.cpu().lastExceptionCode() == 3U,
             "CPU records TLB Store exception code for invalid entry");
     require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
