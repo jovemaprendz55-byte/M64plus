@@ -1170,3 +1170,15 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - **Correção de teste encontrada durante CI:** a primeira ROM sintética do teste PI tinha 64 bytes, mas o payload começava no offset `0x40` e precisava de mais 8 bytes; o teste corretamente recusou a transferência fora do cartucho. A fixture foi ampliada para 72 bytes no commit `6e266b75e7929d807fb55daf638439e316f66687`. A implementação DMA não foi alterada por essa falha; CI do teste corrigido pendente.
 
 - **Segunda correção da fixture PI:** após ampliar a ROM sintética para 72 bytes, a verificação de estouro ainda usava offset 60, que com 8 bytes é válido nessa imagem. O caso inválido foi corrigido para offset 68 (68 + 8 > 72), commit `d07747e7b5e54bb37bac68a4452ddb2b72361bad`. CI desta revisão pendente.
+
+
+### 17.13 Integração CPU → PI DMA → RDRAM → execução (2026-11-23)
+
+- Adicionado em tests/machine_tests.cpp um teste de integração em que a CPU MIPS executa instruções que configuram PI_DRAM_ADDR, PI_CART_ADDR e PI_WR_LEN por MMIO KSEG1.
+- O PI transfere oito bytes de uma ROM sintética .z64 para a RDRAM; o teste verifica o conteúdo copiado e o bit de interrupção PI.
+- Em seguida, a CPU é posicionada na região de RDRAM preenchida pelo DMA e executa as duas instruções MIPS copiadas do cartucho.
+- Commit do teste: 19740a2deb434e24ca1d1d69c331e5a017a22126.
+- Workflow [#45117394808](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45117394808): native-host-tests concluiu com sucesso; assemble-debug ainda estava em andamento no momento do registro.
+- O que foi validado: caminho de controle da CPU para PI, DMA de cartucho para RDRAM e execução subsequente de código em RDRAM, usando uma ROM sintética.
+- O que não foi validado: boot real de cartucho, IPL3/CIC, PIF, VI, RSP/RDP em execução coordenada, ou compatibilidade com jogos comerciais.
+- Próxima etapa arquitetural: desenhar e testar uma rotina de inicialização HLE independente de dumps proprietários, usando parâmetros de boot conhecidos e separando claramente o estado inicial da máquina da execução do jogo. Não definir endereço de entrada ou registradores de boot por suposição: comparar com documentação e implementações de referência independentes antes de fixar o contrato.
