@@ -21,6 +21,8 @@ public:
     // Start a cartridge through a documented CIC-6102/NTSC-style HLE boot profile.
     bool bootCartridgeHle() noexcept;
     bool stepCpu() noexcept;
+    // Execute at most instructionBudget CPU steps; never runs without a bound.
+    std::size_t runCpuInstructions(std::size_t instructionBudget) noexcept;
     bool stepRsp() noexcept;
     std::size_t runRsp(std::size_t instructionBudget) noexcept;
     // Consume up to commandBudget RDP commands; unsupported commands are consumed but not rendered.
