@@ -1147,3 +1147,12 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Commits na `main`: JNI `8b73e5965ea2c65080b863ec7481eb2a7f8c969e`; interface/seletor `bc512f2751d785189004b6409ebd7f19f5bfd6aa`.
 - **Validação pendente:** aguardar CI nativo e Android para confirmar a compilação da JNI e da interface Java. Também falta teste manual no dispositivo para verificar o seletor e a leitura real de um arquivo `.z64`.
 - **Limitações:** nenhum botão de iniciar/pausar jogo; nenhuma conversão `.v64`/`.n64`; nenhuma persistência da ROM após fechar o app; não iniciar CPU automaticamente para evitar saltar para um estado de boot ainda incompleto.
+
+
+### Validação CI da integração Android de ROM (2026-11-23)
+
+- JNI `nativeLoadCartridge` validada no workflow [#45115990178](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45115990178): `native-host-tests` e `assemble-debug` concluíram com sucesso.
+- Seletor Android/SAF validado no workflow [#45116024737](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45116024737): ambos os jobs concluíram com sucesso.
+- Auditoria final e estado combinado validados no workflow [#45116103405](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45116103405): ambos os jobs concluíram com sucesso.
+- APK `m64plus-debug-apk`, artefato ID `14791966190`, tamanho 624.263 bytes, SHA-256 `e632dc8b1c4307874f3f0338aeba1878e80c85559ddfd84e62332de9f7bb0c82`, expira em 2027-02-21.
+- A validação CI comprova compilação e testes nativos, não execução manual no Android. Falta selecionar ROM real no dispositivo e verificar mensagem de sucesso; nenhum jogo inicia ainda.
