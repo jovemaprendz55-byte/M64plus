@@ -1,5 +1,7 @@
 #include "n64/machine.h"
 
+#include <array>
+
 #include <algorithm>
 #include <cstdint>
 
@@ -26,6 +28,15 @@ bool N64Machine::bootCartridgeHle() noexcept {
         static_cast<std::uint64_t>(physicalEntry) + payloadSize > Rdram::kSize)
         return false;
 
+    // Identify the IPL3 CIC before reset; the cartridge remains inserted.
+    std::array<std::uint8_t, 0x1000U> bootRom{};
+    for (std::uint32_t i = 0; i < bootRom.size(); ++i) {
+        if (!bus_.read8(Bus::kCartridgeBase + i, bootRom[i])) return false;
+    }
+    const CicInfo cic = detectCicFromIpl3(bootRom.data(), bootRom.size());
+    const TvType tv = detectTvType(bootRom[0x3EU]);
+    const std::uint32_t tvType = static_cast<std::uint32_t>(tv);
+
     // Reset hardware state while preserving the inserted cartridge.
     reset();
 
@@ -50,7 +61,7 @@ bool N64Machine::bootCartridgeHle() noexcept {
     const auto writeBootWord = [this](std::uint32_t address, std::uint32_t value) {
         return bus_.rdram().write32(address, value);
     };
-    if (!writeBootWord(0x300U, 1U) ||       // osTvType: NTSC
+    if (!writeBootWord(0x300U, tvType) ||    // osTvType from cartridge region
         !writeBootWord(0x304U, 0U) ||       // osRomType: cartridge
         !writeBootWord(0x308U, 0xB0000000U) || // osRomBase
         !writeBootWord(0x30CU, 0U) ||       // osResetType: cold
@@ -58,14 +69,16 @@ bool N64Machine::bootCartridgeHle() noexcept {
         !writeBootWord(0x318U, static_cast<std::uint32_t>(Rdram::kSize)))
         return false;
 
+    if (cic.osCicId != 0U && !writeBootWord(0x310U, cic.osCicId)) return false;
+
     const std::uint64_t canonicalEntry = static_cast<std::uint64_t>(
         static_cast<std::int64_t>(static_cast<std::int32_t>(entryPoint)));
     cpu_.reset(canonicalEntry);
     cpu_.setRegister(11U, 0xFFFFFFFFA4000040ULL); // t3: IPL3/DMEM handoff address
     cpu_.setRegister(19U, 0U);                    // s3: cartridge ROM type
-    cpu_.setRegister(20U, 1U);                    // s4: NTSC
+    cpu_.setRegister(20U, tvType);                // s4: TV type from ROM region
     cpu_.setRegister(21U, 0U);                    // s5: cold reset
-    cpu_.setRegister(22U, 0x3FU);                 // s6: CIC-6102 seed
+    cpu_.setRegister(22U, cic.seed);              // s6: detected CIC seed (6102 fallback)
     cpu_.setRegister(23U, 0U);                    // s7: IPL2 version
     cpu_.setRegister(29U, 0xFFFFFFFFA4001FF0ULL); // sp: boot stack in DMEM
     return cpu_.setCp0Register(Cp0::kStatus, kBootStatus);
