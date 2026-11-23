@@ -31,6 +31,12 @@ void Bus::reset() noexcept {
     dpPipeBusy_ = 0;
     dpTmem_ = 0;
     dpXbusDmemDma_ = false;
+    piDramAddr_ = 0;
+    piCartAddr_ = kCartridgeBase;
+    piReadLength_ = 0;
+    piWriteLength_ = 0;
+    piStatus_ = 0;
+    piDomainTiming_.fill(0);
 }
 
 bool Bus::loadCartridge(const std::uint8_t* data, std::size_t size) {
@@ -65,6 +71,8 @@ BusRegion Bus::region(std::uint32_t address) const noexcept {
         return BusRegion::MiRegisters;
     if (address >= kDpRegBase && address < kDpRegBase + 0x20U)
         return BusRegion::DpRegisters;
+    if (address >= kPiBase && address < kPiBase + 0x34U)
+        return BusRegion::PiRegisters;
     if ((address >= kSpRegBase && address < kSpRegBase + 0x20U) ||
         (address >= kSpPc && address < kSpPc + 4U))
         return BusRegion::SpRegisters;
@@ -99,6 +107,7 @@ bool Bus::readByte(std::uint32_t address, std::uint8_t& value) const noexcept {
     case BusRegion::MiRegisters:
     case BusRegion::SpRegisters:
     case BusRegion::DpRegisters:
+    case BusRegion::PiRegisters:
         return false; // Device registers require aligned 32-bit accesses.
     case BusRegion::Unmapped:
         return false;
@@ -132,13 +141,14 @@ bool Bus::readBytes(std::uint32_t address, std::uint8_t* output,
                     std::size_t width) const noexcept {
     BusRegion selected = BusRegion::Unmapped;
     if (output == nullptr || !rangeFits(address, width, selected)) return false;
-    if (selected == BusRegion::MiRegisters || selected == BusRegion::SpRegisters || selected == BusRegion::DpRegisters) {
+    if (selected == BusRegion::MiRegisters || selected == BusRegion::SpRegisters || selected == BusRegion::DpRegisters || selected == BusRegion::PiRegisters) {
         if (width != 4U || (address & 3U) != 0) return false;
         std::uint32_t value = 0;
         const bool ok = selected == BusRegion::MiRegisters
             ? readMiRegister(address, value)
             : selected == BusRegion::SpRegisters ? readSpRegister(address, value)
-            : readDpRegister(address, value);
+            : selected == BusRegion::DpRegisters ? readDpRegister(address, value)
+            : readPiRegister(address, value);
         if (!ok) return false;
         output[0] = static_cast<std::uint8_t>(value >> 24U);
         output[1] = static_cast<std::uint8_t>(value >> 16U);
@@ -165,7 +175,8 @@ bool Bus::writeBytes(std::uint32_t address, const std::uint8_t* input,
         return selected == BusRegion::MiRegisters
             ? writeMiRegister(address, value)
             : selected == BusRegion::SpRegisters ? writeSpRegister(address, value)
-            : writeDpRegister(address, value);
+            : selected == BusRegion::DpRegisters ? writeDpRegister(address, value)
+            : writePiRegister(address, value);
     }
     for (std::size_t i = 0; i < width; ++i) {
         if (!writeByte(address + static_cast<std::uint32_t>(i), input[i]))
@@ -469,6 +480,94 @@ bool Bus::writeDpRegister(std::uint32_t address, std::uint32_t value) noexcept {
     default:
         return false;
     }
+}
+
+bool Bus::readPiRegister(std::uint32_t address, std::uint32_t& value) const noexcept {
+    switch (address) {
+    case kPiDramAddr: value = piDramAddr_; return true;
+    case kPiCartAddr: value = piCartAddr_; return true;
+    case kPiReadLength: value = piReadLength_; return true;
+    case kPiWriteLength: value = piWriteLength_; return true;
+    case kPiStatus: value = piStatus_; return true;
+    case kPiDomain1Latency: value = piDomainTiming_[0]; return true;
+    case kPiDomain1Pulse: value = piDomainTiming_[1]; return true;
+    case kPiDomain1Page: value = piDomainTiming_[2]; return true;
+    case kPiDomain1Release: value = piDomainTiming_[3]; return true;
+    case kPiDomain2Latency: value = piDomainTiming_[4]; return true;
+    case kPiDomain2Pulse: value = piDomainTiming_[5]; return true;
+    case kPiDomain2Page: value = piDomainTiming_[6]; return true;
+    case kPiDomain2Release: value = piDomainTiming_[7]; return true;
+    default: return false;
+    }
+}
+
+bool Bus::writePiRegister(std::uint32_t address, std::uint32_t value) noexcept {
+    switch (address) {
+    case kPiDramAddr:
+        piDramAddr_ = value & 0x00FFFFFFU;
+        return true;
+    case kPiCartAddr:
+        piCartAddr_ = value;
+        return true;
+    case kPiReadLength:
+        // PI_RD_LEN transfers from RDRAM toward the cartridge bus. This
+        // implementation models read-only ROM and deliberately rejects writes.
+        piReadLength_ = value & 0x00FFFFFFU;
+        piStatus_ |= kPiStatusError;
+        return false;
+    case kPiWriteLength:
+        piWriteLength_ = value & 0x00FFFFFFU;
+        if (!performPiCartridgeToRdramDma(piWriteLength_)) {
+            piStatus_ |= kPiStatusError;
+            return false;
+        }
+        return true;
+    case kPiStatus:
+        if ((value & 1U) != 0U) {
+            piStatus_ &= ~(kPiStatusDmaBusy | kPiStatusIoBusy | kPiStatusError);
+        }
+        if ((value & 2U) != 0U) {
+            piStatus_ &= ~kPiStatusInterrupt;
+            setMiInterrupt(4U, false);
+        }
+        return true;
+    case kPiDomain1Latency: piDomainTiming_[0] = value & 0xFFU; return true;
+    case kPiDomain1Pulse: piDomainTiming_[1] = value & 0xFFU; return true;
+    case kPiDomain1Page: piDomainTiming_[2] = value & 0x0FU; return true;
+    case kPiDomain1Release: piDomainTiming_[3] = value & 0x03U; return true;
+    case kPiDomain2Latency: piDomainTiming_[4] = value & 0xFFU; return true;
+    case kPiDomain2Pulse: piDomainTiming_[5] = value & 0xFFU; return true;
+    case kPiDomain2Page: piDomainTiming_[6] = value & 0x0FU; return true;
+    case kPiDomain2Release: piDomainTiming_[7] = value & 0x03U; return true;
+    default: return false;
+    }
+}
+
+bool Bus::performPiCartridgeToRdramDma(std::uint32_t lengthRegister) noexcept {
+    const std::uint64_t length = static_cast<std::uint64_t>(lengthRegister) + 1U;
+    if (piCartAddr_ < kCartridgeBase || piDramAddr_ >= Rdram::kSize ||
+        static_cast<std::uint64_t>(piDramAddr_) + length > Rdram::kSize)
+        return false;
+    const std::uint64_t cartridgeOffset =
+        static_cast<std::uint64_t>(piCartAddr_) - kCartridgeBase;
+    if (cartridgeOffset + length > cartridge_.size()) return false;
+
+    piStatus_ |= kPiStatusDmaBusy | kPiStatusIoBusy;
+    for (std::uint64_t i = 0; i < length; ++i) {
+        if (!rdram_.write8(piDramAddr_ + static_cast<std::uint32_t>(i),
+                           cartridge_[static_cast<std::size_t>(cartridgeOffset + i)])) {
+            piStatus_ &= ~(kPiStatusDmaBusy | kPiStatusIoBusy);
+            return false;
+        }
+    }
+    piDramAddr_ = static_cast<std::uint32_t>(
+        static_cast<std::uint64_t>(piDramAddr_) + length) & 0x00FFFFFFU;
+    piCartAddr_ = static_cast<std::uint32_t>(
+        static_cast<std::uint64_t>(piCartAddr_) + length);
+    piStatus_ &= ~(kPiStatusDmaBusy | kPiStatusIoBusy | kPiStatusError);
+    piStatus_ |= kPiStatusInterrupt;
+    setMiInterrupt(4U, true);
+    return true;
 }
 
 void Bus::setMiInterrupt(unsigned source, bool asserted) noexcept {
