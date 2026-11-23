@@ -1168,3 +1168,5 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - **Validação CI pendente** para a nova região de barramento e DMA. O modelo é síncrono e simplificado; não implementa timings reais, latência, bursts, cartucho gravável ou PI DMA reverso.
 
 - **Correção de teste encontrada durante CI:** a primeira ROM sintética do teste PI tinha 64 bytes, mas o payload começava no offset `0x40` e precisava de mais 8 bytes; o teste corretamente recusou a transferência fora do cartucho. A fixture foi ampliada para 72 bytes no commit `6e266b75e7929d807fb55daf638439e316f66687`. A implementação DMA não foi alterada por essa falha; CI do teste corrigido pendente.
+
+- **Segunda correção da fixture PI:** após ampliar a ROM sintética para 72 bytes, a verificação de estouro ainda usava offset 60, que com 8 bytes é válido nessa imagem. O caso inválido foi corrigido para offset 68 (68 + 8 > 72), commit `d07747e7b5e54bb37bac68a4452ddb2b72361bad`. CI desta revisão pendente.
