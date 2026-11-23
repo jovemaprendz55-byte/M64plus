@@ -1764,13 +1764,13 @@ void testCpuBranchLikelyDelaySlotSemantics() {
                     "untaken REGIMM link-likely continues after the annulled slot");
         }
     };
-    runLinkLikelyCase(0x05020002U | (1U << 16U), 0xFFFFFFFFFFFFFFFFULL, true,
+    runLinkLikelyCase(0x05120002U, 0xFFFFFFFFFFFFFFFFULL, true,
                       "execute taken BLTZALL branch-likely");
-    runLinkLikelyCase(0x05030002U | (1U << 16U), 0U, true,
+    runLinkLikelyCase(0x05130002U, 0U, true,
                       "execute taken BGEZALL branch-likely");
-    runLinkLikelyCase(0x05020002U | (1U << 16U), 0U, false,
+    runLinkLikelyCase(0x05120002U, 0U, false,
                       "execute untaken BLTZALL branch-likely");
-    runLinkLikelyCase(0x05030002U | (1U << 16U), 0xFFFFFFFFFFFFFFFFULL, false,
+    runLinkLikelyCase(0x05130002U, 0xFFFFFFFFFFFFFFFFULL, false,
                       "execute untaken BGEZALL branch-likely");
 }
 
