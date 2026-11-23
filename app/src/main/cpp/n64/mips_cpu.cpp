@@ -481,15 +481,18 @@ bool MipsCpu::stepMemory(Memory& memory) {
         if (inDelaySlot)
             return takeException(ExceptionCode::ReservedInstruction);
         if (rs == 0x00) { // MFC0, select 0 only
-            if ((instruction & 7U) != 0)
+            if ((instruction & 0x7F8U) != 0)
                 return takeException(ExceptionCode::ReservedInstruction);
             destination = rt;
             result = signExtend32(static_cast<std::uint32_t>(cp0_.read(rd)));
             writeRegister = true;
         } else if (rs == 0x04) { // MTC0, select 0 only
-            if ((instruction & 7U) != 0 || !cp0_.write(rd, gpr_[rt]))
+            if ((instruction & 0x7F8U) != 0 || !cp0_.write(rd, gpr_[rt]))
                 return takeException(ExceptionCode::ReservedInstruction);
         } else if (rs == 0x10) { // COP0 privileged operations
+            // ERET/TLB operations use only the CO function field; bits 25:6 are reserved.
+            if ((instruction & 0x03FFFFC0U) != 0U)
+                return takeException(ExceptionCode::ReservedInstruction);
             if (function == 0x18) { // ERET
                 doExceptionReturn = true;
             } else if (function == 0x08) { // TLBP
