@@ -1019,8 +1019,9 @@ void testFillRectangleHonorsScissorFieldParity() {
                 require(bus.read32(base + (y * 4U + x) * 4U, pixel),
                         "read field-selected framebuffer pixel");
                 const bool selectedField = (y & 1U) == selectedParity;
-                require(pixel == (selectedField ? color : sentinel),
-                        "scissor field selection writes only matching scanline parity");
+                const bool insideScissor = x < 3U;
+                require(pixel == (selectedField && insideScissor ? color : sentinel),
+                        "scissor field selection and exclusive right edge are both enforced");
             }
         }
     }
