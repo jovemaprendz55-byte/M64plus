@@ -1797,11 +1797,14 @@ void testCpuBranchLikelyDelaySlotSemantics() {
             require(cpu.reg(10U) == 1U && cpu.pc() == 0xFFFFFFFF8000000CU,
                     "taken REGIMM branch-and-link reaches target");
         } else {
-            require(cpu.pc() == 0xFFFFFFFF80000008ULL,
-                    "untaken REGIMM branch-and-link continues sequentially");
+            require(cpu.pc() == 0xFFFFFFFF80000004ULL,
+                    "untaken ordinary REGIMM branch still schedules its delay slot");
+            require(machine.stepCpu(), "execute untaken REGIMM branch delay slot");
+            require(cpu.reg(10U) == 1U && cpu.pc() == 0xFFFFFFFF80000008ULL,
+                    "untaken ordinary REGIMM branch retires its delay slot before continuing");
             require(machine.stepCpu(), "execute instruction after untaken REGIMM branch");
             require(cpu.reg(11U) == 1U,
-                    "untaken REGIMM branch executes sequential instruction");
+                    "untaken REGIMM branch continues sequentially after its delay slot");
         }
     };
     runLinkCase(0x05100002U, 0xFFFFFFFFFFFFFFFFULL, true,
