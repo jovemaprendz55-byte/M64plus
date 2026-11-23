@@ -1283,20 +1283,26 @@ void testCpuCop0PrivilegedOperationsRequireKernelPrivilege() {
 void testCpuEretPrioritizesErrorEpcWhenErlAndExlAreSet() {
     N64Machine machine;
     Bus& bus = machine.bus();
-    require(bus.write32(0U, 0x42000018U),
-            "write ERET instruction with ERL and EXL set");
+    require(bus.write32(0U, 0x40886000U),
+            "write MTC0 Status with ERL and EXL set");
+    require(bus.write32(4U, 0x408AF000U),
+            "write MTC0 ErrorEPC");
+    require(bus.write32(8U, 0x408B7000U),
+            "write MTC0 EPC");
+    require(bus.write32(12U, 0x42000018U),
+            "write ERET with ERL and EXL set");
+
     auto& cpu = machine.cpu();
     cpu.reset(0xFFFFFFFF80000000ULL);
-    const std::uint64_t initialStatus =
-        (2ULL << 3U) | m64plus::n64::Cp0::kStatusErl |
-        m64plus::n64::Cp0::kStatusExl;
-    require(cpu.cp0().write(m64plus::n64::Cp0::kStatus, initialStatus),
-            "set user KSU with both ERL and EXL");
-    require(cpu.cp0().write(m64plus::n64::Cp0::kErrorEpc, 0x20U),
-            "set ErrorEPC for prioritized return");
-    require(cpu.cp0().write(m64plus::n64::Cp0::kEpc, 0x40U),
-            "set distinct EPC for prioritized return");
+    cpu.setRegister(8U, (2ULL << 3U) |
+                         m64plus::n64::Cp0::kStatusErl |
+                         m64plus::n64::Cp0::kStatusExl);
+    cpu.setRegister(10U, 0x20U);
+    cpu.setRegister(11U, 0x40U);
 
+    require(machine.stepCpu(), "MTC0 sets both ERL and EXL");
+    require(machine.stepCpu(), "MTC0 writes ErrorEPC");
+    require(machine.stepCpu(), "MTC0 writes distinct EPC");
     require(machine.stepCpu(), "ERET executes with ERL and EXL both set");
     require(cpu.pc() == 0x20U,
             "ERET uses ErrorEPC when ERL and EXL are both set");
@@ -1308,25 +1314,29 @@ void testCpuEretPrioritizesErrorEpcWhenErlAndExlAreSet() {
     require((status & (3ULL << 3U)) == (2ULL << 3U),
             "ERET preserves KSU while clearing only ERL");
 }
-
 void testCpuEretUsesErrorEpcWhenErlIsSet() {
     N64Machine machine;
     Bus& bus = machine.bus();
-    require(bus.write32(0U, 0x42000018U),
-            "write ERET instruction for ERL return");
+    require(bus.write32(0U, 0x40886000U),
+            "write MTC0 Status with ERL set");
+    require(bus.write32(4U, 0x408AF000U),
+            "write MTC0 ErrorEPC");
+    require(bus.write32(8U, 0x408B7000U),
+            "write MTC0 EPC");
+    require(bus.write32(12U, 0x42000018U),
+            "write ERET for ERL return");
     require(bus.write32(0x20U, 0x40096000U),
             "write user-mode MFC0 at ErrorEPC target");
 
     auto& cpu = machine.cpu();
     cpu.reset(0xFFFFFFFF80000000ULL);
-    require(cpu.cp0().write(m64plus::n64::Cp0::kStatus,
-                            (2ULL << 3U) | m64plus::n64::Cp0::kStatusErl),
-            "set user KSU and ERL before ERET");
-    require(cpu.cp0().write(m64plus::n64::Cp0::kErrorEpc, 0x20U),
-            "set CP0 ErrorEPC return address");
-    require(cpu.cp0().write(m64plus::n64::Cp0::kEpc, 0x40U),
-            "set a distinct EPC to verify ERL priority");
+    cpu.setRegister(8U, (2ULL << 3U) | m64plus::n64::Cp0::kStatusErl);
+    cpu.setRegister(10U, 0x20U);
+    cpu.setRegister(11U, 0x40U);
 
+    require(machine.stepCpu(), "MTC0 sets ERL and user KSU");
+    require(machine.stepCpu(), "MTC0 writes ErrorEPC");
+    require(machine.stepCpu(), "MTC0 writes distinct EPC");
     require(machine.stepCpu(), "ERET executes while ERL is set");
     require(cpu.pc() == 0x20U,
             "ERET selects ErrorEPC instead of EPC when ERL is set");
@@ -1345,7 +1355,6 @@ void testCpuEretUsesErrorEpcWhenErlIsSet() {
     require(cpu.pc() == 0xFFFFFFFF80000180ULL,
             "post-ERL-return MFC0 enters general exception vector");
 }
-
 void testCpuEretRestoresUserPrivilegeFromStatus() {
     N64Machine machine;
     Bus& bus = machine.bus();
