@@ -535,6 +535,10 @@ void testCpuTlbLoadMissInBranchDelaySlotInvalidatesLoadLinkedReservation() {
             "CP0 EPC points to branch instruction for delay-slot TLB exception");
     require((machine.cpu().cp0().read(m64plus::n64::Cp0::kCause) & (1ULL << 31U)) != 0,
             "CP0 Cause sets branch-delay bit for delay-slot TLB exception");
+    require(machine.cpu().cp0().read(m64plus::n64::Cp0::kBadVAddr) == unmappedAddress,
+            "CP0 BadVAddr records the unmapped delay-slot load address");
+    require(machine.cpu().cp0().read(m64plus::n64::Cp0::kEntryHi) == unmappedAddress,
+            "CP0 EntryHi records the unmapped delay-slot virtual page");
 
     machine.cpu().setTlbEnabled(false);
     require(machine.stepCpu(), "SC executes at refill vector without reservation");
