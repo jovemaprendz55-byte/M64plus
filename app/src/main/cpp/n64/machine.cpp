@@ -95,6 +95,12 @@ bool N64Machine::stepCpu() noexcept {
     return cpu_.step(bus_);
 }
 
+std::size_t N64Machine::runCpuInstructions(std::size_t instructionBudget) noexcept {
+    std::size_t executed = 0;
+    while (executed < instructionBudget && stepCpu()) ++executed;
+    return executed;
+}
+
 bool N64Machine::stepRsp() noexcept {
     if (bus_.spHalted()) return false;
     if (rsp_.pc() != bus_.spProgramCounter()) {
