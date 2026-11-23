@@ -1135,3 +1135,14 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Adicionado teste de integração em `tests/machine_tests.cpp`: carrega uma ROM de teste `.z64`, posiciona duas instruções MIPS no offset `0x40` e verifica que a CPU as busca/executa a partir de `0xFFFFFFFFB0000040` (KSEG1), atualizando os registradores e o PC esperados.
 - Commit do novo teste: `7f794b635f2047937af8250126ceb93e305426cc`. **CI desse novo teste ainda pendente**; não confundir o sucesso do workflow anterior com validação deste teste.
 - **Limitações funcionais:** ainda não existe seletor Android/Storage Access Framework, ponte JNI para enviar bytes de ROM ao `Bus::loadCartridge`, PI DMA, sequência CIC/boot IPL3 real, checksum ou execução de jogos. O teste usa instruções artificiais no offset IPL3 apenas para validar o caminho de fetch da CPU.
+
+
+## 17.11 Primeiro carregador de ROM no Android (2026-11-23)
+
+- Adicionada JNI `nativeLoadCartridge(handle, byte[])`: valida handle/array/tamanho máximo e encaminha os bytes para `Bus::loadCartridge`. O buffer JNI é liberado com `JNI_ABORT`, pois o Bus mantém sua própria cópia.
+- `MainActivity` agora apresenta o botão `ABRIR ROM (.z64)` sobre a tela OpenGL e abre o seletor de documentos Android (`ACTION_OPEN_DOCUMENT`). O arquivo é lido em thread de trabalho, limitado a 64 MiB, e carregado sob o mesmo lock usado pelo snapshot/destruição da máquina.
+- O usuário recebe mensagem de sucesso/rejeição. A mensagem deixa explícito que carregar a ROM não inicia o jogo: ainda não há boot completo, PI DMA nem loop de CPU/RSP.
+- A seleção usa o Storage Access Framework, sem pedir permissão ampla de armazenamento. A validação do núcleo continua aceitando apenas `.z64` big-endian com magic correto; a extensão do nome não substitui a validação binária.
+- Commits na `main`: JNI `8b73e5965ea2c65080b863ec7481eb2a7f8c969e`; interface/seletor `bc512f2751d785189004b6409ebd7f19f5bfd6aa`.
+- **Validação pendente:** aguardar CI nativo e Android para confirmar a compilação da JNI e da interface Java. Também falta teste manual no dispositivo para verificar o seletor e a leitura real de um arquivo `.z64`.
+- **Limitações:** nenhum botão de iniciar/pausar jogo; nenhuma conversão `.v64`/`.n64`; nenhuma persistência da ROM após fechar o app; não iniciar CPU automaticamente para evitar saltar para um estado de boot ainda incompleto.
