@@ -42,6 +42,7 @@ public final class MainActivity extends Activity {
     private static native long nativeMachineCpuPc(long handle);
     static native int[] nativeGetFramebufferSnapshot(long handle);
     private static native boolean nativeLoadCartridge(long handle, byte[] romData);
+    private static native boolean nativeBootCartridgeHle(long handle);
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         boolean memoryPassed = nativeRdramSelfTest();
@@ -134,14 +135,19 @@ public final class MainActivity extends Activity {
                 }
                 byte[] romData = output.toByteArray();
                 boolean loaded;
+                boolean booted = false;
                 synchronized (nativeMachineLock) {
                     loaded = nativeMachineHandle != 0L &&
                             nativeLoadCartridge(nativeMachineHandle, romData);
+                    if (loaded) booted = nativeBootCartridgeHle(nativeMachineHandle);
                 }
-                message = loaded
-                        ? "ROM .z64 carregada. Inicialização do jogo ainda não implementada."
-                        : "ROM inválida. Use uma ROM .z64 big-endian.";
+                message = !loaded
+                        ? "ROM inválida. Use uma ROM .z64 big-endian."
+                        : (booted
+                            ? "ROM carregada e boot HLE iniciado. A execução completa do jogo ainda está em desenvolvimento."
+                            : "ROM carregada, mas o boot HLE não aceitou o cabeçalho.");
                 Log.i(TAG, "Cartridge load: " + (loaded ? "SUCCESS" : "REJECTED") +
+                        "; HLE boot=" + (booted ? "SUCCESS" : "FAILED") +
                         "; bytes=" + romData.length);
             } catch (IOException exception) {
                 message = "Erro ao abrir ROM: " + exception.getMessage();
