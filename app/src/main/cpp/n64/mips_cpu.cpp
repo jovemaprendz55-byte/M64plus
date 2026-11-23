@@ -173,6 +173,8 @@ bool MipsCpu::stepMemory(Memory& memory) {
         case 0x10: result = hi_; break; // MFHI
         case 0x11: hi_ = a; destination = 0; writeRegister = false; break; // MTHI
         case 0x12: result = lo_; break; // MFLO
+        case 0x0C: return takeException(ExceptionCode::Syscall); // SYSCALL
+        case 0x0D: return takeException(ExceptionCode::Breakpoint); // BREAK
         case 0x13: lo_ = a; destination = 0; writeRegister = false; break; // MTLO
         case 0x18: { // MULT (signed 32-bit operands)
             const auto product = static_cast<std::int64_t>(static_cast<std::int32_t>(a)) *
