@@ -340,6 +340,36 @@ void testCpuUnalignedDoublewordMemoryOperations() {
     }
 }
 
+void testCpuUnalignedDoublewordMemoryBoundaryFaults() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint64_t sentinel = 0xA1A2A3A4A5A6A7A8ULL;
+    const std::uint32_t opcodes[] = {
+        0x68090000U, // LDL
+        0x6C090000U, // LDR
+        0xB0090000U, // SDL
+        0xB4090000U  // SDR
+    };
+    std::uint64_t lastValidWord = 0;
+    require(bus.write64(0x007FFFF8U, 0x1122334455667788ULL),
+            "initialize final valid RDRAM doubleword");
+    for (std::uint32_t opcode : opcodes) {
+        require(bus.write32(0x1000U, opcode), "write boundary access instruction");
+        machine.cpu().reset(0xFFFFFFFF80001000ULL);
+        machine.cpu().setRegister(8U, 0x00800000ULL);
+        machine.cpu().setRegister(9U, sentinel);
+        require(machine.stepCpu(), "boundary access raises a handled CPU exception");
+        require(machine.cpu().hasLastException() &&
+                machine.cpu().lastExceptionCode() == 7U,
+                "unaligned doubleword access beyond RDRAM reports BusData");
+        require(machine.cpu().reg(9U) == sentinel,
+                "failed doubleword access does not modify target register");
+        require(bus.read64(0x007FFFF8U, lastValidWord) &&
+                lastValidWord == 0x1122334455667788ULL,
+                "failed doubleword access does not corrupt final valid RDRAM word");
+    }
+}
+
 void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -618,6 +648,7 @@ int main() {
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
     testCpuUnalignedDoublewordMemoryOperations();
+    testCpuUnalignedDoublewordMemoryBoundaryFaults();
     testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget();
     testCpuRunnerStopsWhenInstructionRaisesException();
     testCartridgeHleBootInitializesRdramDmemAndCpuState();
