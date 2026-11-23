@@ -90,6 +90,8 @@ public:
     bool loadCartridge(const std::uint8_t* data, std::size_t size);
     void unloadCartridge() noexcept;
     std::size_t cartridgeSize() const noexcept;
+    // Changes after successful writes to RDRAM, including DMA transfers.
+    std::uint64_t rdramWriteEpoch() const noexcept { return rdramWriteEpoch_; }
 
     BusRegion region(std::uint32_t address) const noexcept;
     bool read8(std::uint32_t address, std::uint8_t& value) const noexcept;
@@ -143,6 +145,7 @@ private:
     bool writeByte(std::uint32_t address, std::uint8_t value) noexcept;
 
     Rdram rdram_{};
+    std::uint64_t rdramWriteEpoch_ = 0;
     std::vector<std::uint8_t> cartridge_{};
     std::array<std::uint8_t, kSpMemorySize> spDmem_{};
     std::array<std::uint8_t, kSpMemorySize> spImem_{};
