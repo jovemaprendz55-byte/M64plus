@@ -866,6 +866,77 @@ void testLoadTlutReplicatesEntriesIntoHighTmem() {
             "LOAD_TLUT quadricates third palette entry");
 }
 
+void testFillRectangleWritesRgba32PixelsAndHonorsScissor() {
+    using namespace m64plus::n64;
+    const std::uint32_t base = 0x3000U;
+    const std::uint32_t sentinel = 0xAABBCCDDU;
+    const std::uint32_t color = 0x11223344U;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0; i < 16U; ++i)
+        require(bus.write32(base + i * 4U, sentinel), "seed RGBA32 framebuffer sentinels");
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | base,
+        (0x37ULL << 56U) | color,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x36ULL << 56U) | (2ULL << 44U) | (2ULL << 32U) |
+            (1ULL << 12U) | 1ULL
+    };
+    for (std::size_t i = 0; i < 4U; ++i)
+        require(bus.write64(0xC00U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed RGBA32 FILL_RECTANGLE command stream");
+    require(bus.write32(Bus::kDpStart, 0xC00U) &&
+            bus.write32(Bus::kDpEnd, 0xC20U), "publish RGBA32 fill stream");
+    for (unsigned i = 0; i < 4U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "RGBA32 FILL_RECTANGLE setup and draw are processed");
+
+    for (std::uint32_t y = 0; y < 4U; ++y) {
+        for (std::uint32_t x = 0; x < 4U; ++x) {
+            std::uint32_t pixel = 0U;
+            require(bus.read32(base + (y * 4U + x) * 4U, pixel),
+                    "read rendered RGBA32 framebuffer pixel");
+            const bool inside = x >= 1U && x <= 2U && y >= 1U && y <= 2U;
+            require(pixel == (inside ? color : sentinel),
+                    "FILL_RECTANGLE writes only inclusive rectangle pixels");
+        }
+    }
+
+    Bus clippedBus;
+    RdpSyncState clippedState{};
+    for (std::uint32_t i = 0; i < 16U; ++i)
+        require(clippedBus.write32(base + i * 4U, sentinel),
+                "seed clipped framebuffer sentinels");
+    const std::uint64_t clippedCommands[] = {
+        commands[0], commands[1], commands[2],
+        (0x2DULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
+            (8ULL << 12U) | 8ULL,
+        commands[3]
+    };
+    for (std::size_t i = 0; i < 5U; ++i)
+        require(clippedBus.write64(0xC40U + static_cast<std::uint32_t>(i * 8U),
+                                  clippedCommands[i]),
+                "seed scissored RGBA32 fill stream");
+    require(clippedBus.write32(Bus::kDpStart, 0xC40U) &&
+            clippedBus.write32(Bus::kDpEnd, 0xC68U),
+            "publish scissored fill stream");
+    for (unsigned i = 0; i < 5U; ++i)
+        require(RdpCommandProcessor::processNext(clippedBus, clippedState) ==
+                    RdpProcessResult::Processed,
+                "scissored RGBA32 FILL_RECTANGLE is processed");
+    for (std::uint32_t y = 0; y < 4U; ++y) {
+        for (std::uint32_t x = 0; x < 4U; ++x) {
+            std::uint32_t pixel = 0U;
+            require(clippedBus.read32(base + (y * 4U + x) * 4U, pixel),
+                    "read scissored framebuffer pixel");
+            const bool inside = x >= 1U && x <= 2U && y == 1U;
+            require(pixel == (inside ? color : sentinel),
+                    "scissor clips the fill rectangle before writing pixels");
+        }
+    }
+}
+
 void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
@@ -914,6 +985,7 @@ int main() {
     testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines();
     testLoadBlockRejectsUnsupportedTexelSizes();
     testLoadTlutReplicatesEntriesIntoHighTmem();
+    testFillRectangleWritesRgba32PixelsAndHonorsScissor();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
