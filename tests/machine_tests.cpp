@@ -1678,6 +1678,54 @@ void testCpuDefersTimerInterruptUntilAfterBranchDelaySlot() {
             "target instruction does not execute before deferred interrupt handler");
 }
 
+void testCpuBranchLikelyDelaySlotSemantics() {
+    auto runCase = [](std::uint32_t branch, std::uint64_t left, std::uint64_t right,
+                      bool taken, const char* description) {
+        N64Machine machine;
+        Bus& bus = machine.bus();
+        require(bus.write32(0x000U, branch), "write branch-likely instruction");
+        require(bus.write32(0x004U, 0x240A0001U),
+                "write instruction in branch-likely delay slot");
+        require(bus.write32(0x008U, 0x240B0001U),
+                "write sequential instruction after branch-likely");
+        require(bus.write32(0x00CU, 0x240C0001U),
+                "write taken branch-likely target instruction");
+
+        auto& cpu = machine.cpu();
+        cpu.reset(0xFFFFFFFF80000000ULL);
+        cpu.setRegister(8U, left);
+        cpu.setRegister(9U, right);
+        require(machine.stepCpu(), description);
+        if (taken) {
+            require(cpu.pc() == 0xFFFFFFFF80000004ULL,
+                    "taken branch-likely schedules its delay slot");
+            require(machine.stepCpu(), "execute taken branch-likely delay slot");
+            require(cpu.reg(10U) == 1U && cpu.pc() == 0xFFFFFFFF8000000CU,
+                    "taken branch-likely executes delay slot and reaches target");
+            require(machine.stepCpu(), "execute taken branch-likely target");
+            require(cpu.reg(12U) == 1U && cpu.reg(11U) == 0U,
+                    "taken branch-likely skips sequential instruction");
+        } else {
+            require(cpu.pc() == 0xFFFFFFFF80000008ULL,
+                    "untaken branch-likely annuls its delay slot");
+            require(cpu.reg(10U) == 0U,
+                    "annulled branch-likely delay-slot instruction has no side effect");
+            require(machine.stepCpu(), "execute instruction after annulled delay slot");
+            require(cpu.reg(11U) == 1U && cpu.reg(10U) == 0U,
+                    "untaken branch-likely resumes after the annulled delay slot");
+        }
+    };
+
+    runCase(0x51090002U, 7U, 7U, true,
+            "execute taken BEQL branch-likely");
+    runCase(0x55090002U, 7U, 7U, false,
+            "execute untaken BNEL branch-likely");
+    runCase(0x05020002U, 0U, 0U, false,
+            "execute untaken BLTZL branch-likely");
+    runCase(0x05030002U, 7U, 0U, true,
+            "execute taken BGEZL branch-likely");
+}
+
 void testCpuEretRestoresExceptionReturnAddress() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -1744,6 +1792,7 @@ int main() {
     testCp0CountCompareTimerInterrupt();
     testCpuAcceptsCp0TimerInterruptBetweenInstructions();
     testCpuDefersTimerInterruptUntilAfterBranchDelaySlot();
+    testCpuBranchLikelyDelaySlotSemantics();
     testCpuEretRestoresExceptionReturnAddress();
     testCpuEretReturnsToBranchAfterDelaySlotException();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
