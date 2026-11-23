@@ -24,6 +24,10 @@ void MipsCpu::reset(std::uint64_t pc) {
     cp0_.reset();
     tlb_.reset();
     tlbEnabled_ = false;
+    hasLastException_ = false;
+    lastExceptionPc_ = 0;
+    lastExceptionInstruction_ = 0;
+    lastExceptionCode_ = 0;
 }
 std::uint64_t MipsCpu::reg(unsigned index) const noexcept {
     return index < gpr_.size() ? (index == 0 ? 0 : gpr_[index]) : 0;
