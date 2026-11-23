@@ -2,6 +2,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 #include "n64/rdram.h"
 
 namespace m64plus::n64 {
@@ -13,12 +14,16 @@ enum class BusRegion : std::uint8_t {
     MiRegisters,
     SpRegisters,
     DpRegisters,
+    Cartridge,
     Unmapped
 };
 
 class Bus final {
 public:
     static constexpr std::uint32_t kRdramBase = 0x00000000U;
+    static constexpr std::uint32_t kCartridgeBase = 0x10000000U;
+    static constexpr std::size_t kMaxCartridgeSize = 64U * 1024U * 1024U;
+    static constexpr std::uint32_t kN64RomMagic = 0x80371240U;
     static constexpr std::uint32_t kSpDmemBase = 0x04000000U;
     static constexpr std::uint32_t kSpImemBase = 0x04001000U;
     static constexpr std::size_t kSpMemorySize = 4096U;
@@ -62,6 +67,10 @@ public:
 
     Bus();
     void reset() noexcept;
+    // Loads a big-endian .z64 image. Existing cartridge is preserved on failure.
+    bool loadCartridge(const std::uint8_t* data, std::size_t size);
+    void unloadCartridge() noexcept;
+    std::size_t cartridgeSize() const noexcept;
 
     BusRegion region(std::uint32_t address) const noexcept;
     bool read8(std::uint32_t address, std::uint8_t& value) const noexcept;
@@ -112,6 +121,7 @@ private:
     bool writeByte(std::uint32_t address, std::uint8_t value) noexcept;
 
     Rdram rdram_{};
+    std::vector<std::uint8_t> cartridge_{};
     std::array<std::uint8_t, kSpMemorySize> spDmem_{};
     std::array<std::uint8_t, kSpMemorySize> spImem_{};
     std::uint32_t miMode_ = 0;
