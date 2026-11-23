@@ -176,6 +176,67 @@ void testCpuHiLoMultiplyDivideAndTransfers() {
             "DSLLV uses the variable 64-bit shift amount");
 }
 
+void testCpuDoublewordMultiplyDivide() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    const std::uint32_t program[] = {
+        0x0109001CU, // DMULT t0,t1
+        0x00006012U, // MFLO t4
+        0x00006810U, // MFHI t5
+        0x0109001DU, // DMULTU t0,t1
+        0x00007012U, // MFLO t6
+        0x00007810U, // MFHI t7
+        0x0109001EU, // DDIV t0,t1
+        0x00008012U, // MFLO s0
+        0x00008810U, // MFHI s1
+        0x0109001FU, // DDIVU t0,t1
+        0x00009012U, // MFLO s2
+        0x00009810U  // MFHI s3
+    };
+    for (std::uint32_t i = 0; i < 12U; ++i)
+        require(bus.write32(i * 4U, program[i]), "load 64-bit multiply/divide program");
+
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, 0xFFFFFFFFFFFFFFFEULL);
+    machine.cpu().setRegister(9U, 3U);
+    for (unsigned i = 0; i < 3U; ++i)
+        require(machine.stepCpu(), "execute signed 64-bit multiply and HI/LO reads");
+    require(machine.cpu().reg(12U) == 0xFFFFFFFFFFFFFFFAULL,
+            "DMULT stores low 64 bits of signed product in LO");
+    require(machine.cpu().reg(13U) == 0xFFFFFFFFFFFFFFFFULL,
+            "DMULT stores signed high 64 bits in HI");
+
+    machine.cpu().reset(0xFFFFFFFF8000000CU);
+    machine.cpu().setRegister(8U, UINT64_MAX);
+    machine.cpu().setRegister(9U, 2U);
+    for (unsigned i = 0; i < 3U; ++i)
+        require(machine.stepCpu(), "execute unsigned 64-bit multiply and HI/LO reads");
+    require(machine.cpu().reg(14U) == 0xFFFFFFFFFFFFFFFEULL,
+            "DMULTU stores low 64 bits of unsigned product in LO");
+    require(machine.cpu().reg(15U) == 1U,
+            "DMULTU stores high 64 bits of unsigned product in HI");
+
+    machine.cpu().reset(0xFFFFFFFF80000018ULL);
+    machine.cpu().setRegister(8U, UINT64_MAX - 6U); // -7
+    machine.cpu().setRegister(9U, 3U);
+    for (unsigned i = 0; i < 3U; ++i)
+        require(machine.stepCpu(), "execute signed 64-bit divide and HI/LO reads");
+    require(machine.cpu().reg(16U) == UINT64_MAX - 1U,
+            "DDIV stores signed quotient -2 in LO");
+    require(machine.cpu().reg(17U) == UINT64_MAX,
+            "DDIV stores signed remainder -1 in HI");
+
+    machine.cpu().reset(0xFFFFFFFF80000024ULL);
+    machine.cpu().setRegister(8U, UINT64_MAX);
+    machine.cpu().setRegister(9U, 3U);
+    for (unsigned i = 0; i < 3U; ++i)
+        require(machine.stepCpu(), "execute unsigned 64-bit divide and HI/LO reads");
+    require(machine.cpu().reg(18U) == 0x5555555555555555ULL,
+            "DDIVU stores unsigned quotient in LO");
+    require(machine.cpu().reg(19U) == 0U,
+            "DDIVU stores unsigned remainder in HI");
+}
+
 void testCpuSignedArithmeticAndImmediateComparisons() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -645,6 +706,7 @@ int main() {
     testCpuFetchesAndExecutesFromCartridgeKseg1();
     testCpuProgramsPiDmaAndExecutesCartridgePayload();
     testCpuHiLoMultiplyDivideAndTransfers();
+    testCpuDoublewordMultiplyDivide();
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
     testCpuUnalignedDoublewordMemoryOperations();
