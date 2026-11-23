@@ -45,6 +45,10 @@ bool fillRectangle(Bus& bus, const RdpSyncState& state,
     // Validate every destination before the first write, so a rectangle that
     // crosses the end of RDRAM cannot leave a partially modified framebuffer.
     for (std::uint32_t y = top; y <= bottom; ++y) {
+        // Interlaced scissor mode selects one field: oddLine=0 keeps even
+        // scanlines, oddLine=1 keeps odd scanlines.
+        if (state.hasScissor && state.scissor.fieldEnable &&
+            (y & 1U) != static_cast<std::uint32_t>(state.scissor.oddLine)) continue;
         for (std::uint32_t x = left; x <= right; ++x) {
             const std::uint64_t pixel =
                 static_cast<std::uint64_t>(y) * image.width + x;
@@ -54,6 +58,8 @@ bool fillRectangle(Bus& bus, const RdpSyncState& state,
         }
     }
     for (std::uint32_t y = top; y <= bottom; ++y) {
+        if (state.hasScissor && state.scissor.fieldEnable &&
+            (y & 1U) != static_cast<std::uint32_t>(state.scissor.oddLine)) continue;
         for (std::uint32_t x = left; x <= right; ++x) {
             const std::uint64_t pixel =
                 static_cast<std::uint64_t>(y) * image.width + x;
