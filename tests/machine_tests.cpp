@@ -141,10 +141,10 @@ void testCpuHiLoMultiplyDivideAndTransfers() {
         0x0015B93BU, // DSRA s7,s5,4
         0x0128C014U  // DSLLV t8,t0,t1
     };
-    for (std::uint32_t i = 0; i < 22U; ++i)
+    for (std::uint32_t i = 0; i < 23U; ++i)
         require(bus.write32(i * 4U, program[i]), "load HI/LO and shift program");
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
-    for (unsigned i = 0; i < 22U; ++i)
+    for (unsigned i = 0; i < 23U; ++i)
         require(machine.stepCpu(), "execute HI/LO and shift instruction");
     require(machine.cpu().reg(10U) == 0xFFFFFFFFFFFFFFEBULL,
             "MULT writes sign-extended product to LO and MFLO reads it");
