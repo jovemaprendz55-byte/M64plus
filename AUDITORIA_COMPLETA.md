@@ -1125,3 +1125,13 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 
 
 - **Segunda correção do CI:** a primeira aplicação da correção duplicou os dois `case BusRegion::Cartridge`; o compilador apontou `duplicate case value` no workflow [#45115527953](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45115527953). Duplicatas removidas no commit `ea7de8a`. A validação final segue pendente.
+
+
+### Resultado CI: suporte inicial a cartucho `.z64` (2026-11-23)
+
+- Workflow [#45115577480](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45115577480), commit `306ccc48f313f3f05a9058d263dc0bdf45bfe775`: os dois jobs passaram — `native-host-tests` e `assemble-debug`. O primeiro executou a suíte nativa; o segundo compilou o APK Android.
+- Artefato `m64plus-debug-apk`, ID `14790929861`, tamanho 619.776 bytes, SHA-256 `b0f0c7f872099d01c8a9e2d2ce5f0642ac97958db78b272f8239135fa13782f3`, expira em 2027-02-21. Disponível na seção Artifacts do workflow.
+- Revisão do caminho de endereço confirmou que KSEG1 virtual `0xB0000000` é convertido para endereço físico `0x10000000`, a janela inicial do cartucho. A CPU pode, portanto, buscar instruções da ROM por esse mapeamento, mas isso ainda não constitui boot completo.
+- Adicionado teste de integração em `tests/machine_tests.cpp`: carrega uma ROM de teste `.z64`, posiciona duas instruções MIPS no offset `0x40` e verifica que a CPU as busca/executa a partir de `0xFFFFFFFFB0000040` (KSEG1), atualizando os registradores e o PC esperados.
+- Commit do novo teste: `7f794b635f2047937af8250126ceb93e305426cc`. **CI desse novo teste ainda pendente**; não confundir o sucesso do workflow anterior com validação deste teste.
+- **Limitações funcionais:** ainda não existe seletor Android/Storage Access Framework, ponte JNI para enviar bytes de ROM ao `Bus::loadCartridge`, PI DMA, sequência CIC/boot IPL3 real, checksum ou execução de jogos. O teste usa instruções artificiais no offset IPL3 apenas para validar o caminho de fetch da CPU.
