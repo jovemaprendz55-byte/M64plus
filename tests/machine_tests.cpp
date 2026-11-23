@@ -1280,6 +1280,54 @@ void testCpuCop0PrivilegedOperationsRequireKernelPrivilege() {
     }
 }
 
+void testCpuEretRestoresUserPrivilegeFromStatus() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    // Enter user mode, raise SYSCALL, then return from the handler to user code.
+    require(bus.write32(0U, 0x40886000U),
+            "write MTC0 Status to enter user mode");
+    require(bus.write32(4U, 0x0000000CU),
+            "write SYSCALL in user mode");
+    require(bus.write32(8U, 0x40096000U),
+            "write MFC0 Status after ERET");
+    require(bus.write32(0x180U, 0x408A7000U),
+            "write MTC0 EPC in exception handler");
+    require(bus.write32(0x184U, 0x42000018U),
+            "write ERET in exception handler");
+
+    auto& cpu = machine.cpu();
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    cpu.setRegister(8U, 2ULL << 3U); // KSU=user.
+    cpu.setRegister(10U, 8U); // Resume after the SYSCALL instruction.
+
+    require(machine.stepCpu(), "kernel enters user mode through MTC0 Status");
+    require(machine.stepCpu(), "user-mode SYSCALL raises an exception");
+    require(cpu.hasLastException() && cpu.lastExceptionCode() == 8U,
+            "user-mode SYSCALL records Syscall exception");
+    require(cpu.pc() == 0xFFFFFFFF80000180ULL,
+            "SYSCALL enters the general exception handler");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kStatus) &
+             (3ULL << 3U)) == (2ULL << 3U),
+            "exception entry preserves the previous user KSU field");
+
+    require(machine.stepCpu(), "exception handler updates EPC");
+    require(machine.stepCpu(), "exception handler executes ERET");
+    require(cpu.pc() == 0xFFFFFFFF80000008ULL,
+            "ERET returns to the requested user instruction");
+    require(!cpu.cp0().exceptionLevel(),
+            "ERET clears EXL after exception return");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kStatus) &
+             (3ULL << 3U)) == (2ULL << 3U),
+            "ERET preserves user KSU privilege mode");
+
+    require(machine.runCpuInstructions(1U) == 0U,
+            "user-mode MFC0 remains blocked after ERET");
+    require(cpu.hasLastException() && cpu.lastExceptionCode() == 11U,
+            "MFC0 after ERET raises Coprocessor Unusable");
+    require(cpu.pc() == 0xFFFFFFFF80000180ULL,
+            "post-ERET user-mode MFC0 enters general exception vector");
+}
+
 void testCpuMtc0StatusChangesPrivilegeForNextInstruction() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -2424,6 +2472,7 @@ int main() {
     testCpuRejectsInvalidCop0ReservedFields();
     testCpuCop0RequiresKernelPrivilege();
     testCpuCop0PrivilegedOperationsRequireKernelPrivilege();
+    testCpuEretRestoresUserPrivilegeFromStatus();
     testCpuMtc0StatusChangesPrivilegeForNextInstruction();
     testCpuMtc0WorksInKernelMode();
     testCpuMtc0RequiresKernelPrivilege();
