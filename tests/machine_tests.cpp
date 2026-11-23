@@ -502,6 +502,40 @@ void testCpuTlbInvalidLoadFaultInvalidatesLoadLinkedReservation() {
 }
 
 
+
+void testCpuTlbLoadMissInvalidatesLoadLinkedReservation() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x374U;
+    constexpr std::uint32_t initial = 0x3C5A7E91U;
+    constexpr std::uint64_t virtualAddress = 0x00400000ULL;
+
+    require(bus.write32(0x1000U, 0xC1090000U), "write LL before TLB load miss");
+    require(bus.write32(0x1004U, 0x8D490000U), "write LW through unmapped TLB address");
+    require(bus.write32(0x000U, 0xE1090000U), "write SC at TLB refill vector");
+    require(bus.write32(dataAddress, initial), "initialize TLB-load-miss LL/SC target");
+
+    machine.cpu().reset(0xFFFFFFFF80001000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    machine.cpu().setRegister(10U, virtualAddress);
+    require(machine.stepCpu(), "LL establishes reservation before TLB load miss");
+    machine.cpu().setTlbEnabled(true);
+    require(machine.stepCpu(), "LW through unmapped TLB entry raises refill exception");
+    require(machine.cpu().hasLastException(), "CPU records TLB load-miss exception");
+    require(machine.cpu().lastExceptionCode() == 2U,
+            "CPU records TLB Load exception code for data access");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000000ULL,
+            "CPU transfers to TLB refill vector after data load miss");
+
+    machine.cpu().setTlbEnabled(false);
+    require(machine.stepCpu(), "SC executes at refill vector without reservation");
+    std::uint32_t value = 0;
+    require(bus.read32(dataAddress, value) && value == initial,
+            "SC after TLB data load miss leaves reserved memory unchanged");
+    require(machine.cpu().reg(9U) == 0U,
+            "TLB data load miss invalidates LL reservation");
+}
+
 void testCpuTlbFetchMissInvalidatesLoadLinkedReservation() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -1318,6 +1352,7 @@ int main() {
     testCpuTlbStoreFaultInvalidatesLoadLinkedReservation();
     testCpuTlbInvalidStoreFaultInvalidatesLoadLinkedReservation();
     testCpuTlbInvalidLoadFaultInvalidatesLoadLinkedReservation();
+    testCpuTlbLoadMissInvalidatesLoadLinkedReservation();
     testCpuTlbFetchMissInvalidatesLoadLinkedReservation();
     testCpuTlbInvalidFetchFaultInvalidatesLoadLinkedReservation();
     testCpuTlbModifiedStoreFaultInvalidatesLoadLinkedReservation();
