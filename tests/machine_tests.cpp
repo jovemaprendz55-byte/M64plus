@@ -1280,6 +1280,34 @@ void testCpuCop0PrivilegedOperationsRequireKernelPrivilege() {
     }
 }
 
+void testCpuMtc0RequiresKernelPrivilege() {
+    // MTC0 r8, Wired: non-kernel code must not modify CP0 state.
+    constexpr std::uint32_t mtc0Wired = 0x40883000U;
+    const std::uint64_t modes[] = {2ULL << 3U, 1ULL << 3U};
+    for (const std::uint64_t status : modes) {
+        N64Machine machine;
+        require(machine.bus().write32(0U, mtc0Wired),
+                "write MTC0 Wired instruction");
+        auto& cpu = machine.cpu();
+        cpu.reset(0xFFFFFFFF80000000ULL);
+        cpu.setRegister(8U, 17U);
+        require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, status),
+                "set non-kernel privilege for MTC0");
+        require(cpu.cp0().read(m64plus::n64::Cp0::kWired) == 0U,
+                "Wired starts at zero before non-kernel MTC0");
+        require(machine.runCpuInstructions(1U) == 0U,
+                "non-kernel MTC0 is not executed");
+        require(cpu.hasLastException() && cpu.lastExceptionCode() == 11U,
+                "non-kernel MTC0 raises Coprocessor Unusable");
+        require(cpu.pc() == 0xFFFFFFFF80000180ULL,
+                "non-kernel MTC0 enters general exception vector");
+        require(cpu.cp0().read(m64plus::n64::Cp0::kWired) == 0U,
+                "non-kernel MTC0 leaves Wired unchanged");
+        require(((cpu.cp0().read(m64plus::n64::Cp0::kCause) >> 2U) & 0x1FULL) == 11U,
+                "non-kernel MTC0 records exception code 11");
+    }
+}
+
 void testCpuCop0TlbInstructionsWriteProbeAndReadEntry() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -2352,6 +2380,7 @@ int main() {
     testCpuRejectsInvalidCop0ReservedFields();
     testCpuCop0RequiresKernelPrivilege();
     testCpuCop0PrivilegedOperationsRequireKernelPrivilege();
+    testCpuMtc0RequiresKernelPrivilege();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
     testMachineOwnsAndProcessesRdpState();
