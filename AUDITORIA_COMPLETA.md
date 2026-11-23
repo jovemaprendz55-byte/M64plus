@@ -46,8 +46,7 @@ Ainda não é um emulador capaz de executar jogos comerciais de ponta a ponta. F
 
 ### 3.2 Ausente ou incompleto
 - Operações de 64 bits DMULT/DDIV e gerenciamento completo de HI/LO.
-- LDL/LDR/SDL/SDR.
-- LDL/LDR/SDL/SDR.
+- Acessos desalinhados LWL/LWR/SWL/SWR e LDL/LDR/SDL/SDR implementados; ainda precisam de testes de fronteira e validação independente.
 - LL/SC e mecanismo de reservation/LLbit.
 - Instruções branch-likely: BEQL, BNEL, BLEZL, BGTZL, BLTZL, BGEZL, BLTZALL e BGEZALL.
 - SYSCALL e BREAK da CPU, além de outras instruções do conjunto.
@@ -1322,7 +1321,7 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Commits: implementação `bc46d83bf1917fcf5103b5c356118725c25dd22f`; testes iniciais `fd81dc4116cc0a98e42ce1489a6e451970d3cf6a`; correção das codificações de registrador-base nas fixtures `d583c3ffd4e4ed2430757ac9a394f5f3cbe1c3e2`.
 - Na primeira execução, o teste falhou porque as palavras de instrução usavam o registrador `$t1` também como base efetiva, em vez de `$zero`; os opcodes de teste foram corrigidos para codificar base zero. A execução CI `45134210884` terminou com sucesso nos jobs `native-host-tests` e `assemble-debug`. Uma ampliação posterior adicionou cobertura dos quatro offsets; a validação CI dessa ampliação está pendente.
 
-**Limitação:** os acessos de palavra desalinhados têm cobertura nos quatro offsets; ainda faltam testes de casos de fronteira de memória. As variantes de 64 bits `LDL/LDR/SDL/SDR` continuam ausentes.
+**Limitação:** os acessos de palavra desalinhados têm cobertura nos quatro offsets; ainda faltam testes de casos de fronteira de memória. As variantes de 64 bits `LDL/LDR/SDL/SDR` foram implementadas na etapa 17.22; ainda faltam testes de fronteira e validação independente.
 
 
 ### 17.22 — Acessos desalinhados de doubleword em big-endian (23/11/2026)
@@ -1333,6 +1332,9 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Criado o teste de integração `testCpuUnalignedDoublewordMemoryOperations`, com vetores explícitos para os oito offsets (0 a 7) de cada uma das quatro instruções.
 - Arquivos alterados: `app/src/main/cpp/n64/mips_cpu.cpp` e `tests/machine_tests.cpp`.
 - Commits: implementação `dfcae29d1282336297112e4f8a3324c5df64d417`; teste `7bfe172038f2ea3fa826311be4123b9110435bdd`; registro do teste no executável de integração `1b665a43b734cfd14e19e721a751177605792970`.
-- A execução CI da implementação isolada passou nos testes nativos; a execução com o teste de integração completo e a compilação Android ainda estão pendentes. Não declarar a etapa aprovada até ambos terminarem com sucesso.
+- O primeiro teste de integração falhou porque o código de teste foi colocado no endereço físico 0x4, sobrepondo a doubleword usada como dado. A implementação foi mantida; a fixture foi corrigida para executar o programa em 0x1000 e manter os dados em 0x0.
+- Commit da correção do fixture: `12f0c88441cc5ede5efba8421938373e42deb682`.
+- **CI aprovado:** workflow [45136756140](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45136756140), commit `12f0c88441cc5ede5efba8421938373e42deb682`. `native-host-tests` e `assemble-debug` concluíram com sucesso.
+- Artefato Android `m64plus-debug-apk`, ID `14799439856`, tamanho 648.741 bytes, SHA-256 `834540b35508b8381a65b3efe3759091033006be868568ebcadbe76c4dce587c`; expira em 21/02/2027.
 
 **Limitação:** os testes cobrem os oito offsets com dados sintéticos em RDRAM. Ainda faltam testes de fronteira de memória, validação contra suites de instruções MIPS III e execução em ROMs comerciais. A implementação não significa que o emulador já esteja pronto para jogos.
