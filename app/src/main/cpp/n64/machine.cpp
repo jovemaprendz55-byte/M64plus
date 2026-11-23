@@ -97,7 +97,15 @@ bool N64Machine::stepCpu() noexcept {
 
 std::size_t N64Machine::runCpuInstructions(std::size_t instructionBudget) noexcept {
     std::size_t executed = 0;
-    while (executed < instructionBudget && stepCpu()) ++executed;
+    while (executed < instructionBudget) {
+        const std::uint64_t countBefore = cpu_.instructionsExecuted();
+        if (!stepCpu()) break;
+        // Exceptions can update CP0/PC while stepCpu() reports that the
+        // exception was handled. Do not mistake that for a retired instruction:
+        // stop this slice so the Android worker can report the faulting PC.
+        if (cpu_.instructionsExecuted() == countBefore) break;
+        ++executed;
+    }
     return executed;
 }
 
