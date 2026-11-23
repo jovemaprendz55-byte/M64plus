@@ -1,5 +1,8 @@
 #include "n64/rdp.h"
 #include "n64/bus.h"
+#include "n64/framebuffer.h"
+
+#include <vector>
 
 #include <cstdlib>
 #include <iostream>
@@ -902,6 +905,13 @@ void testFillRectangleWritesRgba32PixelsAndHonorsScissor() {
                     "FILL_RECTANGLE writes only inclusive rectangle pixels");
         }
     }
+
+    std::vector<std::uint32_t> converted;
+    require(RdpFramebuffer::copyToArgb8888(bus.rdram(), state.colorImage, 4U, converted),
+            "RDP-produced RGBA32 framebuffer converts to Android ARGB8888");
+    require(converted.size() == 16U, "converted framebuffer has expected pixel count");
+    require(converted[5] == 0x44112233U && converted[0] == 0xFFAABBCCU,
+            "framebuffer converter preserves RDP pixel channels and alpha");
 
     Bus clippedBus;
     RdpSyncState clippedState{};
