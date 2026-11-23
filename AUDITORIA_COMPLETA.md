@@ -1055,3 +1055,11 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Corrigido o vetor para XH/YH = 4 e XL/YL = 8, que representam os pixels 1 e 2. A falha era do vetor de teste; a execução não foi considerada validação da implementação.
 - Também foi reforçada a escrita RGBA32 para emitir bytes big-endian por `write8`, sem depender do alinhamento de 32 bits do endereço-base da color image.
 - Commit de correção do vetor e resultado do CI correspondente ainda pendentes.
+
+
+## 17.7 Integração de teste RDP → framebuffer ARGB8888 (2026-11-23)
+
+- O teste de `FILL_RECTANGLE` agora passa o mesmo color image RGBA32, já escrito pelo RDP na RDRAM, diretamente para `RdpFramebuffer::copyToArgb8888`.
+- Verifica o número de pixels e a conversão dos canais/alpha do pixel desenhado e do sentinela de fundo.
+- Isso valida a ligação em memória entre escrita do RDP e conversor de framebuffer em teste host. **Ainda não é a ligação JNI/OpenGL da tela Android**: não foi adicionado loop de emulação, chamada JNI para obter pixels nem upload de textura GLES; o triângulo de diagnóstico continua na tela.
+- CI a executar para esta integração.
