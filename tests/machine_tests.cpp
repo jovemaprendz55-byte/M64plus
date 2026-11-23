@@ -202,7 +202,7 @@ void testCpuSignedArithmeticAndImmediateComparisons() {
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
     machine.cpu().setRegister(8U, 0x7FFFFFFFULL);
     require(bus.write32(0U, 0x21090001U), "write overflowing ADDI instruction");
-    require(!machine.stepCpu(), "ADDI overflow enters exception path");
+    require(machine.stepCpu(), "ADDI overflow is handled by exception path");
     require(machine.cpu().hasLastException() &&
             machine.cpu().lastExceptionCode() == 12U,
             "ADDI overflow raises Integer Overflow exception");
@@ -210,7 +210,7 @@ void testCpuSignedArithmeticAndImmediateComparisons() {
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
     machine.cpu().setRegister(8U, 0x7FFFFFFFFFFFFFFFULL);
     require(bus.write32(0U, 0x61090001U), "write overflowing DADDI instruction");
-    require(!machine.stepCpu(), "DADDI overflow enters exception path");
+    require(machine.stepCpu(), "DADDI overflow is handled by exception path");
     require(machine.cpu().hasLastException() &&
             machine.cpu().lastExceptionCode() == 12U,
             "DADDI overflow raises Integer Overflow exception");
