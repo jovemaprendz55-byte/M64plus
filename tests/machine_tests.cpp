@@ -94,6 +94,17 @@ void testCpuFetchesAndExecutesFromCartridgeKseg1() {
 }
 
 
+void testCpuRunnerStopsWhenInstructionRaisesException() {
+    N64Machine machine;
+    require(machine.bus().write32(0U, 0xFFFFFFFFU),
+            "write unsupported instruction for CPU runner");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    require(machine.runCpuInstructions(64U) == 0U,
+            "CPU runner stops when step handles an exception without retiring an instruction");
+    require(machine.cpu().instructionsExecuted() == 0U,
+            "exception does not count as a retired instruction in CPU runner");
+}
+
 void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -369,6 +380,7 @@ int main() {
     testCpuFetchesAndExecutesFromCartridgeKseg1();
     testCpuProgramsPiDmaAndExecutesCartridgePayload();
     testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget();
+    testCpuRunnerStopsWhenInstructionRaisesException();
     testCartridgeHleBootInitializesRdramDmemAndCpuState();
     testHleBootDetectsCicAndPalRegionFromRom();
     testMachineDoesNotRetryUnsupportedRspInstruction();
