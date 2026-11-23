@@ -1396,6 +1396,77 @@ void testCpuSupervisorModeCannotAccessKseg0OrKseg1() {
     }
 }
 
+
+void testCpuPrivilegeChecksForSsegAndKseg3() {
+    const std::uint64_t sseg = 0xFFFFFFFFC0000000ULL;
+    const std::uint64_t kseg3 = 0xFFFFFFFFE0000000ULL;
+    const std::uint32_t loadInstruction = 0x8C220000U; // LW v0,0(at)
+    const std::uint32_t storeInstruction = 0xAC220000U; // SW v0,0(at)
+
+    // User mode cannot fetch, load, or store in SSEG or KSEG3.
+    for (const std::uint64_t address : {sseg, kseg3}) {
+        {
+            N64Machine machine;
+            auto& cpu = machine.cpu();
+            cpu.reset(address);
+            require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 2ULL << 3U),
+                    "set user mode for privileged segment fetch");
+            require(machine.stepCpu(), "user privileged segment fetch faults");
+            require(cpu.hasLastException() && cpu.lastExceptionCode() == 4U,
+                    "user privileged segment fetch raises Address Load");
+        }
+        {
+            N64Machine machine;
+            Bus& bus = machine.bus();
+            require(bus.write32(0U, loadInstruction), "write user privileged segment LW");
+            auto& cpu = machine.cpu();
+            cpu.reset(0U);
+            cpu.setRegister(1U, address);
+            require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 2ULL << 3U),
+                    "set user mode for privileged segment load");
+            require(machine.stepCpu(), "user privileged segment load faults");
+            require(cpu.hasLastException() && cpu.lastExceptionCode() == 4U,
+                    "user privileged segment load raises Address Load");
+        }
+        {
+            N64Machine machine;
+            Bus& bus = machine.bus();
+            require(bus.write32(0U, storeInstruction), "write user privileged segment SW");
+            auto& cpu = machine.cpu();
+            cpu.reset(0U);
+            cpu.setRegister(1U, address);
+            cpu.setRegister(2U, 0x12345678U);
+            require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 2ULL << 3U),
+                    "set user mode for privileged segment store");
+            require(machine.stepCpu(), "user privileged segment store faults");
+            require(cpu.hasLastException() && cpu.lastExceptionCode() == 5U,
+                    "user privileged segment store raises Address Store");
+        }
+    }
+
+    // Supervisor mode may access SSEG, but not KSEG3.
+    {
+        N64Machine machine;
+        auto& cpu = machine.cpu();
+        cpu.reset(sseg);
+        require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
+                "set supervisor mode for SSEG fetch");
+        require(machine.stepCpu(), "supervisor SSEG fetch proceeds to memory");
+        require(!cpu.hasLastException() || cpu.lastExceptionCode() != 4U,
+                "supervisor SSEG fetch is not rejected by privilege checks");
+    }
+    {
+        N64Machine machine;
+        auto& cpu = machine.cpu();
+        cpu.reset(kseg3);
+        require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
+                "set supervisor mode for KSEG3 fetch");
+        require(machine.stepCpu(), "supervisor KSEG3 fetch raises exception");
+        require(cpu.hasLastException() && cpu.lastExceptionCode() == 4U,
+                "supervisor KSEG3 fetch raises Address Load");
+    }
+}
+
 void testCpuEretPrioritizesErrorEpcWhenErlAndExlAreSet() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -2666,6 +2737,7 @@ int main() {
     testCpuUserModeCannotFetchFromKseg0OrKseg1();
     testCpuUserModeCannotLoadOrStoreKseg0OrKseg1();
     testCpuSupervisorModeCannotAccessKseg0OrKseg1();
+    testCpuPrivilegeChecksForSsegAndKseg3();
     testCpuEretPrioritizesErrorEpcWhenErlAndExlAreSet();
     testCpuEretUsesErrorEpcWhenErlIsSet();
     testCpuEretRestoresUserPrivilegeFromStatus();
