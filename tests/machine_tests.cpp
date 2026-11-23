@@ -1432,7 +1432,7 @@ void testCpuEretRestoresUserPrivilegeFromStatus() {
             "write ERET in exception handler");
 
     auto& cpu = machine.cpu();
-    cpu.reset(0xFFFFFFFF80000000ULL);
+    cpu.reset(0U);
     cpu.setRegister(8U, 2ULL << 3U); // KSU=user.
     cpu.setRegister(10U, 8U); // Resume after the SYSCALL instruction.
 
@@ -1473,7 +1473,7 @@ void testCpuMtc0StatusChangesPrivilegeForNextInstruction() {
     require(bus.write32(4U, 0x40096000U),
             "write MFC0 Status instruction after privilege change");
     auto& cpu = machine.cpu();
-    cpu.reset(0xFFFFFFFF80000000ULL);
+    cpu.reset(0U);
     cpu.setRegister(8U, 2ULL << 3U); // User mode.
     require(machine.stepCpu(), "kernel MTC0 changes Status to user mode");
     require(!cpu.hasLastException(),
