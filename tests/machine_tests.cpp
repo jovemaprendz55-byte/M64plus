@@ -1748,8 +1748,8 @@ void testCpuBranchLikelyDelaySlotSemantics() {
         cpu.reset(0xFFFFFFFF80000000ULL);
         cpu.setRegister(8U, value);
         require(machine.stepCpu(), description);
-        require(cpu.reg(31U) == 0xFFFFFFFF80000008ULL,
-                "REGIMM link-likely writes the return address");
+        require(cpu.reg(31U) == (taken ? 0xFFFFFFFF80000008ULL : 0U),
+                "REGIMM link-likely writes the return address only when taken");
         if (taken) {
             require(cpu.pc() == 0xFFFFFFFF80000004ULL,
                     "taken REGIMM link-likely schedules its delay slot");
