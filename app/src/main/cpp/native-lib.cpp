@@ -755,6 +755,24 @@ Java_com_jsr_m64plus_MainActivity_nativeMachineCpuPc(JNIEnv*, jclass, jlong hand
     return static_cast<jlong>(machine->cpu().pc());
 }
 
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeMachineCpuExceptionInfo(
+        JNIEnv* env, jclass, jlong handle) {
+    auto* machine = reinterpret_cast<m64plus::n64::N64Machine*>(
+            static_cast<std::uintptr_t>(handle));
+    if (machine == nullptr) return nullptr;
+    const auto& cpu = machine->cpu();
+    const jlong values[4] = {
+        static_cast<jlong>(cpu.lastExceptionPc()),
+        static_cast<jlong>(cpu.lastExceptionInstruction()),
+        static_cast<jlong>(cpu.lastExceptionCode()),
+        cpu.hasLastException() ? 1LL : 0LL
+    };
+    jlongArray result = env->NewLongArray(4);
+    if (result != nullptr) env->SetLongArrayRegion(result, 0, 4, values);
+    return result;
+}
+
 
 extern "C" JNIEXPORT jintArray JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeGetFramebufferSnapshot(
