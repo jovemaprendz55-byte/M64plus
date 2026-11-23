@@ -227,7 +227,7 @@ void testOutOfRangeIsRejectedBeforeCopy() {
 
 void testPiCartridgeToRdramDmaAndInterrupt() {
     Bus bus;
-    std::uint8_t rom[64]{};
+    std::uint8_t rom[72]{};
     rom[0] = 0x80U; rom[1] = 0x37U; rom[2] = 0x12U; rom[3] = 0x40U;
     const std::uint8_t payload[8] = {0x11U, 0x22U, 0x33U, 0x44U,
                                      0x55U, 0x66U, 0x77U, 0x88U};
