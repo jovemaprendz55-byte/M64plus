@@ -1280,6 +1280,25 @@ void testCpuCop0PrivilegedOperationsRequireKernelPrivilege() {
     }
 }
 
+void testCpuMtc0WorksInKernelMode() {
+    // MTC0 r8, Wired: kernel code may update CP0 state.
+    N64Machine machine;
+    require(machine.bus().write32(0U, 0x40883000U),
+            "write kernel MTC0 Wired instruction");
+    auto& cpu = machine.cpu();
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    cpu.setRegister(8U, 17U);
+    require(cpu.cp0().read(m64plus::n64::Cp0::kWired) == 0U,
+            "Wired starts at zero before kernel MTC0");
+    require(machine.stepCpu(), "kernel MTC0 Wired executes");
+    require(!cpu.hasLastException(),
+            "kernel MTC0 does not raise an exception");
+    require(cpu.cp0().read(m64plus::n64::Cp0::kWired) == 17U,
+            "kernel MTC0 writes the value into Wired");
+    require(cpu.cp0().read(m64plus::n64::Cp0::kRandom) == 30U,
+            "Wired write resets Random and CP0 advances it after the instruction");
+}
+
 void testCpuMtc0RequiresKernelPrivilege() {
     // MTC0 r8, Wired: non-kernel code must not modify CP0 state.
     constexpr std::uint32_t mtc0Wired = 0x40883000U;
@@ -2380,6 +2399,7 @@ int main() {
     testCpuRejectsInvalidCop0ReservedFields();
     testCpuCop0RequiresKernelPrivilege();
     testCpuCop0PrivilegedOperationsRequireKernelPrivilege();
+    testCpuMtc0WorksInKernelMode();
     testCpuMtc0RequiresKernelPrivilege();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
