@@ -1070,3 +1070,11 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - O primeiro CI da integração RDP → conversor falhou no link de `m64plus_rdp_tests`: o alvo não compilava `framebuffer.cpp`, embora o teste passasse a chamar `RdpFramebuffer::copyToArgb8888`.
 - Adicionado `app/src/main/cpp/n64/framebuffer.cpp` às fontes do alvo `m64plus_rdp_tests` no CMake raiz.
 - A falha era de configuração do alvo de teste, não do código do conversor. A nova execução CI deve validar build, teste e APK.
+
+
+### Resultado CI: integração RDP → framebuffer (2026-11-23)
+
+- Workflow [#45114354917](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45114354917), commit `af6d046fc5c27c7b06af1022a0122aebc79b620f`: ambos os jobs concluíram com sucesso — `native-host-tests` (build e execução dos testes nativos) e `assemble-debug` (compilação Android).
+- O sucesso valida o teste host que exercita a escrita de pixels RGBA32 por `FILL_RECTANGLE` e a conversão subsequente para ARGB8888, além da compilação do APK de depuração. Não valida exibição na tela, carregamento/execução de ROMs ou compatibilidade com jogos.
+- Artefato gerado pelo workflow: `m64plus-debug-apk`, ID `14791530537`, tamanho 607.872 bytes, ainda não expirado na data desta auditoria. Download oficial: <https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45114354917> (seção Artifacts).
+- **Próxima etapa técnica:** inspecionar JNI, ciclo de vida da máquina e renderer antes de projetar a transferência do framebuffer para textura GLES. Preservar o triângulo de diagnóstico como fallback até existir um frame real válido.
