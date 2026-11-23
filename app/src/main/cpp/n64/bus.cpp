@@ -9,6 +9,7 @@ Bus::Bus() { reset(); }
 
 void Bus::reset() noexcept {
     rdram_.reset();
+    ++rdramWriteEpoch_;
     spDmem_.fill(0);
     spImem_.fill(0);
     miMode_ = 0;
@@ -183,6 +184,7 @@ bool Bus::writeBytes(std::uint32_t address, const std::uint8_t* input,
         if (!writeByte(address + static_cast<std::uint32_t>(i), input[i]))
             return false;
     }
+    if (selected == BusRegion::Rdram) ++rdramWriteEpoch_;
     return true;
 }
 
@@ -375,6 +377,7 @@ bool Bus::performSpDma(std::uint32_t lengthRegister, bool dramToSp) noexcept {
             spAddress = (spAddress + 1U) & 0x1FFFU;
         }
     }
+    if (!dramToSp) ++rdramWriteEpoch_;
     spMemAddr_ = spAddress;
     spDramAddr_ = static_cast<std::uint32_t>(
         static_cast<std::uint64_t>(spDramAddr_) + rowCount * rowStride) & 0x00FFFFFFU;
@@ -561,6 +564,7 @@ bool Bus::performPiCartridgeToRdramDma(std::uint32_t lengthRegister) noexcept {
             return false;
         }
     }
+    ++rdramWriteEpoch_;
     piDramAddr_ = static_cast<std::uint32_t>(
         static_cast<std::uint64_t>(piDramAddr_) + length) & 0x00FFFFFFU;
     piCartAddr_ = static_cast<std::uint32_t>(
