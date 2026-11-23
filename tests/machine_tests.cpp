@@ -1791,6 +1791,76 @@ void testCpuSpecialTrapInstructions() {
     }
 }
 
+void testCpuRegimmTrapImmediateInstructions() {
+    const struct TrapImmediateCase {
+        unsigned rt;
+        std::uint64_t value;
+        std::uint16_t immediate;
+        bool traps;
+        const char* description;
+    } cases[] = {
+        {0x08U, 5U, 5U, true, "TGEI traps when signed value >= immediate"},
+        {0x08U, 4U, 5U, false, "TGEI does not trap below immediate"},
+        {0x09U, 0xFFFFFFFFFFFFFFFFULL, 0xFFFFU, true,
+         "TGEIU compares against sign-extended unsigned immediate"},
+        {0x09U, 0x7FFFFFFFFFFFFFFFULL, 0xFFFFU, false,
+         "TGEIU does not trap below sign-extended unsigned immediate"},
+        {0x0AU, 4U, 5U, true, "TLTI traps when signed value < immediate"},
+        {0x0AU, 5U, 5U, false, "TLTI does not trap at equality"},
+        {0x0BU, 0x7FFFFFFFFFFFFFFFULL, 0xFFFFU, true,
+         "TLTIU uses sign-extended immediate as unsigned value"},
+        {0x0BU, 0xFFFFFFFFFFFFFFFFULL, 0xFFFFU, false,
+         "TLTIU does not trap when unsigned value equals immediate"},
+        {0x0CU, 0xFFFFFFFFFFFFFFFBU, 0xFFFBU, true,
+         "TEQI compares with sign-extended immediate"},
+        {0x0CU, 5U, 6U, false, "TEQI does not trap for unequal values"},
+        {0x0EU, 5U, 5U, false, "TNEI does not trap for equal values"},
+        {0x0EU, 6U, 5U, true, "TNEI traps for unequal values"}
+    };
+    for (const auto& item : cases) {
+        N64Machine machine;
+        const std::uint32_t instruction = (0x01U << 26U) | (8U << 21U) |
+            (item.rt << 16U) | item.immediate;
+        require(machine.bus().write32(0U, instruction),
+                "write REGIMM trap-immediate instruction");
+        machine.cpu().reset(0xFFFFFFFF80000000ULL);
+        machine.cpu().setRegister(8U, item.value);
+        require(machine.stepCpu(), item.description);
+        if (item.traps) {
+            require(machine.cpu().hasLastException() &&
+                    machine.cpu().lastExceptionCode() == 13U,
+                    "REGIMM trap-immediate raises Trap exception");
+            require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+                    "REGIMM trap-immediate enters general exception vector");
+            require(machine.cpu().cp0().read(m64plus::n64::Cp0::kEpc) ==
+                    0xFFFFFFFF80000000ULL,
+                    "REGIMM trap-immediate records instruction address");
+        } else {
+            require(!machine.cpu().hasLastException() &&
+                    machine.cpu().pc() == 0xFFFFFFFF80000004ULL,
+                    "untaken REGIMM trap-immediate continues normally");
+        }
+    }
+
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    require(bus.write32(0U, 0x10000001U), "write branch before trap-immediate");
+    require(bus.write32(4U, 0x05080005U), "write TGEI in branch delay slot");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, 5U);
+    require(machine.stepCpu(), "execute branch before delay-slot TGEI");
+    require(machine.stepCpu(), "execute legal TGEI in branch delay slot");
+    require(machine.cpu().hasLastException() &&
+            machine.cpu().lastExceptionCode() == 13U,
+            "trap-immediate in delay slot raises Trap exception");
+    require(machine.cpu().cp0().read(m64plus::n64::Cp0::kEpc) ==
+            0xFFFFFFFF80000000ULL,
+            "delay-slot trap records branch address in EPC");
+    require((machine.cpu().cp0().read(m64plus::n64::Cp0::kCause) &
+            (1ULL << 31U)) != 0U,
+            "delay-slot trap sets Cause.BD");
+}
+
 void testCpuRejectsInvalidBlezBgtzEncodings() {
     const std::uint32_t invalidBranches[] = {
         0x19080001U, // BLEZ with rt != 0
@@ -2056,6 +2126,7 @@ int main() {
     testCpuSyscallAndBreakpointExceptions();
     testCpuSyscallAndBreakpointInBranchDelaySlot();
     testCpuSpecialTrapInstructions();
+    testCpuRegimmTrapImmediateInstructions();
     testCpuRejectsInvalidBlezBgtzEncodings();
     testCpuRejectsInvalidSpecialShiftAndJumpEncodings();
     testCpuBranchLikelyDelaySlotSemantics();
