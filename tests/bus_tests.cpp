@@ -139,6 +139,28 @@ void testDramToSpAndSpToDram() {
     }
 }
 
+
+void testRdramWriteEpochTracksDirectAndSpDmaWrites() {
+    Bus bus;
+    const std::uint64_t initialEpoch = bus.rdram().writeEpoch();
+    require(bus.rdram().write8(0x700U, 0xA5U),
+            "direct RDRAM write succeeds for epoch test");
+    const std::uint64_t directEpoch = bus.rdram().writeEpoch();
+    require(directEpoch > initialEpoch,
+            "direct RDRAM write advances reservation generation");
+
+    require(bus.write8(Bus::kSpDmemBase + 0x40U, 0x5AU),
+            "seed SP DMEM for DMA epoch test");
+    require(bus.write32(Bus::kSpMemAddr, 0x40U),
+            "set SP DMA source for epoch test");
+    require(bus.write32(Bus::kSpDramAddr, 0x780U),
+            "set RDRAM DMA destination for epoch test");
+    require(bus.write32(Bus::kSpWriteLength, 0U),
+            "trigger one-byte SP-to-RDRAM DMA");
+    require(bus.rdram().writeEpoch() > directEpoch,
+            "SP DMA write advances RDRAM reservation generation");
+}
+
 void testRowsAndSkip() {
     Bus bus;
     for (std::uint32_t i = 0; i < 24; ++i)
@@ -321,6 +343,7 @@ int main() {
     testDpCommandStreamFromRdramAndDmem();
     testDpMultiwordCommandIsAtomic();
     testDramToSpAndSpToDram();
+    testRdramWriteEpochTracksDirectAndSpDmaWrites();
     testRowsAndSkip();
     testImemBankAndWrapping();
     testOutOfRangeIsRejectedBeforeCopy();
