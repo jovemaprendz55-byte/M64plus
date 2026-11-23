@@ -705,6 +705,20 @@ Java_com_jsr_m64plus_MainActivity_nativeLoadCartridge(
     return loaded ? JNI_TRUE : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jint JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeRunCpuSlice(
+        JNIEnv*, jclass, jlong handle, jint instructionBudget) {
+    auto* machine = reinterpret_cast<m64plus::n64::N64Machine*>(
+            static_cast<std::uintptr_t>(handle));
+    if (machine == nullptr || instructionBudget <= 0) return 0;
+    constexpr jint kMaximumSlice = 4096;
+    const jint boundedBudget = instructionBudget > kMaximumSlice
+            ? kMaximumSlice : instructionBudget;
+    const std::size_t executed = machine->runCpuInstructions(
+            static_cast<std::size_t>(boundedBudget));
+    return static_cast<jint>(executed);
+}
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeBootCartridgeHle(
         JNIEnv*, jclass, jlong handle) {
