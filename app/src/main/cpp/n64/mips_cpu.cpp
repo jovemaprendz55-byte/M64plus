@@ -34,6 +34,10 @@ std::uint64_t MipsCpu::reg(unsigned index) const noexcept {
 }
 std::uint64_t MipsCpu::pc() const noexcept { return pc_; }
 std::uint64_t MipsCpu::instructionsExecuted() const noexcept { return executed_; }
+bool MipsCpu::hasLastException() const noexcept { return hasLastException_; }
+std::uint64_t MipsCpu::lastExceptionPc() const noexcept { return lastExceptionPc_; }
+std::uint32_t MipsCpu::lastExceptionInstruction() const noexcept { return lastExceptionInstruction_; }
+std::uint8_t MipsCpu::lastExceptionCode() const noexcept { return lastExceptionCode_; }
 void MipsCpu::setTlbEnabled(bool enabled) noexcept { tlbEnabled_ = enabled; }
 void MipsCpu::setRegister(unsigned index, std::uint64_t value) noexcept {
     if (index > 0U && index < gpr_.size()) gpr_[index] = value;
