@@ -377,6 +377,39 @@ void testCpuBusStoreFaultInvalidatesLoadLinkedReservation() {
 }
 
 
+
+void testCpuTlbStoreFaultInvalidatesLoadLinkedReservation() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x350U;
+    constexpr std::uint64_t unmappedVirtualAddress = 0x00400000ULL;
+    constexpr std::uint32_t initial = 0x76543210U;
+    require(bus.write32(0x000U, 0xC1090000U), "write LL before TLB store fault");
+    require(bus.write32(0x004U, 0xAD4B0000U), "write SW through unmapped TLB address");
+    require(bus.write32(0x180U, 0xE1090000U), "write SC at TLB exception vector");
+    require(bus.write32(dataAddress, initial), "initialize TLB-fault LL/SC target");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    machine.cpu().setRegister(10U, unmappedVirtualAddress);
+    machine.cpu().setRegister(11U, 0xA5A5A5A5U);
+    require(machine.stepCpu(), "LL establishes reservation before TLB fault");
+    machine.cpu().setTlbEnabled(true);
+    require(machine.stepCpu(), "SW through unmapped virtual address raises TLB exception");
+    require(machine.cpu().hasLastException(), "CPU records TLB store exception after LL");
+    require(machine.cpu().lastExceptionCode() == 3U,
+            "CPU records TLB Store exception code");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+            "CPU transfers control to TLB exception vector");
+    machine.cpu().setTlbEnabled(false);
+    require(machine.stepCpu(), "SC executes at TLB exception vector without reservation");
+    std::uint32_t value = 0;
+    require(bus.read32(dataAddress, value) && value == initial,
+            "SC after TLB store fault does not modify reserved memory");
+    require(machine.cpu().reg(9U) == 0U,
+            "SC reports failure because TLB store fault invalidated reservation");
+}
+
+
 void testCpuDoublewordLoadLinkedStoreConditional() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -1056,6 +1089,7 @@ int main() {
     testCpuBusInstructionFaultInvalidatesLoadLinkedReservation();
     testCpuAddressStoreFaultInvalidatesLoadLinkedReservation();
     testCpuBusStoreFaultInvalidatesLoadLinkedReservation();
+    testCpuTlbStoreFaultInvalidatesLoadLinkedReservation();
     testCpuDoublewordLoadLinkedStoreConditional();
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
