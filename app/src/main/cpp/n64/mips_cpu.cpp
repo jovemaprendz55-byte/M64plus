@@ -21,6 +21,8 @@ void MipsCpu::reset(std::uint64_t pc) {
     executed_ = 0;
     hi_ = 0;
     lo_ = 0;
+    reservationValid_ = false;
+    reservationAddress_ = 0;
     pendingBranch_ = false;
     pendingBranchTarget_ = 0;
     cp0_.reset();
@@ -54,6 +56,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
     std::uint32_t currentInstruction = 0;
     const auto takeException = [&](ExceptionCode code, std::uint64_t badAddress = 0, bool tlbRefill = false) {
         hasLastException_ = true;
+        reservationValid_ = false;
         lastExceptionPc_ = pc_;
         lastExceptionInstruction_ = currentInstruction;
         lastExceptionCode_ = static_cast<std::uint8_t>(code);
@@ -449,7 +452,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
     case 0x0F: destination = rt; result = signExtend32(static_cast<std::uint32_t>(immediate) << 16U); writeRegister = true; break;
     // Integer loads use the selected physical memory interface; optional TLB
     // translation is applied before the bus or RDRAM access.
-    case 0x1A: case 0x1B: case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27: case 0x37: {
+    case 0x1A: case 0x1B: case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27: case 0x30: case 0x37: {
         const std::uint64_t effective = a + signExtend16(immediate);
         std::uint32_t address = static_cast<std::uint32_t>(effective);
         if (effective > 0xFFFFFFFFULL &&
@@ -470,7 +473,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
             address = translated;
         }
         if ((opcode == 0x21 || opcode == 0x25) && (address & 1U)) return takeException(ExceptionCode::AddressLoad, effective);
-        if ((opcode == 0x23 || opcode == 0x27) && (address & 3U)) return takeException(ExceptionCode::AddressLoad, effective);
+        if ((opcode == 0x23 || opcode == 0x27 || opcode == 0x30) && (address & 3U)) return takeException(ExceptionCode::AddressLoad, effective);
         if (opcode == 0x37 && (address & 7U)) return takeException(ExceptionCode::AddressLoad, effective);
         if (opcode == 0x20 || opcode == 0x24) {
             std::uint8_t value = 0;
@@ -516,10 +519,14 @@ bool MipsCpu::stepMemory(Memory& memory) {
                 merged = (previous & preserve) | (value >> shift);
             }
             result = signExtend32(merged);
-        } else if (opcode == 0x23 || opcode == 0x27) {
+        } else if (opcode == 0x23 || opcode == 0x27 || opcode == 0x30) {
             std::uint32_t value = 0;
             if (!memory.read32(address, value)) return takeException(ExceptionCode::BusData, effective);
-            result = opcode == 0x23 ? signExtend32(value) : value;
+            result = opcode == 0x23 || opcode == 0x30 ? signExtend32(value) : value;
+            if (opcode == 0x30) {
+                reservationValid_ = true;
+                reservationAddress_ = address;
+            }
         } else {
             if (!memory.read64(address, result)) return takeException(ExceptionCode::BusData, effective);
         }
@@ -528,7 +535,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
         break;
     }
     // Integer stores.
-    case 0x28: case 0x29: case 0x2A: case 0x2B: case 0x2C: case 0x2D: case 0x2E: case 0x3F: {
+    case 0x28: case 0x29: case 0x2A: case 0x2B: case 0x2C: case 0x2D: case 0x2E: case 0x38: case 0x3F: {
         const std::uint64_t effective = a + signExtend16(immediate);
         std::uint32_t address = static_cast<std::uint32_t>(effective);
         if (effective > 0xFFFFFFFFULL &&
@@ -549,10 +556,19 @@ bool MipsCpu::stepMemory(Memory& memory) {
             address = translated;
         }
         if (opcode == 0x29 && (address & 1U)) return takeException(ExceptionCode::AddressStore, effective);
-        if (opcode == 0x2B && (address & 3U)) return takeException(ExceptionCode::AddressStore, effective);
+        if ((opcode == 0x2B || opcode == 0x38) && (address & 3U)) return takeException(ExceptionCode::AddressStore, effective);
         if (opcode == 0x3F && (address & 7U)) return takeException(ExceptionCode::AddressStore, effective);
         bool stored = false;
-        if (opcode == 0x28) stored = memory.write8(address, static_cast<std::uint8_t>(b));
+        if (opcode == 0x38) { // SC (32-bit store conditional)
+            const bool reservationMatches = reservationValid_ && reservationAddress_ == address;
+            reservationValid_ = false;
+            if (reservationMatches) stored = memory.write32(address, static_cast<std::uint32_t>(b));
+            if (reservationMatches && !stored) return takeException(ExceptionCode::BusData, effective);
+            destination = rt;
+            result = reservationMatches ? 1U : 0U;
+            writeRegister = true;
+        }
+        else if (opcode == 0x28) stored = memory.write8(address, static_cast<std::uint8_t>(b));
         else if (opcode == 0x29) stored = memory.write16(address, static_cast<std::uint16_t>(b));
         else if (opcode == 0x2A || opcode == 0x2E) { // SWL / SWR (big-endian)
             const std::uint32_t aligned = address & ~3U;
@@ -596,7 +612,8 @@ bool MipsCpu::stepMemory(Memory& memory) {
             stored = memory.write64(aligned, merged);
         }
         else stored = memory.write64(address, b);
-        if (!stored) return takeException(ExceptionCode::BusData, effective);
+        if (opcode != 0x38 && !stored) return takeException(ExceptionCode::BusData, effective);
+        if (opcode != 0x38) reservationValid_ = false;
         break;
     }
     default: return takeException(ExceptionCode::ReservedInstruction);
