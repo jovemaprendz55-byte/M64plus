@@ -347,8 +347,8 @@ void testCpuDoublewordLoadLinkedStoreConditional() {
     require(machine.stepCpu(), "prepare value before intervening store");
     require(machine.stepCpu(), "ordinary SW invalidates 64-bit reservation");
     require(machine.stepCpu(), "SCD fails after intervening store");
-    require(bus.read64(dataAddress, value) && value == 0x55U,
-            "failed SCD leaves intervening store intact");
+    require(bus.read64(dataAddress, value) && value == 0x0000005555667788ULL,
+            "failed SCD leaves intervening word store intact");
     require(machine.cpu().reg(10U) == 0U, "failed SCD writes zero to rt");
 }
 
