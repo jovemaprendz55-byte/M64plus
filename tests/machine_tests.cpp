@@ -458,6 +458,35 @@ void testCpuMemoryFaultInvalidatesLoadLinkedReservation() {
             "SC reports failure because memory fault invalidated reservation");
 }
 
+
+void testCpuBusDataFaultInvalidatesLoadLinkedReservation() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x300U;
+    constexpr std::uint32_t unmappedAddress = 0x04000000U;
+    constexpr std::uint32_t initial = 0x13579BDFU;
+    require(bus.write32(0x000U, 0xC10A0000U), "write LL before bus data fault");
+    require(bus.write32(0x004U, 0x8D2B0000U), "write LW from unmapped address");
+    require(bus.write32(0x180U, 0xE10A0000U), "write SC at bus data exception vector");
+    require(bus.write32(dataAddress, initial), "initialize bus-fault LL/SC target");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    machine.cpu().setRegister(9U, unmappedAddress);
+    require(machine.stepCpu(), "LL establishes reservation before bus data fault");
+    require(machine.stepCpu(), "unmapped LW raises bus data exception");
+    require(machine.cpu().hasLastException(), "CPU records bus data exception after LL");
+    require(machine.cpu().lastExceptionCode() == 7U,
+            "CPU records Bus Data exception code");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+            "CPU transfers control to bus data exception vector");
+    require(machine.stepCpu(), "SC executes at bus data vector without reservation");
+    std::uint32_t value = 0;
+    require(bus.read32(dataAddress, value) && value == initial,
+            "SC after bus data fault does not modify reserved memory");
+    require(machine.cpu().reg(10U) == 0U,
+            "SC reports failure because bus data fault invalidated reservation");
+}
+
 void testCpuSignedArithmeticAndImmediateComparisons() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -934,6 +963,7 @@ int main() {
     testCpuExceptionInvalidatesLoadLinkedReservation();
     testCpuInterruptInvalidatesLoadLinkedReservation();
     testCpuMemoryFaultInvalidatesLoadLinkedReservation();
+    testCpuBusDataFaultInvalidatesLoadLinkedReservation();
     testCpuDoublewordLoadLinkedStoreConditional();
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
