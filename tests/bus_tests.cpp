@@ -264,7 +264,7 @@ void testPiCartridgeToRdramDmaAndInterrupt() {
 
     require(bus.rdram().write32(0x300U, 0xAABBCCDDU), "seed destination before invalid DMA");
     require(bus.write32(Bus::kPiDramAddr, 0x300U), "set invalid DMA destination");
-    require(bus.write32(Bus::kPiCartAddr, Bus::kCartridgeBase + 60U),
+    require(bus.write32(Bus::kPiCartAddr, Bus::kCartridgeBase + 68U),
             "set cartridge address near ROM end");
     require(!bus.write32(Bus::kPiWriteLength, 7U),
             "reject PI DMA that exceeds cartridge image");
