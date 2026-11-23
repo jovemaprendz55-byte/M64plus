@@ -940,9 +940,9 @@ void testFillRectangleWritesRgba32PixelsAndHonorsScissor() {
             std::uint32_t pixel = 0U;
             require(clippedBus.read32(base + (y * 4U + x) * 4U, pixel),
                     "read scissored framebuffer pixel");
-            const bool inside = x >= 1U && x <= 2U && y == 1U;
+            const bool inside = x == 1U && y == 1U;
             require(pixel == (inside ? color : sentinel),
-                    "scissor clips the fill rectangle before writing pixels");
+                    "scissor treats its lower-right X and Y bounds as exclusive");
         }
     }
 }
