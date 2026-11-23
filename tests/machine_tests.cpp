@@ -1341,6 +1341,61 @@ void testCpuUserModeCannotLoadOrStoreKseg0OrKseg1() {
     }
 }
 
+
+void testCpuSupervisorModeCannotAccessKseg0OrKseg1() {
+    const std::uint64_t addresses[] = {
+        0xFFFFFFFF80000000ULL,
+        0xFFFFFFFFA0000000ULL
+    };
+    for (const std::uint64_t address : addresses) {
+        {
+            N64Machine machine;
+            auto& cpu = machine.cpu();
+            cpu.reset(address);
+            require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
+                    "set supervisor mode before KSEG instruction fetch");
+            require(machine.stepCpu(), "supervisor KSEG instruction fetch raises exception");
+            require(cpu.hasLastException() && cpu.lastExceptionCode() == 4U,
+                    "supervisor KSEG instruction fetch raises Address Load");
+            require(cpu.pc() == 0xFFFFFFFF80000180ULL,
+                    "supervisor KSEG instruction fetch enters general exception vector");
+        }
+        {
+            N64Machine machine;
+            Bus& bus = machine.bus();
+            require(bus.write32(0U, 0x8C220000U),
+                    "write LW from supervisor KSEG test instruction");
+            auto& cpu = machine.cpu();
+            cpu.reset(0U);
+            cpu.setRegister(1U, address);
+            require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
+                    "set supervisor mode before KSEG load");
+            require(machine.stepCpu(), "supervisor KSEG load raises exception");
+            require(cpu.hasLastException() && cpu.lastExceptionCode() == 4U,
+                    "supervisor KSEG load raises Address Load");
+            require(cpu.pc() == 0xFFFFFFFF80000180ULL,
+                    "supervisor KSEG load enters general exception vector");
+        }
+        {
+            N64Machine machine;
+            Bus& bus = machine.bus();
+            require(bus.write32(0U, 0xAC220000U),
+                    "write SW to supervisor KSEG test instruction");
+            auto& cpu = machine.cpu();
+            cpu.reset(0U);
+            cpu.setRegister(1U, address);
+            cpu.setRegister(2U, 0x12345678U);
+            require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
+                    "set supervisor mode before KSEG store");
+            require(machine.stepCpu(), "supervisor KSEG store raises exception");
+            require(cpu.hasLastException() && cpu.lastExceptionCode() == 5U,
+                    "supervisor KSEG store raises Address Store");
+            require(cpu.pc() == 0xFFFFFFFF80000180ULL,
+                    "supervisor KSEG store enters general exception vector");
+        }
+    }
+}
+
 void testCpuEretPrioritizesErrorEpcWhenErlAndExlAreSet() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -2610,6 +2665,7 @@ int main() {
     testCpuCop0PrivilegedOperationsRequireKernelPrivilege();
     testCpuUserModeCannotFetchFromKseg0OrKseg1();
     testCpuUserModeCannotLoadOrStoreKseg0OrKseg1();
+    testCpuSupervisorModeCannotAccessKseg0OrKseg1();
     testCpuEretPrioritizesErrorEpcWhenErlAndExlAreSet();
     testCpuEretUsesErrorEpcWhenErlIsSet();
     testCpuEretRestoresUserPrivilegeFromStatus();
