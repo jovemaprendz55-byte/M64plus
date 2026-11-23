@@ -238,6 +238,52 @@ void testCpuProgramsPiDmaAndExecutesCartridgePayload() {
             "CPU executes second instruction copied from cartridge");
 }
 
+
+void testCartridgeHleBootInitializesRdramDmemAndCpuState() {
+    N64Machine machine;
+    std::vector<std::uint8_t> rom(0x1008U, 0U);
+    rom[0] = 0x80U; rom[1] = 0x37U; rom[2] = 0x12U; rom[3] = 0x40U;
+    rom[8] = 0x80U; rom[9] = 0x00U; rom[10] = 0x04U; rom[11] = 0x00U;
+    const std::uint32_t program[] = {0x24081234U, 0x25090001U};
+    for (unsigned i = 0; i < 2U; ++i) {
+        const std::uint32_t instruction = program[i];
+        const std::size_t offset = 0x1000U + i * 4U;
+        rom[offset] = static_cast<std::uint8_t>(instruction >> 24U);
+        rom[offset + 1U] = static_cast<std::uint8_t>(instruction >> 16U);
+        rom[offset + 2U] = static_cast<std::uint8_t>(instruction >> 8U);
+        rom[offset + 3U] = static_cast<std::uint8_t>(instruction);
+    }
+    require(machine.bus().loadCartridge(rom.data(), rom.size()),
+            "load synthetic cartridge for HLE boot");
+    require(machine.bootCartridgeHle(), "HLE boot accepts valid cartridge entry point");
+
+    std::uint32_t value = 0;
+    require(machine.bus().read32(0x400U, value) && value == program[0],
+            "HLE copies cartridge payload to header entry point in RDRAM");
+    require(machine.bus().read32(0x404U, value) && value == program[1],
+            "HLE copies following payload instruction to RDRAM");
+    require(machine.bus().read32(Bus::kSpDmemBase, value) && value == 0x80371240U,
+            "HLE copies cartridge header into SP DMEM");
+    require(machine.bus().read32(0x300U, value) && value == 1U,
+            "HLE publishes NTSC TV boot parameter");
+    require(machine.bus().read32(0x308U, value) && value == 0xB0000000U,
+            "HLE publishes cartridge ROM base");
+    require(machine.bus().read32(0x318U, value) && value == 0x00800000U,
+            "HLE publishes 8 MiB RDRAM size");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000400ULL,
+            "HLE sets CPU PC to ROM header entry point");
+    require(machine.cpu().reg(20U) == 1U && machine.cpu().reg(22U) == 0x3FU,
+            "HLE sets NTSC and CIC-6102 boot arguments");
+    require(machine.cpu().reg(29U) == 0xFFFFFFFFA4001FF0ULL,
+            "HLE initializes boot stack in SP DMEM");
+    require(machine.cpu().cp0().read(m64plus::n64::Cp0::kStatus) == 0x34000000ULL,
+            "HLE initializes CPU CP0 status");
+    require(machine.stepCpu() && machine.stepCpu(),
+            "CPU executes instructions loaded by HLE boot");
+    require(machine.cpu().reg(8U) == 0x1234U && machine.cpu().reg(9U) == 0x1235U,
+            "HLE-booted CPU executes cartridge entry code");
+}
+
 } // namespace
 
 int main() {
@@ -245,6 +291,7 @@ int main() {
     testCpuKsegDirectMappingWithoutTlb();
     testCpuFetchesAndExecutesFromCartridgeKseg1();
     testCpuProgramsPiDmaAndExecutesCartridgePayload();
+    testCartridgeHleBootInitializesRdramDmemAndCpuState();
     testMachineDoesNotRetryUnsupportedRspInstruction();
     testSharedCpuRspBusAndSpBreak();
     std::cout << "N64 machine CPU/RSP integration tests passed.\n";
