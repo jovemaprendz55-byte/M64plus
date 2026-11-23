@@ -1218,3 +1218,15 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Commit JNI: d1da8b5bc06301010327a15819b519e588348991; commit Java: 063e88e0965aa9efd223c10397f73a9924c6b3cc.
 - Workflow [#45117944392](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45117944392): testes nativos passaram; assemble-debug estava em andamento no momento do registro.
 - Limitação: ainda não existe loop de execução da CPU no aplicativo, agendamento CPU/RSP/RDP, VI ativo ou renderização de frames do jogo. A interface agora carrega a ROM e inicializa o estado HLE, mas ainda não executa o jogo de forma contínua.
+
+## 17.17 — Executor MIPS com orçamento limitado
+
+**Implementação:** foi adicionada à classe `N64Machine` a API `runCpuInstructions(std::size_t instructionBudget)`. Ela executa instruções usando `stepCpu()` até atingir o orçamento solicitado ou até que uma etapa retorne falha. O laço não é ilimitado e o método retorna a quantidade de etapas executadas.
+
+**Teste nativo:** `testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget` verifica orçamento zero, execução em fatias de 2, 1 e 1 instruções, continuidade do PC/registradores entre chamadas e que cada chamada respeita seu limite.
+
+**Arquivos:** `app/src/main/cpp/n64/machine.h`, `app/src/main/cpp/n64/machine.cpp`, `tests/machine_tests.cpp`.
+
+**Limitações importantes:** esta é somente a primitiva nativa de execução limitada. Ainda não foi conectada à Activity, a uma thread de emulação ou a um scheduler. Não há sincronização JNI adicional para executá-la em paralelo com o renderer. O orçamento conta chamadas bem-sucedidas a `stepCpu()`; exceções arquiteturais tratadas pelo CPU podem contar como uma etapa, pois o tratamento de exceção também avança o estado. O executor não prova compatibilidade com jogos: continuam faltando instruções MIPS III, periféricos, VI, áudio e rasterização RDP completa.
+
+**Validação CI:** pendente após os commits desta seção. Não considerar APK novo aprovado até o job Android `assemble-debug` concluir com sucesso.
