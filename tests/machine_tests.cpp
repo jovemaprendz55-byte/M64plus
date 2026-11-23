@@ -1228,6 +1228,7 @@ int main() {
     testCpuBusStoreFaultInvalidatesLoadLinkedReservation();
     testCpuTlbStoreFaultInvalidatesLoadLinkedReservation();
     testCpuTlbInvalidStoreFaultInvalidatesLoadLinkedReservation();
+    testCpuTlbInvalidLoadFaultInvalidatesLoadLinkedReservation();
     testCpuTlbModifiedStoreFaultInvalidatesLoadLinkedReservation();
     testCpuDoublewordLoadLinkedStoreConditional();
     testCpuSignedArithmeticAndImmediateComparisons();
