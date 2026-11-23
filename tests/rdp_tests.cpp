@@ -986,38 +986,42 @@ void testFillRectangleHonorsScissorFieldParity() {
     constexpr std::uint32_t base = 0x3800U;
     constexpr std::uint32_t sentinel = 0xAABBCCDDU;
     constexpr std::uint32_t color = 0x10203040U;
-    Bus bus;
-    RdpSyncState state{};
-    for (std::uint32_t i = 0; i < 16U; ++i)
-        require(bus.write32(base + i * 4U, sentinel),
-                "seed interlaced framebuffer sentinels");
 
-    const std::uint64_t commands[] = {
-        (0x3FULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | base,
-        (0x37ULL << 56U) | color,
-        (0x2FULL << 56U) | (3ULL << 52U),
-        (0x2DULL << 56U) | (1ULL << 25U) | (1ULL << 24U) |
-            (12ULL << 12U) | 16ULL,
-        (0x36ULL << 56U) | (12ULL << 44U) | (12ULL << 32U)
-    };
-    for (std::size_t i = 0; i < 5U; ++i)
-        require(bus.write64(0xDC0U + static_cast<std::uint32_t>(i * 8U), commands[i]),
-                "seed field-selected fill command stream");
-    require(bus.write32(Bus::kDpStart, 0xDC0U) &&
-            bus.write32(Bus::kDpEnd, 0xDE8U),
-            "publish field-selected fill stream");
-    for (unsigned i = 0; i < 5U; ++i)
-        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
-                "field-selected FILL_RECTANGLE is processed");
+    for (std::uint32_t selectedParity = 0U; selectedParity < 2U; ++selectedParity) {
+        Bus bus;
+        RdpSyncState state{};
+        for (std::uint32_t i = 0; i < 16U; ++i)
+            require(bus.write32(base + i * 4U, sentinel),
+                    "seed interlaced framebuffer sentinels");
 
-    for (std::uint32_t y = 0; y < 4U; ++y) {
-        for (std::uint32_t x = 0; x < 4U; ++x) {
-            std::uint32_t pixel = 0U;
-            require(bus.read32(base + (y * 4U + x) * 4U, pixel),
-                    "read field-selected framebuffer pixel");
-            const bool selectedField = (y & 1U) == 1U;
-            require(pixel == (selectedField ? color : sentinel),
-                    "odd field scissor writes odd scanlines only");
+        const std::uint64_t commands[] = {
+            (0x3FULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | base,
+            (0x37ULL << 56U) | color,
+            (0x2FULL << 56U) | (3ULL << 52U),
+            (0x2DULL << 56U) | (1ULL << 25U) |
+                (static_cast<std::uint64_t>(selectedParity) << 24U) |
+                (12ULL << 12U) | 16ULL,
+            (0x36ULL << 56U) | (12ULL << 44U) | (12ULL << 32U)
+        };
+        for (std::size_t i = 0; i < 5U; ++i)
+            require(bus.write64(0xDC0U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                    "seed field-selected fill command stream");
+        require(bus.write32(Bus::kDpStart, 0xDC0U) &&
+                bus.write32(Bus::kDpEnd, 0xDE8U),
+                "publish field-selected fill stream");
+        for (unsigned i = 0; i < 5U; ++i)
+            require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                    "field-selected FILL_RECTANGLE is processed");
+
+        for (std::uint32_t y = 0; y < 4U; ++y) {
+            for (std::uint32_t x = 0; x < 4U; ++x) {
+                std::uint32_t pixel = 0U;
+                require(bus.read32(base + (y * 4U + x) * 4U, pixel),
+                        "read field-selected framebuffer pixel");
+                const bool selectedField = (y & 1U) == selectedParity;
+                require(pixel == (selectedField ? color : sentinel),
+                        "scissor field selection writes only matching scanline parity");
+            }
         }
     }
 }
