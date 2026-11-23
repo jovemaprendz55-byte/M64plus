@@ -1182,3 +1182,16 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - O que foi validado: caminho de controle da CPU para PI, DMA de cartucho para RDRAM e execução subsequente de código em RDRAM, usando uma ROM sintética.
 - O que não foi validado: boot real de cartucho, IPL3/CIC, PIF, VI, RSP/RDP em execução coordenada, ou compatibilidade com jogos comerciais.
 - Próxima etapa arquitetural: desenhar e testar uma rotina de inicialização HLE independente de dumps proprietários, usando parâmetros de boot conhecidos e separando claramente o estado inicial da máquina da execução do jogo. Não definir endereço de entrada ou registradores de boot por suposição: comparar com documentação e implementações de referência independentes antes de fixar o contrato.
+
+
+## 17.14 Primeiro perfil de inicialização HLE do cartucho (2026-11-23)
+
+- Adicionado N64Machine::bootCartridgeHle(): valida a ROM e o entry point do cabeçalho, preserva o cartucho durante reset, copia o cabeçalho/IPL3 para SP DMEM e copia até 1 MiB a partir do offset ROM 0x1000 para o endereço físico correspondente ao entry point.
+- Publica parâmetros de boot em RDRAM: TV NTSC, cartucho, ROM base 0xB0000000, cold reset, versão IPL2 provisória 0 e tamanho RDRAM 8 MiB.
+- Inicializa um perfil HLE comum compatível com CIC-6102 (seed 0x3F): s3/s4/s5/s6/s7, t3, SP e CP0 Status; inicia PC no entry point do cabeçalho.
+- Adicionadas APIs limitadas de preparação de registradores GPR e CP0 na CPU para permitir inicialização controlada pelo núcleo.
+- Teste sintético valida cópia do payload, cópia do cabeçalho para DMEM, parâmetros publicados, estado da CPU e execução das instruções no entry point.
+- Commits: APIs CPU `250e7e78e3b1a652fb37a5f12f0262bf9631fc52` / `49894fbaa8dba801502c3d7a180d55dad0db727f`; interface da máquina `61596947f44928733b6bf82edb048ebae082f969`; implementação `f9414b2726565e9be43a0ba2057ae860c1eacd1b`; teste `3f2a94bd56ba988bfd4fb3f62a45f81ddfbb1c45`; correção de include `9a972bb50929964c803d07c5c4e0a7feb388680d`.
+- Workflow [#45117535128](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45117535128): testes nativos passaram; assemble-debug ainda estava em andamento no momento do registro.
+- Referências técnicas para validar o contrato: Nintendo 64 Programming Manual, Boot Procedure: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro06/06-10.html ; mapa e boot sequence: https://reverseengineering.wiki/index.php/Platform%3ANintendo_64 ; formato do cabeçalho e offsets: https://reverseengineering.wiki/index.php/Format%3ANintendo_64_ROM_image
+- **Limitações explícitas:** não executa PIF ROM nem autenticação CIC; não calcula CRC1/CRC2; perfil fixo NTSC/CIC-6102, não detecta PAL/MPAL ou variantes CIC; IPL2 version e alguns registradores ainda são provisórios; não há inicialização completa de cache/RDRAM/RI, nem compatibilidade comprovada com jogos comerciais. Este é um HLE inicial para testes, não boot geral garantido.
