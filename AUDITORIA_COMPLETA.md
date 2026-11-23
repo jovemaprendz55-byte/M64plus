@@ -1244,3 +1244,12 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 **Limitações:** a CPU pode parar rapidamente ao encontrar uma instrução ainda não implementada ou uma falha de fetch. Ainda não existe scheduler de ciclos N64, sincronização CPU/RSP/RDP, VI, áudio ou rasterização completa. O framebuffer continuará sendo o triângulo diagnóstico enquanto o RDP não produzir uma imagem de jogo válida. O HLE continua sendo uma aproximação e não executa PIF/IPL3 real.
 
 **Validação CI:** pendente para os commits desta seção. Não considerar APK novo aprovado até os jobs nativos e Android terminarem com sucesso.
+
+### 17.18.1 — Parada imediata da fatia em exceção da CPU
+
+- Revisão do executor revelou que `stepCpu()` pode retornar sucesso ao tratar uma exceção arquitetural. Contar isso como instrução executada permitiria que a thread Android continuasse consumindo fatias no vetor de exceção sem informar claramente a falha original.
+- `runCpuInstructions()` agora compara `instructionsExecuted()` antes/depois de cada etapa. Se a etapa não aposentar uma instrução (por exemplo, exceção de instrução reservada ou falha de fetch), a fatia termina imediatamente e retorna a quantidade real de instruções aposentadas.
+- Adicionado teste `testCpuRunnerStopsWhenInstructionRaisesException`, com opcode não implementado e orçamento de 64, verificando retorno zero e contador inalterado.
+- Arquivos: `app/src/main/cpp/n64/machine.cpp`, `tests/machine_tests.cpp`.
+- Isso permite que a thread Java existente registre o PC após a exceção e pare, em vez de continuar em um ciclo de fatias. A causa detalhada ainda não é apresentada na interface/log Java; somente o PC atual é registrado.
+- CI desta correção pendente. Não gerar/indicar APK como contendo esta correção até o novo workflow terminar com ambos os jobs aprovados.
