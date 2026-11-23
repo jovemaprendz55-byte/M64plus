@@ -1872,6 +1872,41 @@ void testCpuMoveConditionalInstructions() {
         require(!machine.cpu().hasLastException(),
                 "valid conditional move does not raise an exception");
     }
+
+    const struct DelaySlotCase {
+        std::uint32_t moveInstruction;
+        std::uint64_t condition;
+        std::uint64_t expected;
+        const char* description;
+    } delaySlotCases[] = {
+        {0x0109500AU, 0U, 0x123456789ABCDEF0ULL,
+         "MOVZ executes in a branch delay slot"},
+        {0x0109500BU, 1U, 0xFEDCBA9876543210ULL,
+         "MOVN executes in a branch delay slot"}
+    };
+    for (const auto& item : delaySlotCases) {
+        N64Machine machine;
+        Bus& bus = machine.bus();
+        require(bus.write32(0x000U, 0x10000002U),
+                "write branch before conditional move delay slot");
+        require(bus.write32(0x004U, item.moveInstruction),
+                "write conditional move in branch delay slot");
+        require(bus.write32(0x00CU, 0x240B0001U),
+                "write branch target instruction");
+        auto& cpu = machine.cpu();
+        cpu.reset(0xFFFFFFFF80000000ULL);
+        cpu.setRegister(8U, item.expected);
+        cpu.setRegister(9U, item.condition);
+        cpu.setRegister(10U, 0xA5A5A5A5A5A5A5A5ULL);
+        require(machine.stepCpu(), "execute branch before conditional move");
+        require(machine.stepCpu(), item.description);
+        require(cpu.reg(10U) == item.expected,
+                "conditional move takes effect in branch delay slot");
+        require(cpu.pc() == 0xFFFFFFFF8000000CU,
+                "conditional move delay slot preserves branch target");
+        require(!cpu.hasLastException(),
+                "conditional move in delay slot does not raise an exception");
+    }
 }
 
 void testCpuRegimmTrapImmediateInstructions() {
