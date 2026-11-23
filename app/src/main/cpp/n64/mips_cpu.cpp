@@ -84,7 +84,11 @@ bool MipsCpu::stepMemory(Memory& memory) {
         return takeException(ExceptionCode::BusInstruction, pc_);
     const std::uint32_t pc32 = static_cast<std::uint32_t>(pc_);
     const bool pcInDirectSegment = pc32 >= 0x80000000U && pc32 < 0xC0000000U;
-    if (pcInDirectSegment && !cp0_.kernelMode())
+    const bool pcInSupervisorSegment = pc32 >= 0xC0000000U && pc32 < 0xE0000000U;
+    const bool pcInKernelSegment3 = pc32 >= 0xE0000000U;
+    if ((pcInDirectSegment || pcInKernelSegment3) && !cp0_.kernelMode())
+        return takeException(ExceptionCode::AddressLoad, pc_);
+    if (pcInSupervisorSegment && !cp0_.supervisorMode())
         return takeException(ExceptionCode::AddressLoad, pc_);
     // KSEG0/KSEG1 are unmapped segments: their direct mapping applies even
     // while the software-managed TLB is disabled.
@@ -586,7 +590,11 @@ bool MipsCpu::stepMemory(Memory& memory) {
                 static_cast<std::int32_t>(address))))
             return takeException(ExceptionCode::AddressLoad, effective);
         const bool inDirectSegment = address >= 0x80000000U && address < 0xC0000000U;
-        if (inDirectSegment && !cp0_.kernelMode())
+        const bool inSupervisorSegment = address >= 0xC0000000U && address < 0xE0000000U;
+        const bool inKernelSegment3 = address >= 0xE0000000U;
+        if ((inDirectSegment || inKernelSegment3) && !cp0_.kernelMode())
+            return takeException(ExceptionCode::AddressLoad, effective);
+        if (inSupervisorSegment && !cp0_.supervisorMode())
             return takeException(ExceptionCode::AddressLoad, effective);
         if (tlbEnabled_ || inDirectSegment) {
             std::uint32_t translated = 0;
@@ -677,7 +685,11 @@ bool MipsCpu::stepMemory(Memory& memory) {
                 static_cast<std::int32_t>(address))))
             return takeException(ExceptionCode::AddressStore, effective);
         const bool inDirectSegment = address >= 0x80000000U && address < 0xC0000000U;
-        if (inDirectSegment && !cp0_.kernelMode())
+        const bool inSupervisorSegment = address >= 0xC0000000U && address < 0xE0000000U;
+        const bool inKernelSegment3 = address >= 0xE0000000U;
+        if ((inDirectSegment || inKernelSegment3) && !cp0_.kernelMode())
+            return takeException(ExceptionCode::AddressStore, effective);
+        if (inSupervisorSegment && !cp0_.supervisorMode())
             return takeException(ExceptionCode::AddressStore, effective);
         if (tlbEnabled_ || inDirectSegment) {
             std::uint32_t translated = 0;
