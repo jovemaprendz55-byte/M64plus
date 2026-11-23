@@ -31,6 +31,12 @@ std::uint64_t MipsCpu::reg(unsigned index) const noexcept {
 std::uint64_t MipsCpu::pc() const noexcept { return pc_; }
 std::uint64_t MipsCpu::instructionsExecuted() const noexcept { return executed_; }
 void MipsCpu::setTlbEnabled(bool enabled) noexcept { tlbEnabled_ = enabled; }
+void MipsCpu::setRegister(unsigned index, std::uint64_t value) noexcept {
+    if (index > 0U && index < gpr_.size()) gpr_[index] = value;
+}
+bool MipsCpu::setCp0Register(unsigned index, std::uint64_t value) noexcept {
+    return cp0_.write(index, value);
+}
 const Cp0& MipsCpu::cp0() const noexcept { return cp0_; }
 template <typename Memory>
 bool MipsCpu::stepMemory(Memory& memory) {
