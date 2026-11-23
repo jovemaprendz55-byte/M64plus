@@ -1791,6 +1791,39 @@ void testCpuSpecialTrapInstructions() {
     }
 }
 
+void testCpuMoveConditionalInstructions() {
+    const struct MoveCase {
+        std::uint32_t instruction;
+        std::uint64_t source;
+        std::uint64_t condition;
+        std::uint64_t expected;
+        const char* description;
+    } cases[] = {
+        {0x0109500AU, 0x123456789ABCDEF0ULL, 0U,
+         0x123456789ABCDEF0ULL, "MOVZ copies source when condition is zero"},
+        {0x0109500AU, 0x123456789ABCDEF0ULL, 1U,
+         0xA5A5A5A5A5A5A5A5ULL, "MOVZ preserves destination when condition is nonzero"},
+        {0x0109500BU, 0xFEDCBA9876543210ULL, 1U,
+         0xFEDCBA9876543210ULL, "MOVN copies source when condition is nonzero"},
+        {0x0109500BU, 0xFEDCBA9876543210ULL, 0U,
+         0xA5A5A5A5A5A5A5A5ULL, "MOVN preserves destination when condition is zero"}
+    };
+    for (const auto& item : cases) {
+        N64Machine machine;
+        require(machine.bus().write32(0U, item.instruction),
+                "write conditional move instruction");
+        machine.cpu().reset(0xFFFFFFFF80000000ULL);
+        machine.cpu().setRegister(8U, item.source);
+        machine.cpu().setRegister(9U, item.condition);
+        machine.cpu().setRegister(10U, 0xA5A5A5A5A5A5A5A5ULL);
+        require(machine.stepCpu(), item.description);
+        require(machine.cpu().reg(10U) == item.expected,
+                "conditional move updates destination only when condition matches");
+        require(!machine.cpu().hasLastException(),
+                "valid conditional move does not raise an exception");
+    }
+}
+
 void testCpuRegimmTrapImmediateInstructions() {
     const struct TrapImmediateCase {
         unsigned rt;
@@ -2127,6 +2160,7 @@ int main() {
     testCpuSyscallAndBreakpointInBranchDelaySlot();
     testCpuSpecialTrapInstructions();
     testCpuRegimmTrapImmediateInstructions();
+    testCpuMoveConditionalInstructions();
     testCpuRejectsInvalidBlezBgtzEncodings();
     testCpuRejectsInvalidSpecialShiftAndJumpEncodings();
     testCpuBranchLikelyDelaySlotSemantics();
