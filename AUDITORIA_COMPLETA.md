@@ -1319,7 +1319,7 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - O caminho usa o endereço já traduzido pelo TLB/KSEG e preserva a exceção de barramento quando a leitura ou escrita da palavra alinhada falha.
 - Criado teste de integração `testCpuUnalignedWordMemoryOperations` com valores conhecidos, verificando as quatro operações em offset 1 e a preservação dos bytes que não devem ser alterados.
 - Arquivos alterados: `app/src/main/cpp/n64/mips_cpu.cpp` e `tests/machine_tests.cpp`.
-- Commits: implementação `bc46d83bf1917fcf5103b5c356118725c25dd22f`; testes `fd81dc4116cc0a98e42ce1489a6e451970d3cf6a`.
-- CI desta etapa ainda precisa concluir. Não declarar os testes/build aprovados até os jobs `native-host-tests` e `assemble-debug` terminarem com sucesso.
+- Commits: implementação `bc46d83bf1917fcf5103b5c356118725c25dd22f`; testes iniciais `fd81dc4116cc0a98e42ce1489a6e451970d3cf6a`; correção das codificações de registrador-base nas fixtures `d583c3ffd4e4ed2430757ac9a394f5f3cbe1c3e2`.
+- Na primeira execução, o teste falhou porque as palavras de instrução usavam o registrador `$t1` também como base efetiva, em vez de `$zero`; os opcodes de teste foram corrigidos para codificar base zero. A nova execução CI está em andamento. Não declarar os testes/build aprovados até os jobs `native-host-tests` e `assemble-debug` terminarem com sucesso.
 
 **Limitação:** os acessos de palavra desalinhados foram implementados e têm testes direcionados; as variantes de 64 bits `LDL/LDR/SDL/SDR` continuam ausentes. A cobertura dos quatro opcodes ainda deve ser ampliada para todos os offsets e casos de fronteira de memória.
