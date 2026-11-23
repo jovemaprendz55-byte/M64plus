@@ -503,6 +503,7 @@ void testCpuBusInstructionFaultInvalidatesLoadLinkedReservation() {
     require(machine.stepCpu(), "LL establishes reservation before bus instruction fault");
     require(machine.stepCpu(), "JR schedules unmapped instruction address");
     require(machine.stepCpu(), "JR delay slot executes before instruction fetch fault");
+    require(machine.stepCpu(), "unmapped instruction fetch raises bus instruction exception");
     require(machine.cpu().hasLastException(), "CPU records bus instruction exception after LL");
     require(machine.cpu().lastExceptionCode() == 6U,
             "CPU records Bus Instruction exception code");
