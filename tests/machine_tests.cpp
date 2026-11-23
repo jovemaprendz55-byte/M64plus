@@ -1181,6 +1181,71 @@ void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
             "CPU runner executes final instruction without exceeding budget");
 }
 
+
+void testCpuCop0TlbInstructionsWriteProbeAndReadEntry() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    const std::uint32_t program[] = {
+        0x42000002U, // TLBWI
+        0x42000008U, // TLBP (ASID mismatch)
+        0x42000008U, // TLBP (ASID match)
+        0x42000001U  // TLBR
+    };
+    for (std::uint32_t i = 0; i < 4U; ++i)
+        require(bus.write32(i * 4U, program[i]), "write COP0 TLB instruction program");
+
+    auto& cpu = machine.cpu();
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kIndex, 7U),
+            "set Index before TLBWI");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryHi, 0x00400012U),
+            "set EntryHi before TLBWI");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryLo0,
+                               (0x123ULL << 6U) | 6ULL),
+            "set even EntryLo before TLBWI");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryLo1,
+                               (0x124ULL << 6U) | 6ULL),
+            "set odd EntryLo before TLBWI");
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    // Reset the CPU first, then restore the CP0 values used by the instruction.
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kIndex, 7U),
+            "restore Index after CPU reset");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryHi, 0x00400012U),
+            "restore EntryHi after CPU reset");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryLo0,
+                               (0x123ULL << 6U) | 6ULL),
+            "restore even EntryLo after CPU reset");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryLo1,
+                               (0x124ULL << 6U) | 6ULL),
+            "restore odd EntryLo after CPU reset");
+    require(machine.stepCpu(), "CPU executes TLBWI");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryHi, 0x00400013U),
+            "change ASID before TLBP mismatch");
+    require(machine.stepCpu(), "CPU executes TLBP for mismatched ASID");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kIndex) & 0x80000000ULL) != 0U,
+            "TLBP sets Index probe-failure bit for non-global ASID mismatch");
+
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryHi, 0x00400012U),
+            "restore matching ASID before TLBP");
+    require(machine.stepCpu(), "CPU executes TLBP for matching ASID");
+    require(cpu.cp0().read(m64plus::n64::Cp0::kIndex) == 7U,
+            "TLBP returns the matching TLB entry index");
+
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryHi, 0U),
+            "clear EntryHi before TLBR");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryLo0, 0U),
+            "clear even EntryLo before TLBR");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryLo1, 0U),
+            "clear odd EntryLo before TLBR");
+    require(machine.stepCpu(), "CPU executes TLBR");
+    require(cpu.cp0().read(m64plus::n64::Cp0::kEntryHi) == 0x00400012U,
+            "TLBR restores EntryHi and ASID from selected entry");
+    require(cpu.cp0().read(m64plus::n64::Cp0::kEntryLo0) ==
+                ((0x123ULL << 6U) | 6ULL) &&
+            cpu.cp0().read(m64plus::n64::Cp0::kEntryLo1) ==
+                ((0x124ULL << 6U) | 6ULL),
+            "TLBR restores both EntryLo PFNs and permission bits");
+}
+
 void testMachineDoesNotRetryUnsupportedRspInstruction() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -1420,6 +1485,7 @@ void testHleBootDetectsCicAndPalRegionFromRom() {
 
 int main() {
     testTlbPairedPagesAsidGlobalAndPermissions();
+    testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testMachineOwnsAndProcessesRdpState();
     testCpuKsegDirectMappingWithoutTlb();
     testCpuFetchesAndExecutesFromCartridgeKseg1();
