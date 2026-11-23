@@ -224,10 +224,46 @@ void testOutOfRangeIsRejectedBeforeCopy() {
     require(bus.read32(Bus::kSpMemAddr, spAddress), "read SP address after rejection");
     require(spAddress == 0x80U, "failed DMA does not advance SP address");
 }
+
+void testCartridgeRomMappingAndValidation() {
+    Bus bus;
+    const std::uint8_t rom[] = {
+        0x80U, 0x37U, 0x12U, 0x40U, 0x11U, 0x22U, 0x33U, 0x44U,
+        0x55U, 0x66U, 0x77U, 0x88U, 0x99U, 0xAAU, 0xBBU, 0xCCU,
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U,
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U,
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U
+    };
+    require(bus.loadCartridge(rom, sizeof(rom)), "load valid big-endian N64 ROM");
+    require(bus.cartridgeSize() == sizeof(rom), "cartridge size is exposed");
+    std::uint32_t word = 0;
+    require(bus.region(Bus::kCartridgeBase) == m64plus::n64::BusRegion::Cartridge,
+            "PI cartridge window maps loaded ROM");
+    require(bus.read32(Bus::kCartridgeBase, word) && word == 0x80371240U,
+            "ROM header is readable in big-endian order");
+    require(bus.read32(Bus::kCartridgeBase + 4U, word) && word == 0x11223344U,
+            "ROM data is readable through the physical bus");
+    require(!bus.write32(Bus::kCartridgeBase + 4U, 0U), "cartridge ROM rejects writes");
+    require(!bus.read32(Bus::kCartridgeBase + 64U, word),
+            "read beyond end of loaded ROM is rejected");
+    const std::uint8_t invalid[64] = {};
+    require(!bus.loadCartridge(invalid, sizeof(invalid)), "reject invalid ROM magic");
+    require(bus.read32(Bus::kCartridgeBase, word) && word == 0x80371240U,
+            "failed ROM replacement preserves previously loaded cartridge");
+    bus.reset();
+    require(bus.read32(Bus::kCartridgeBase + 4U, word) && word == 0x11223344U,
+            "hardware reset preserves inserted cartridge");
+    bus.unloadCartridge();
+    require(bus.cartridgeSize() == 0U &&
+            bus.region(Bus::kCartridgeBase) == m64plus::n64::BusRegion::Unmapped,
+            "unloading removes cartridge mapping");
+}
+
 } // namespace
 
 int main() {
     testDpRegisterWindow();
+    testCartridgeRomMappingAndValidation();
     testDpCommandStreamFromRdramAndDmem();
     testDpMultiwordCommandIsAtomic();
     testDramToSpAndSpToDram();
