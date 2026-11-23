@@ -1209,6 +1209,43 @@ void testCpuRejectsInvalidCop0ReservedFields() {
     }
 }
 
+void testCpuCop0RequiresKernelPrivilege() {
+    const auto runCase = [](std::uint64_t status, bool shouldExecute,
+                            const char* message) {
+        N64Machine machine;
+        require(machine.bus().write32(0U, 0x40086000U),
+                "write MFC0 instruction for privilege test");
+        auto& cpu = machine.cpu();
+        cpu.reset(0xFFFFFFFF80000000ULL);
+        require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, status),
+                "set CP0 privilege mode for test");
+        const std::uint64_t executed = machine.runCpuInstructions(1U);
+        if (shouldExecute) {
+            require(executed == 1U && !cpu.hasLastException(),
+                    message);
+            require(cpu.pc() == 0xFFFFFFFF80000004ULL,
+                    "privileged override continues after MFC0");
+        } else {
+            require(executed == 0U && cpu.hasLastException() &&
+                    cpu.lastExceptionCode() == 11U,
+                    message);
+            require(cpu.pc() == 0xFFFFFFFF80000180ULL,
+                    "user-mode COP0 access enters general exception vector");
+            require(((cpu.cp0().read(m64plus::n64::Cp0::kCause) >> 2U) & 0x1FULL) == 11U,
+                    "user-mode COP0 access records Coprocessor Unusable");
+        }
+    };
+
+    runCase(2ULL << 3U, false,
+            "user mode cannot execute MFC0");
+    runCase(1ULL << 3U, false,
+            "supervisor mode cannot execute MFC0");
+    runCase((2ULL << 3U) | m64plus::n64::Cp0::kStatusExl, true,
+            "EXL forces kernel privilege for MFC0");
+    runCase((2ULL << 3U) | m64plus::n64::Cp0::kStatusErl, true,
+            "ERL forces kernel privilege for MFC0");
+}
+
 void testCpuCop0TlbInstructionsWriteProbeAndReadEntry() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -2279,6 +2316,7 @@ int main() {
     testCpuEretRestoresExceptionReturnAddress();
     testCpuEretReturnsToBranchAfterDelaySlotException();
     testCpuRejectsInvalidCop0ReservedFields();
+    testCpuCop0RequiresKernelPrivilege();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
     testMachineOwnsAndProcessesRdpState();
