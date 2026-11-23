@@ -1189,6 +1189,7 @@ void testCpuRejectsInvalidCop0ReservedFields() {
         0x40886008U, // MTC0 with reserved bit 3 set
         0x40086009U, // MFC0 with unsupported register select 1
         0x40886009U, // MTC0 with unsupported register select 1
+        0x40886001U, // MTC0 with register select 1 and no reserved bits
         0x42000048U, // TLBP with reserved bit 6 set
         0x42000058U  // ERET with reserved bit 6 set
     };
