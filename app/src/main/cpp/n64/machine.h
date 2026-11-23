@@ -3,6 +3,7 @@
 #include <cstddef>
 
 #include "n64/bus.h"
+#include "n64/cic.h"
 #include "n64/mips_cpu.h"
 #include "n64/rsp_cpu.h"
 #include "n64/rdp.h"
