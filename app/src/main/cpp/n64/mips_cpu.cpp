@@ -382,7 +382,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
     case 0x0F: destination = rt; result = signExtend32(static_cast<std::uint32_t>(immediate) << 16U); writeRegister = true; break;
     // Integer loads use the selected physical memory interface; optional TLB
     // translation is applied before the bus or RDRAM access.
-    case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27: case 0x37: {
+    case 0x1A: case 0x1B: case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27: case 0x37: {
         const std::uint64_t effective = a + signExtend16(immediate);
         std::uint32_t address = static_cast<std::uint32_t>(effective);
         if (effective > 0xFFFFFFFFULL &&
@@ -415,6 +415,22 @@ bool MipsCpu::stepMemory(Memory& memory) {
             std::uint16_t value = 0;
             if (!memory.read16(address, value)) return takeException(ExceptionCode::BusData, effective);
             result = opcode == 0x21 ? signExtend16(value) : value;
+        } else if (opcode == 0x1A || opcode == 0x1B) { // LDL / LDR (big-endian)
+            std::uint64_t value = 0;
+            const std::uint32_t aligned = address & ~7U;
+            if (!memory.read64(aligned, value))
+                return takeException(ExceptionCode::BusData, effective);
+            const unsigned byteOffset = address & 7U;
+            if (opcode == 0x1A) {
+                const unsigned shift = byteOffset * 8U;
+                const std::uint64_t preserve = shift == 0U ? 0ULL :
+                    ((1ULL << shift) - 1ULL);
+                result = (b & preserve) | (value << shift);
+            } else {
+                const unsigned shift = (7U - byteOffset) * 8U;
+                const std::uint64_t preserve = 0xFFFFFFFFFFFFFF00ULL << (byteOffset * 8U);
+                result = (b & preserve) | (value >> shift);
+            }
         } else if (opcode == 0x22 || opcode == 0x26) { // LWL / LWR (big-endian)
             std::uint32_t value = 0;
             if (!memory.read32(address & ~3U, value))
@@ -445,7 +461,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
         break;
     }
     // Integer stores.
-    case 0x28: case 0x29: case 0x2A: case 0x2B: case 0x2E: case 0x3F: {
+    case 0x28: case 0x29: case 0x2A: case 0x2B: case 0x2C: case 0x2D: case 0x2E: case 0x3F: {
         const std::uint64_t effective = a + signExtend16(immediate);
         std::uint32_t address = static_cast<std::uint32_t>(effective);
         if (effective > 0xFFFFFFFFULL &&
@@ -493,6 +509,25 @@ bool MipsCpu::stepMemory(Memory& memory) {
             stored = memory.write32(aligned, merged);
         }
         else if (opcode == 0x2B) stored = memory.write32(address, static_cast<std::uint32_t>(b));
+        else if (opcode == 0x2C || opcode == 0x2D) { // SDL / SDR (big-endian)
+            const std::uint32_t aligned = address & ~7U;
+            std::uint64_t previous = 0;
+            if (!memory.read64(aligned, previous))
+                return takeException(ExceptionCode::BusData, effective);
+            const unsigned byteOffset = address & 7U;
+            std::uint64_t merged = 0;
+            if (opcode == 0x2C) {
+                const unsigned shift = byteOffset * 8U;
+                const std::uint64_t preserve = byteOffset == 0U ? 0ULL :
+                    (0xFFFFFFFFFFFFFFFFULL << ((8U - byteOffset) * 8U));
+                merged = (previous & preserve) | (b >> shift);
+            } else {
+                const unsigned shift = (7U - byteOffset) * 8U;
+                const std::uint64_t preserve = 0x00FFFFFFFFFFFFFFULL >> (byteOffset * 8U);
+                merged = (previous & preserve) | (b << shift);
+            }
+            stored = memory.write64(aligned, merged);
+        }
         else stored = memory.write64(address, b);
         if (!stored) return takeException(ExceptionCode::BusData, effective);
         break;
