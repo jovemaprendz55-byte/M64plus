@@ -2674,21 +2674,13 @@ void testCpuEretRestoresExceptionReturnAddress() {
     N64Machine machine;
     Bus& bus = machine.bus();
     constexpr std::uint64_t initialPc = 0xFFFFFFFF80001000ULL;
-    require(bus.write32(0x1000U, 0xFFFFFFFFU),
+    require(bus.write32(0x1000U, 0x7000003FU),
             "place reserved instruction at exception return address");
     require(bus.write32(0x0180U, 0x42000018U),
             "place ERET at general exception vector");
 
     machine.cpu().reset(initialPc);
     require(machine.stepCpu(), "CPU takes reserved-instruction exception");
-    if (machine.cpu().pc() != 0xFFFFFFFF80000180ULL) {
-        std::cerr << "DEBUG ERET initial exception: pc=0x" << std::hex
-                  << machine.cpu().pc() << " code="
-                  << static_cast<unsigned>(machine.cpu().lastExceptionCode())
-                  << " faultPc=0x" << machine.cpu().lastExceptionPc()
-                  << " instruction=0x" << machine.cpu().lastExceptionInstruction()
-                  << std::dec << '\n';
-    }
     require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
             "reserved instruction enters general exception vector");
     require(machine.cpu().cp0().read(m64plus::n64::Cp0::kEpc) == initialPc,
