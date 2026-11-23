@@ -1136,6 +1136,7 @@ int main() {
     testCpuAddressStoreFaultInvalidatesLoadLinkedReservation();
     testCpuBusStoreFaultInvalidatesLoadLinkedReservation();
     testCpuTlbStoreFaultInvalidatesLoadLinkedReservation();
+    testCpuTlbInvalidStoreFaultInvalidatesLoadLinkedReservation();
     testCpuDoublewordLoadLinkedStoreConditional();
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
