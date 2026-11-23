@@ -90,9 +90,6 @@ bool Bus::readByte(std::uint32_t address, std::uint8_t& value) const noexcept {
     case BusRegion::Cartridge:
         value = cartridge_[address - kCartridgeBase];
         return true;
-    case BusRegion::Cartridge:
-        value = cartridge_[address - kCartridgeBase];
-        return true;
     case BusRegion::SpDmem:
         value = spDmem_[address - kSpDmemBase];
         return true;
@@ -113,8 +110,6 @@ bool Bus::writeByte(std::uint32_t address, std::uint8_t value) noexcept {
     switch (region(address)) {
     case BusRegion::Rdram:
         return rdram_.write8(address, value);
-    case BusRegion::Cartridge:
-        return false; // Cartridge ROM is read-only.
     case BusRegion::Cartridge:
         return false; // Cartridge ROM is read-only.
     case BusRegion::SpDmem:
