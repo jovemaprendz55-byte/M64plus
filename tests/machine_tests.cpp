@@ -384,11 +384,11 @@ void testCpuTlbStoreFaultInvalidatesLoadLinkedReservation() {
     constexpr std::uint32_t dataAddress = 0x350U;
     constexpr std::uint64_t unmappedVirtualAddress = 0x00400000ULL;
     constexpr std::uint32_t initial = 0x76543210U;
-    require(bus.write32(0x000U, 0xC1090000U), "write LL before TLB store fault");
-    require(bus.write32(0x004U, 0xAD4B0000U), "write SW through unmapped TLB address");
-    require(bus.write32(0x180U, 0xE1090000U), "write SC at TLB exception vector");
+    require(bus.write32(0x1000U, 0xC1090000U), "write LL before TLB store fault");
+    require(bus.write32(0x1004U, 0xAD4B0000U), "write SW through unmapped TLB address");
+    require(bus.write32(0x000U, 0xE1090000U), "write SC at TLB exception vector");
     require(bus.write32(dataAddress, initial), "initialize TLB-fault LL/SC target");
-    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().reset(0xFFFFFFFF80001000ULL);
     machine.cpu().setRegister(8U, dataAddress);
     machine.cpu().setRegister(10U, unmappedVirtualAddress);
     machine.cpu().setRegister(11U, 0xA5A5A5A5U);
@@ -398,8 +398,8 @@ void testCpuTlbStoreFaultInvalidatesLoadLinkedReservation() {
     require(machine.cpu().hasLastException(), "CPU records TLB store exception after LL");
     require(machine.cpu().lastExceptionCode() == 3U,
             "CPU records TLB Store exception code");
-    require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
-            "CPU transfers control to TLB exception vector");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000000ULL,
+            "CPU transfers control to TLB refill vector");
     machine.cpu().setTlbEnabled(false);
     require(machine.stepCpu(), "SC executes at TLB exception vector without reservation");
     std::uint32_t value = 0;
