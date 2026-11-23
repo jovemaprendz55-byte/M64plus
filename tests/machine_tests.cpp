@@ -540,6 +540,56 @@ void testCpuTlbFetchMissInvalidatesLoadLinkedReservation() {
             "TLB instruction-fetch exception invalidates LL reservation");
 }
 
+
+void testCpuTlbInvalidFetchFaultInvalidatesLoadLinkedReservation() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x370U;
+    constexpr std::uint32_t initial = 0x6A5B4C3DU;
+    constexpr std::uint64_t virtualAddress = 0x00400000ULL;
+
+    require(bus.write32(0x1000U, 0xC1090000U), "write LL before invalid TLB fetch");
+    require(bus.write32(0x1004U, 0x42000002U), "write TLBWI for invalid fetch mapping");
+    require(bus.write32(0x1008U, 0x02000008U), "write JR r16 to invalid TLB page");
+    require(bus.write32(0x100CU, 0x00000000U), "write JR delay-slot NOP");
+    require(bus.write32(0x180U, 0xE1090000U), "write SC at TLB invalid vector");
+    require(bus.write32(dataAddress, initial), "initialize invalid-TLB-fetch LL/SC target");
+
+    machine.cpu().reset(0xFFFFFFFF80001000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    machine.cpu().setRegister(16U, virtualAddress);
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kIndex, 0U),
+            "select TLB entry for invalid fetch mapping");
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kEntryHi, virtualAddress),
+            "set virtual page for invalid fetch mapping");
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kEntryLo0, 0U),
+            "install invalid even-page fetch mapping");
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kEntryLo1, 0U),
+            "clear odd-page fetch mapping");
+
+    require(machine.stepCpu(), "LL establishes reservation before invalid TLB fetch");
+    machine.cpu().setTlbEnabled(true);
+    require(machine.stepCpu(), "TLBWI installs invalid instruction mapping");
+    require(machine.stepCpu(), "JR schedules branch to invalid TLB page");
+    require(machine.stepCpu(), "JR delay slot completes before invalid TLB fetch");
+    require(machine.cpu().pc() == virtualAddress,
+            "CPU reaches invalid virtual address after JR delay slot");
+    require(machine.stepCpu(), "instruction fetch through invalid TLB entry raises invalid exception");
+    require(machine.cpu().hasLastException(), "CPU records TLB invalid instruction-fetch exception");
+    require(machine.cpu().lastExceptionCode() == 2U,
+            "CPU records TLB Load exception code for invalid instruction fetch");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+            "CPU transfers to general vector after invalid TLB instruction fetch");
+
+    machine.cpu().setTlbEnabled(false);
+    require(machine.stepCpu(), "SC executes at general vector without reservation");
+    std::uint32_t value = 0;
+    require(bus.read32(dataAddress, value) && value == initial,
+            "SC after invalid TLB instruction fetch leaves reserved memory unchanged");
+    require(machine.cpu().reg(9U) == 0U,
+            "TLB invalid instruction-fetch exception invalidates LL reservation");
+}
+
 void testCpuTlbModifiedStoreFaultInvalidatesLoadLinkedReservation() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -1269,6 +1319,7 @@ int main() {
     testCpuTlbInvalidStoreFaultInvalidatesLoadLinkedReservation();
     testCpuTlbInvalidLoadFaultInvalidatesLoadLinkedReservation();
     testCpuTlbFetchMissInvalidatesLoadLinkedReservation();
+    testCpuTlbInvalidFetchFaultInvalidatesLoadLinkedReservation();
     testCpuTlbModifiedStoreFaultInvalidatesLoadLinkedReservation();
     testCpuDoublewordLoadLinkedStoreConditional();
     testCpuSignedArithmeticAndImmediateComparisons();
