@@ -292,10 +292,19 @@ void testHleBootDetectsCicAndPalRegionFromRom() {
     rom[0] = 0x80U; rom[1] = 0x37U; rom[2] = 0x12U; rom[3] = 0x40U;
     rom[8] = 0x80U; rom[9] = 0x00U; rom[10] = 0x04U; rom[11] = 0x00U;
     rom[0x3EU] = static_cast<std::uint8_t>('P'); // PAL region
-    // CIC-X103 IPL3 sum, represented as little-endian host words.
-    const std::uint8_t cicWords[] = {0x4BU, 0x41U, 0x7EU, 0x49U,
-                                     0xD6U, 0x00U, 0x00U, 0x00U};
-    for (std::size_t i = 0; i < sizeof(cicWords); ++i) rom[0x40U + i] = cicWords[i];
+    // Build an IPL3 whose 1008 little-endian 32-bit words sum to CIC-X103.
+    std::uint64_t remaining = 0x000000D6497E414BULL;
+    for (std::size_t i = 0; i < 0xFC0U / 4U && remaining != 0U; ++i) {
+        const std::uint32_t word = remaining > 0xFFFFFFFFULL
+            ? 0xFFFFFFFFU : static_cast<std::uint32_t>(remaining);
+        remaining -= word;
+        const std::size_t offset = 0x40U + i * 4U;
+        rom[offset] = static_cast<std::uint8_t>(word);
+        rom[offset + 1U] = static_cast<std::uint8_t>(word >> 8U);
+        rom[offset + 2U] = static_cast<std::uint8_t>(word >> 16U);
+        rom[offset + 3U] = static_cast<std::uint8_t>(word >> 24U);
+    }
+    require(remaining == 0U, "synthetic IPL3 checksum fits the bootcode area");
     const std::uint32_t program[] = {0x24081234U, 0x25090001U};
     for (unsigned i = 0; i < 2U; ++i) {
         const std::uint32_t instruction = program[i];
