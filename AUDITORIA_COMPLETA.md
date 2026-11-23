@@ -1096,3 +1096,11 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - **Conclusão de validação:** o código C++/JNI e o renderer Android GLES compilam; a suíte nativa configurada passou. Isso não comprova que um frame de jogo seja produzido ou mostrado em dispositivo.
 - **Limitação funcional permanece:** ainda não há carregador de ROM/cartucho, boot funcional ou loop que execute CPU/RSP e alimente o RDP. Portanto, a chamada de snapshot pode continuar retornando null e o renderer deve manter o triângulo de diagnóstico.
 - Próxima etapa: revisar o caminho de execução e inicialização da máquina e implementar, em etapas testáveis, carregamento de ROM e avanço controlado da CPU/RSP antes de esperar uma imagem de jogo.
+
+
+## 17.9 Reutilização do buffer de upload GLES (2026-11-23)
+
+- Revisado o caminho de upload de snapshots em `BootRenderer`. Antes, `uploadSnapshot` alocava um novo `ByteBuffer.allocateDirect` a cada frame, mesmo quando a resolução não mudava.
+- O renderer agora mantém um `ByteBuffer` direto como campo e reutiliza sua capacidade quando suficiente; só realoca se uma resolução maior exigir mais bytes. O buffer é limpo, preenchido com os canais RGBA e reposicionado antes de `glTexSubImage2D`.
+- Commit na `main`: `56d0363402372dd22653a505a2f0f78d7cee4823`.
+- **Escopo:** reduz alocações diretas repetidas no lado Java quando houver framebuffer válido. Não remove a alocação do snapshot JNI nem a conversão ARGB→RGBA, e não muda a ausência de ROM/boot/loop de emulação. Ainda precisa ser validado por CI e medido em dispositivo real.
