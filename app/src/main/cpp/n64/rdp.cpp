@@ -57,7 +57,11 @@ bool fillRectangle32(Bus& bus, const RdpSyncState& state,
                 static_cast<std::uint64_t>(y) * image.width + x;
             const std::uint32_t address = static_cast<std::uint32_t>(
                 static_cast<std::uint64_t>(image.address) + pixel * 4U);
-            if (!bus.write32(address, state.fillColor)) return false;
+            if (!bus.write8(address, static_cast<std::uint8_t>(state.fillColor >> 24U)) ||
+                !bus.write8(address + 1U, static_cast<std::uint8_t>(state.fillColor >> 16U)) ||
+                !bus.write8(address + 2U, static_cast<std::uint8_t>(state.fillColor >> 8U)) ||
+                !bus.write8(address + 3U, static_cast<std::uint8_t>(state.fillColor)))
+                return false;
         }
     }
     return true;
