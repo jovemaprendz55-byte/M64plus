@@ -91,6 +91,11 @@ bool Cp0::kernelMode() const noexcept {
            (status & kStatusKsuMask) == 0;
 }
 
+bool Cp0::supervisorMode() const noexcept {
+    if (kernelMode()) return true;
+    return (registers_[kStatus] & kStatusKsuMask) == (1ULL << 3U);
+}
+
 bool Cp0::interruptRequested() const noexcept {
     const std::uint64_t status = registers_[kStatus];
     const std::uint64_t pending = registers_[kCause] & status & kCauseInterruptPendingMask;
