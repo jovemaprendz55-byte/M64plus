@@ -12,6 +12,57 @@ std::int16_t signExtend9(std::uint64_t value) noexcept {
         : signedValue;
 }
 
+bool fillRectangle32(Bus& bus, const RdpSyncState& state,
+                      std::uint64_t command) noexcept {
+    if (!state.hasColorImage || !state.hasFillColor ||
+        !state.hasOtherModes || state.otherModes.cycleType != 3U) return false;
+    const RdpImageState& image = state.colorImage;
+    // First rendering milestone: only the documented RGBA32 FILL-mode path.
+    if (image.format != 0U || image.size != 3U || image.width == 0U) return false;
+
+    std::uint32_t left = static_cast<std::uint32_t>((command >> 12U) & 0x0FFFU) >> 2U;
+    std::uint32_t top = static_cast<std::uint32_t>(command & 0x0FFFU) >> 2U;
+    std::uint32_t right = static_cast<std::uint32_t>((command >> 44U) & 0x0FFFU) >> 2U;
+    std::uint32_t bottom = static_cast<std::uint32_t>((command >> 32U) & 0x0FFFU) >> 2U;
+    if (right < left || bottom < top) return false;
+
+    if (state.hasScissor) {
+        const std::uint32_t scissorLeft = state.scissor.xh >> 2U;
+        const std::uint32_t scissorTop = state.scissor.yh >> 2U;
+        const std::uint32_t scissorRight = state.scissor.xl >> 2U;
+        const std::uint32_t scissorBottomExclusive = state.scissor.yl >> 2U;
+        if (scissorBottomExclusive == 0U) return false;
+        if (left < scissorLeft) left = scissorLeft;
+        if (top < scissorTop) top = scissorTop;
+        if (right > scissorRight) right = scissorRight;
+        if (bottom >= scissorBottomExclusive) bottom = scissorBottomExclusive - 1U;
+    }
+
+    if (right >= image.width || left > right || top > bottom) return false;
+    const std::uint64_t memorySize = bus.rdram().size();
+    // Validate every destination before the first write, so a rectangle that
+    // crosses the end of RDRAM cannot leave a partially modified framebuffer.
+    for (std::uint32_t y = top; y <= bottom; ++y) {
+        for (std::uint32_t x = left; x <= right; ++x) {
+            const std::uint64_t pixel =
+                static_cast<std::uint64_t>(y) * image.width + x;
+            const std::uint64_t address =
+                static_cast<std::uint64_t>(image.address) + pixel * 4U;
+            if (address + 4U > memorySize) return false;
+        }
+    }
+    for (std::uint32_t y = top; y <= bottom; ++y) {
+        for (std::uint32_t x = left; x <= right; ++x) {
+            const std::uint64_t pixel =
+                static_cast<std::uint64_t>(y) * image.width + x;
+            const std::uint32_t address = static_cast<std::uint32_t>(
+                static_cast<std::uint64_t>(image.address) + pixel * 4U);
+            if (!bus.write32(address, state.fillColor)) return false;
+        }
+    }
+    return true;
+}
+
 bool loadTile32BitTexels(Bus& bus, RdpSyncState& state,
                            const RdpTextureLoadState& load) noexcept {
     if (!state.hasTextureImage || !state.hasTile[load.tile]) return false;
@@ -579,6 +630,9 @@ RdpProcessResult RdpCommandProcessor::processNext(
         state.hasTile[tile] = true;
         return RdpProcessResult::Processed;
     }
+    case 0x36U: // FILL_RECTANGLE
+        return fillRectangle32(bus, state, packet.words[0])
+            ? RdpProcessResult::Processed : RdpProcessResult::Unsupported;
     case 0x37U: // SET_FILL_COLOR
     case 0x38U: // SET_FOG_COLOR
     case 0x39U: // SET_BLEND_COLOR
