@@ -71,6 +71,52 @@ void testTlbPairedPagesAsidGlobalAndPermissions() {
 }
 
 
+
+void testCpuSupervisorSsegUsesTlbForFetchLoadAndStore() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    auto& cpu = machine.cpu();
+
+    require(bus.write32(0U, 0x42000002U), "write TLBWI for SSEG supervisor mapping");
+    require(bus.write32(4U, 0x00200008U), "write JR to supervisor SSEG code");
+    require(bus.write32(8U, 0U), "write JR delay slot");
+    require(bus.write32(0x3000U, 0x8C220000U), "write LW instruction in translated SSEG page");
+    require(bus.write32(0x3004U, 0xAC230004U), "write SW instruction in translated SSEG page");
+    require(bus.write32(0x2000U, 0x12345678U), "initialize SSEG mapped physical data");
+    require(bus.write32(0x2004U, 0U), "initialize SSEG store destination");
+
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kIndex, 0U),
+            "select TLB entry for SSEG supervisor mapping");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryHi, 0xC0000000U),
+            "set SSEG virtual pair");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryLo0,
+                               (2ULL << 6U) | 6ULL),
+            "set valid dirty even SSEG page");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryLo1,
+                               (3ULL << 6U) | 6ULL),
+            "set valid dirty odd SSEG page");
+    cpu.setRegister(1U, 0xFFFFFFFFC0001000ULL);
+    cpu.setRegister(3U, 0xAABBCCDDU);
+
+    require(machine.stepCpu(), "install SSEG mapping through TLBWI");
+    cpu.setTlbEnabled(true);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
+            "switch to supervisor mode before entering SSEG");
+    require(machine.stepCpu(), "execute JR to supervisor SSEG");
+    require(machine.stepCpu(), "execute JR delay slot");
+    require(cpu.pc() == 0xFFFFFFFFC0001000ULL,
+            "JR transfers execution into supervisor SSEG");
+    cpu.setRegister(1U, 0xFFFFFFFFC0000000ULL);
+    require(machine.stepCpu(), "supervisor fetches LW through SSEG TLB mapping");
+    require(cpu.reg(2U) == 0x12345678U,
+            "supervisor SSEG load reads translated physical memory");
+    require(machine.stepCpu(), "supervisor fetches SW through SSEG TLB mapping");
+    std::uint32_t stored = 0;
+    require(bus.read32(0x2004U, stored) && stored == 0xAABBCCDDU,
+            "supervisor SSEG store writes translated physical memory");
+}
+
 void testCpuKseg3LoadStoreUsesTlbTranslation() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -2788,6 +2834,7 @@ int main() {
     testCpuUserModeCannotLoadOrStoreKseg0OrKseg1();
     testCpuSupervisorModeCannotAccessKseg0OrKseg1();
     testCpuPrivilegeChecksForSsegAndKseg3();
+    testCpuSupervisorSsegUsesTlbForFetchLoadAndStore();
     testCpuKseg3LoadStoreUsesTlbTranslation();
     testCpuEretPrioritizesErrorEpcWhenErlAndExlAreSet();
     testCpuEretUsesErrorEpcWhenErlIsSet();
