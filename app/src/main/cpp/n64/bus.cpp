@@ -1,6 +1,7 @@
 #include "n64/bus.h"
 
 #include <algorithm>
+#include <new>
 
 namespace m64plus::n64 {
 
@@ -32,7 +33,29 @@ void Bus::reset() noexcept {
     dpXbusDmemDma_ = false;
 }
 
+bool Bus::loadCartridge(const std::uint8_t* data, std::size_t size) {
+    if (data == nullptr || size < 0x40U || size > kMaxCartridgeSize ||
+        (size & 3U) != 0U) return false;
+    const std::uint32_t magic = (static_cast<std::uint32_t>(data[0]) << 24U) |
+        (static_cast<std::uint32_t>(data[1]) << 16U) |
+        (static_cast<std::uint32_t>(data[2]) << 8U) | data[3];
+    if (magic != kN64RomMagic) return false;
+    try {
+        std::vector<std::uint8_t> replacement(data, data + size);
+        cartridge_.swap(replacement);
+    } catch (const std::bad_alloc&) {
+        return false;
+    }
+    return true;
+}
+
+void Bus::unloadCartridge() noexcept { cartridge_.clear(); }
+std::size_t Bus::cartridgeSize() const noexcept { return cartridge_.size(); }
+
 BusRegion Bus::region(std::uint32_t address) const noexcept {
+    if (address >= kCartridgeBase &&
+        static_cast<std::uint64_t>(address - kCartridgeBase) < cartridge_.size())
+        return BusRegion::Cartridge;
     if (address < Rdram::kSize) return BusRegion::Rdram;
     if (address >= kSpDmemBase && address < kSpDmemBase + kSpMemorySize)
         return BusRegion::SpDmem;
@@ -64,6 +87,9 @@ bool Bus::readByte(std::uint32_t address, std::uint8_t& value) const noexcept {
     switch (region(address)) {
     case BusRegion::Rdram:
         return rdram_.read8(address, value);
+    case BusRegion::Cartridge:
+        value = cartridge_[address - kCartridgeBase];
+        return true;
     case BusRegion::SpDmem:
         value = spDmem_[address - kSpDmemBase];
         return true;
@@ -84,6 +110,8 @@ bool Bus::writeByte(std::uint32_t address, std::uint8_t value) noexcept {
     switch (region(address)) {
     case BusRegion::Rdram:
         return rdram_.write8(address, value);
+    case BusRegion::Cartridge:
+        return false; // Cartridge ROM is read-only.
     case BusRegion::SpDmem:
         spDmem_[address - kSpDmemBase] = value;
         return true;
