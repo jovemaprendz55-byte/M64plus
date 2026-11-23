@@ -285,6 +285,40 @@ void testCartridgeHleBootInitializesRdramDmemAndCpuState() {
             "HLE-booted CPU executes cartridge entry code");
 }
 
+
+void testHleBootDetectsCicAndPalRegionFromRom() {
+    N64Machine machine;
+    std::vector<std::uint8_t> rom(0x1008U, 0U);
+    rom[0] = 0x80U; rom[1] = 0x37U; rom[2] = 0x12U; rom[3] = 0x40U;
+    rom[8] = 0x80U; rom[9] = 0x00U; rom[10] = 0x04U; rom[11] = 0x00U;
+    rom[0x3EU] = static_cast<std::uint8_t>('P'); // PAL region
+    // CIC-X103 IPL3 sum, represented as little-endian host words.
+    const std::uint8_t cicWords[] = {0x4BU, 0x41U, 0x7EU, 0x49U,
+                                     0xD6U, 0x00U, 0x00U, 0x00U};
+    for (std::size_t i = 0; i < sizeof(cicWords); ++i) rom[0x40U + i] = cicWords[i];
+    const std::uint32_t program[] = {0x24081234U, 0x25090001U};
+    for (unsigned i = 0; i < 2U; ++i) {
+        const std::uint32_t instruction = program[i];
+        const std::size_t offset = 0x1000U + i * 4U;
+        rom[offset] = static_cast<std::uint8_t>(instruction >> 24U);
+        rom[offset + 1U] = static_cast<std::uint8_t>(instruction >> 16U);
+        rom[offset + 2U] = static_cast<std::uint8_t>(instruction >> 8U);
+        rom[offset + 3U] = static_cast<std::uint8_t>(instruction);
+    }
+    require(machine.bus().loadCartridge(rom.data(), rom.size()),
+            "load synthetic CIC-X103 PAL cartridge");
+    require(machine.bootCartridgeHle(), "HLE boots with detected CIC-X103 and PAL");
+    std::uint32_t value = 0;
+    require(machine.cpu().reg(20U) == 0U,
+            "HLE sets s4 to PAL from cartridge country code");
+    require(machine.cpu().reg(22U) == 0x78U,
+            "HLE sets s6 to CIC-X103 seed");
+    require(machine.bus().read32(0x300U, value) && value == 0U,
+            "HLE publishes PAL TV type in low-memory boot parameters");
+    require(machine.bus().read32(0x310U, value) && value == 6103U,
+            "HLE publishes CIC-6103 identifier for X103");
+}
+
 } // namespace
 
 int main() {
@@ -293,6 +327,7 @@ int main() {
     testCpuFetchesAndExecutesFromCartridgeKseg1();
     testCpuProgramsPiDmaAndExecutesCartridgePayload();
     testCartridgeHleBootInitializesRdramDmemAndCpuState();
+    testHleBootDetectsCicAndPalRegionFromRom();
     testMachineDoesNotRetryUnsupportedRspInstruction();
     testSharedCpuRspBusAndSpBreak();
     std::cout << "N64 machine CPU/RSP integration tests passed.\n";
