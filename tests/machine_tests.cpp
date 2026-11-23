@@ -345,10 +345,10 @@ void testCpuUnalignedDoublewordMemoryBoundaryFaults() {
     Bus& bus = machine.bus();
     constexpr std::uint64_t sentinel = 0xA1A2A3A4A5A6A7A8ULL;
     const std::uint32_t opcodes[] = {
-        0x68090000U, // LDL
-        0x6C090000U, // LDR
-        0xB0090000U, // SDL
-        0xB4090000U  // SDR
+        0x69090000U, // LDL base=$t0
+        0x6D090000U, // LDR base=$t0
+        0xB1090000U, // SDL base=$t0
+        0xB5090000U  // SDR base=$t0
     };
     std::uint64_t lastValidWord = 0;
     require(bus.write64(0x007FFFF8U, 0x1122334455667788ULL),
