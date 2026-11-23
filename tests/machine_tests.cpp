@@ -1280,6 +1280,43 @@ void testCpuCop0PrivilegedOperationsRequireKernelPrivilege() {
     }
 }
 
+void testCpuEretUsesErrorEpcWhenErlIsSet() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    require(bus.write32(0U, 0x42000018U),
+            "write ERET instruction for ERL return");
+    require(bus.write32(0x20U, 0x40096000U),
+            "write user-mode MFC0 at ErrorEPC target");
+
+    auto& cpu = machine.cpu();
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    require(cpu.cp0().write(m64plus::n64::Cp0::kStatus,
+                            (2ULL << 3U) | m64plus::n64::Cp0::kStatusErl),
+            "set user KSU and ERL before ERET");
+    require(cpu.cp0().write(m64plus::n64::Cp0::kErrorEpc, 0x20U),
+            "set CP0 ErrorEPC return address");
+    require(cpu.cp0().write(m64plus::n64::Cp0::kEpc, 0x40U),
+            "set a distinct EPC to verify ERL priority");
+
+    require(machine.stepCpu(), "ERET executes while ERL is set");
+    require(cpu.pc() == 0x20U,
+            "ERET selects ErrorEPC instead of EPC when ERL is set");
+    const std::uint64_t status = cpu.cp0().read(m64plus::n64::Cp0::kStatus);
+    require((status & m64plus::n64::Cp0::kStatusErl) == 0,
+            "ERET clears ERL on ErrorEPC return");
+    require((status & m64plus::n64::Cp0::kStatusExl) == 0,
+            "ERET does not set EXL on ErrorEPC return");
+    require((status & (3ULL << 3U)) == (2ULL << 3U),
+            "ERET restores user privilege after clearing ERL");
+
+    require(machine.runCpuInstructions(1U) == 0U,
+            "user-mode MFC0 remains blocked after ErrorEPC return");
+    require(cpu.hasLastException() && cpu.lastExceptionCode() == 11U,
+            "MFC0 after ErrorEPC return raises Coprocessor Unusable");
+    require(cpu.pc() == 0xFFFFFFFF80000180ULL,
+            "post-ERL-return MFC0 enters general exception vector");
+}
+
 void testCpuEretRestoresUserPrivilegeFromStatus() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -2472,6 +2509,7 @@ int main() {
     testCpuRejectsInvalidCop0ReservedFields();
     testCpuCop0RequiresKernelPrivilege();
     testCpuCop0PrivilegedOperationsRequireKernelPrivilege();
+    testCpuEretUsesErrorEpcWhenErlIsSet();
     testCpuEretRestoresUserPrivilegeFromStatus();
     testCpuMtc0StatusChangesPrivilegeForNextInstruction();
     testCpuMtc0WorksInKernelMode();
