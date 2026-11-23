@@ -947,6 +947,41 @@ void testFillRectangleWritesRgba32PixelsAndHonorsScissor() {
     }
 }
 
+void testFillRectangleRejectsOutOfRangeWithoutPartialWrites() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint32_t base = static_cast<std::uint32_t>(Rdram::kSize - 8U);
+    const std::uint32_t sentinel = 0xA1B2C3D4U;
+    require(bus.write32(base, sentinel) && bus.write32(base + 4U, sentinel),
+            "seed final two RDRAM words before invalid fill");
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (1ULL << 32U) | base,
+        (0x37ULL << 56U) | 0x11223344ULL,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x36ULL << 56U) | (4ULL << 44U) | (4ULL << 12U)
+    };
+    for (std::size_t i = 0; i < 4U; ++i)
+        require(bus.write64(0xD00U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed out-of-range fill command stream");
+    require(bus.write32(Bus::kDpStart, 0xD00U) &&
+            bus.write32(Bus::kDpEnd, 0xD20U),
+            "publish out-of-range fill stream");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "out-of-range fill setup command is processed");
+
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "fill crossing the RDRAM boundary is rejected");
+    std::uint32_t first = 0U;
+    std::uint32_t second = 0U;
+    require(bus.read32(base, first) && bus.read32(base + 4U, second),
+            "read framebuffer words after rejected fill");
+    require(first == sentinel && second == sentinel,
+            "rejected fill leaves every framebuffer word unchanged");
+}
+
 void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
@@ -996,6 +1031,7 @@ int main() {
     testLoadBlockRejectsUnsupportedTexelSizes();
     testLoadTlutReplicatesEntriesIntoHighTmem();
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
+    testFillRectangleRejectsOutOfRangeWithoutPartialWrites();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
