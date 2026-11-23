@@ -1280,6 +1280,35 @@ void testCpuCop0PrivilegedOperationsRequireKernelPrivilege() {
     }
 }
 
+void testCpuEretPrioritizesErrorEpcWhenErlAndExlAreSet() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    require(bus.write32(0U, 0x42000018U),
+            "write ERET instruction with ERL and EXL set");
+    auto& cpu = machine.cpu();
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    const std::uint64_t initialStatus =
+        (2ULL << 3U) | m64plus::n64::Cp0::kStatusErl |
+        m64plus::n64::Cp0::kStatusExl;
+    require(cpu.cp0().write(m64plus::n64::Cp0::kStatus, initialStatus),
+            "set user KSU with both ERL and EXL");
+    require(cpu.cp0().write(m64plus::n64::Cp0::kErrorEpc, 0x20U),
+            "set ErrorEPC for prioritized return");
+    require(cpu.cp0().write(m64plus::n64::Cp0::kEpc, 0x40U),
+            "set distinct EPC for prioritized return");
+
+    require(machine.stepCpu(), "ERET executes with ERL and EXL both set");
+    require(cpu.pc() == 0x20U,
+            "ERET uses ErrorEPC when ERL and EXL are both set");
+    const std::uint64_t status = cpu.cp0().read(m64plus::n64::Cp0::kStatus);
+    require((status & m64plus::n64::Cp0::kStatusErl) == 0,
+            "ERET clears ERL when both level bits are set");
+    require((status & m64plus::n64::Cp0::kStatusExl) != 0,
+            "ERET leaves EXL set when returning through ErrorEPC");
+    require((status & (3ULL << 3U)) == (2ULL << 3U),
+            "ERET preserves KSU while clearing only ERL");
+}
+
 void testCpuEretUsesErrorEpcWhenErlIsSet() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -2509,6 +2538,7 @@ int main() {
     testCpuRejectsInvalidCop0ReservedFields();
     testCpuCop0RequiresKernelPrivilege();
     testCpuCop0PrivilegedOperationsRequireKernelPrivilege();
+    testCpuEretPrioritizesErrorEpcWhenErlAndExlAreSet();
     testCpuEretUsesErrorEpcWhenErlIsSet();
     testCpuEretRestoresUserPrivilegeFromStatus();
     testCpuMtc0StatusChangesPrivilegeForNextInstruction();
