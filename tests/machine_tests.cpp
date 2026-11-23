@@ -1702,6 +1702,35 @@ void testCpuRejectsInvalidBlezBgtzEncodings() {
     }
 }
 
+void testCpuRejectsInvalidSpecialShiftAndJumpEncodings() {
+    const std::uint32_t invalidInstructions[] = {
+        0x00221800U, // SLL with rs != 0
+        0x00221842U, // SRL with rs != 0
+        0x002218C3U, // SRA with rs != 0
+        0x00221844U, // SLLV with shift != 0
+        0x002218D4U, // DSLLV with shift != 0
+        0x00200808U, // JR with rt != 0
+        0x00201808U, // JR with rd != 0
+        0x00210809U, // JALR with rt != 0
+        0x00200849U  // JALR with shift != 0
+    };
+    for (const std::uint32_t instruction : invalidInstructions) {
+        N64Machine machine;
+        require(machine.bus().write32(0U, instruction),
+                "write invalid SPECIAL shift/jump encoding");
+        machine.cpu().reset(0xFFFFFFFF80000000ULL);
+        require(machine.runCpuInstructions(1U) == 0U,
+                "invalid SPECIAL shift/jump encoding raises an exception");
+        require(machine.cpu().hasLastException() &&
+                machine.cpu().lastExceptionCode() == 10U,
+                "invalid SPECIAL shift/jump encoding raises Reserved Instruction");
+        require(machine.cpu().lastExceptionInstruction() == instruction,
+                "CPU records invalid SPECIAL shift/jump instruction");
+        require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+                "invalid SPECIAL shift/jump enters general exception vector");
+    }
+}
+
 void testCpuBranchLikelyDelaySlotSemantics() {
     auto runCase = [](std::uint32_t branch, std::uint64_t left, std::uint64_t right,
                       bool taken, const char* description) {
@@ -1908,6 +1937,7 @@ int main() {
     testCpuAcceptsCp0TimerInterruptBetweenInstructions();
     testCpuDefersTimerInterruptUntilAfterBranchDelaySlot();
     testCpuRejectsInvalidBlezBgtzEncodings();
+    testCpuRejectsInvalidSpecialShiftAndJumpEncodings();
     testCpuBranchLikelyDelaySlotSemantics();
     testCpuEretRestoresExceptionReturnAddress();
     testCpuEretReturnsToBranchAfterDelaySlotException();
