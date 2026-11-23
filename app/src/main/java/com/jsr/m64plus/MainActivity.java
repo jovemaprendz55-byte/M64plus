@@ -44,6 +44,7 @@ public final class MainActivity extends Activity {
     private static native void nativeDestroyMachine(long handle);
     private static native boolean nativeResetMachine(long handle);
     private static native long nativeMachineCpuPc(long handle);
+    private static native long[] nativeMachineCpuExceptionInfo(long handle);
     static native int[] nativeGetFramebufferSnapshot(long handle);
     private static native boolean nativeLoadCartridge(long handle, byte[] romData);
     private static native boolean nativeBootCartridgeHle(long handle);
@@ -176,14 +177,23 @@ public final class MainActivity extends Activity {
             while (cpuExecutionRequested) {
                 final int executed;
                 final long pc;
+                final long[] exceptionInfo;
                 synchronized (nativeMachineLock) {
                     if (!cpuExecutionRequested || nativeMachineHandle == 0L) break;
                     executed = nativeRunCpuSlice(nativeMachineHandle, CPU_INSTRUCTIONS_PER_SLICE);
                     pc = nativeMachineCpuPc(nativeMachineHandle);
+                    exceptionInfo = nativeMachineCpuExceptionInfo(nativeMachineHandle);
                 }
                 if (executed <= 0) {
-                    Log.w(TAG, "CPU_EXECUTION=STOPPED; no instruction executed; PC=0x"
-                            + Long.toHexString(pc));
+                    if (exceptionInfo != null && exceptionInfo.length >= 4 && exceptionInfo[3] != 0L) {
+                        Log.e(TAG, "CPU_EXCEPTION=code=" + exceptionInfo[2]
+                                + "; faultPC=0x" + Long.toHexString(exceptionInfo[0])
+                                + "; instruction=0x" + Long.toHexString(exceptionInfo[1])
+                                + "; exceptionVectorPC=0x" + Long.toHexString(pc));
+                    } else {
+                        Log.w(TAG, "CPU_EXECUTION=STOPPED; no instruction executed; PC=0x"
+                                + Long.toHexString(pc));
+                    }
                     cpuExecutionRequested = false;
                     break;
                 }
