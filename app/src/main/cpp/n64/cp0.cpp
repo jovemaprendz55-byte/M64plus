@@ -4,6 +4,7 @@ namespace m64plus::n64 {
 namespace {
 constexpr std::uint64_t kCauseBd = 1ULL << 31U;
 constexpr std::uint64_t kCauseExcCodeMask = 0x1FULL << 2U;
+constexpr std::uint64_t kCauseCoprocessorMask = 3ULL << 28U;
 constexpr std::uint64_t kCauseSoftwareInterruptMask = 0x3ULL << 8U;
 constexpr std::uint64_t kCauseTimerInterrupt = 1ULL << 15U;
 constexpr std::uint64_t kCauseMiInterrupt = 1ULL << 10U;
@@ -124,6 +125,8 @@ std::uint64_t Cp0::raiseException(ExceptionCode code, std::uint64_t instructionP
                 (badAddress & 0xFFFFE000ULL);
         }
     }
+    if (code == ExceptionCode::CoprocessorUnusable)
+        registers_[kCause] &= ~kCauseCoprocessorMask;
     registers_[kCause] = (registers_[kCause] & ~kCauseExcCodeMask) |
         (static_cast<std::uint64_t>(code) << 2U);
     if (code == ExceptionCode::AddressLoad || code == ExceptionCode::AddressStore ||
