@@ -40,12 +40,12 @@ Ainda não é um emulador capaz de executar jogos comerciais de ponta a ponta. F
 - ADDIU/DADDIU e operações lógicas imediatas ANDI/ORI/XORI/LUI.
 - ADD/ADDI/SUB com detecção de overflow de 32 bits; DADD/DADDI/DSUB com detecção de overflow de 64 bits; ADDU/SUBU/DADDU/DSUBU sem trap de overflow.
 - SLT/SLTU e SLTI/SLTIU (comparações imediatas com extensão de sinal correta).
-- HI/LO: MFHI/MTHI/MFLO/MTLO, MULT/MULTU/DIV/DIVU; operações de 64 bits DMULT/DDIV ainda ausentes.
+- HI/LO: MFHI/MTHI/MFLO/MTLO, MULT/MULTU/DIV/DIVU e DMULT/DMULTU/DDIV/DDIVU; operações de 64 bits têm testes básicos e de limites.
 - Deslocamentos SLL/SRL/SRA, SLLV/SRLV/SRAV e deslocamentos de 64 bits DSLL/DSRL/DSRA, DSLL32/DSRL32/DSRA32 e variantes variáveis.
 - ADDIU revisado: a implementação atual soma em 32 bits e faz sign-extension; o achado anterior de erro foi corrigido na análise e **não deve ser tratado como defeito**.
 
 ### 3.2 Ausente ou incompleto
-- Operações de 64 bits DMULT/DDIV e gerenciamento completo de HI/LO.
+- Gerenciamento completo de HI/LO ainda exige validação arquitetural mais ampla; DMULT/DMULTU/DDIV/DDIVU foram implementadas, mas não completam todo o conjunto MIPS III.
 - Acessos desalinhados LWL/LWR/SWL/SWR e LDL/LDR/SDL/SDR implementados; testes cobrem todos os deslocamentos possíveis e acessos fora dos limites da RDRAM (BusData), incluindo preservação do registrador de destino e da última palavra válida.
 - LL/SC e mecanismo de reservation/LLbit.
 - Instruções branch-likely: BEQL, BNEL, BLEZL, BGTZL, BLTZL, BGEZL, BLTZALL e BGEZALL.
@@ -1345,3 +1345,18 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Artefato Android `m64plus-debug-apk`, ID `14799439856`, tamanho 648.741 bytes, SHA-256 `834540b35508b8381a65b3efe3759091033006be868568ebcadbe76c4dce587c`; expira em 21/02/2027.
 
 **Limitação:** os testes cobrem os oito offsets com dados sintéticos em RDRAM. Ainda faltam testes de fronteira de memória, validação contra suites de instruções MIPS III e execução em ROMs comerciais. A implementação não significa que o emulador já esteja pronto para jogos.
+
+### 17.23 — Multiplicação e divisão MIPS de 64 bits (23/11/2026)
+
+- Implementadas as instruções SPECIAL `DMULT`, `DMULTU`, `DDIV` e `DDIVU` para operandos de 64 bits.
+- `DMULT/DMULTU` produzem o resultado completo de 128 bits em HI:LO. A multiplicação usa limbs de 32 bits para manter compatibilidade com C++17 e compilações com `-Wpedantic -Werror`, sem depender de `__int128`.
+- `DDIV/DDIVU` gravam quociente em LO e resto em HI. O caso `INT64_MIN / -1` é tratado explicitamente para evitar overflow indefinido em C++.
+- Política determinística local para divisor zero: DDIV grava quociente 1 para dividendo negativo e -1 para não negativo, preservando o dividendo em HI; DDIVU grava `UINT64_MAX` em LO e o dividendo em HI. Isso documenta o comportamento escolhido pelo núcleo e não afirma que o hardware define um único resultado para essa situação.
+- Testes básicos verificam resultados negativos, positivos, HI/LO e quociente/resto. Testes de limite cobrem `INT64_MIN × -1`, `INT64_MIN × 2`, `UINT64_MAX × UINT64_MAX`, `INT64_MIN / -1` e divisões com divisor zero, com sinal e sem sinal.
+- Arquivos: `app/src/main/cpp/n64/mips_cpu.cpp` e `tests/machine_tests.cpp`.
+- Commits: implementação `5747a0a88116f4d324c1a8b62dd25b093bfca575`; testes básicos `6c95c0fd52e9fd7b9dc2ac609aa85a36ba06746d`; suíte de limites `d927193148c62095d3a1d348907c1a078978c519` e registro da suíte `5ddd1701a9f0b223327c993b0546f432953e9b0b`.
+- **Validação nativa:** workflow [45139444462](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45139444462), commit `5ddd1701a9f0b223327c993b0546f432953e9b0b`; `native-host-tests` passou. `assemble-debug` estava em andamento no momento deste registro.
+- A execução anterior [45139431074](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45139431074) falhou porque a suíte de limites havia sido adicionada em um commit separado e ainda não estava registrada no executável de testes; a chamada foi adicionada no commit seguinte, e a suíte passou na execução 45139444462.
+
+**Limitações:** ainda faltam suites independentes de conformidade MIPS III/VR4300, instruções restantes do conjunto, COP1/FPU, LL/SC, branch-likely e validação em software real. A aprovação dos testes não comprova compatibilidade com ROMs comerciais.
+
