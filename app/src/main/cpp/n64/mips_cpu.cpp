@@ -480,6 +480,8 @@ bool MipsCpu::stepMemory(Memory& memory) {
     case 0x10:
         if (inDelaySlot)
             return takeException(ExceptionCode::ReservedInstruction);
+        if (!cp0_.kernelMode())
+            return takeException(ExceptionCode::CoprocessorUnusable);
         if (rs == 0x00) { // MFC0, select 0 only
             if ((instruction & 0x7FFU) != 0)
                 return takeException(ExceptionCode::ReservedInstruction);
