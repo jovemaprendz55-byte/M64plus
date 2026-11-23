@@ -141,7 +141,18 @@ bool MipsCpu::stepMemory(Memory& memory) {
             ((function == 0x04 || function == 0x06 || function == 0x07 ||
               function == 0x14 || function == 0x16 || function == 0x17) && shift != 0U) ||
             (function == 0x08 && (rt != 0U || rd != 0U || shift != 0U)) ||
-            (function == 0x09 && (rt != 0U || shift != 0U)))
+            (function == 0x09 && (rt != 0U || shift != 0U)) ||
+            ((function == 0x10 || function == 0x12) &&
+             (rs != 0U || rt != 0U || shift != 0U)) ||
+            ((function == 0x11 || function == 0x13) &&
+             (rt != 0U || rd != 0U || shift != 0U)) ||
+            ((function >= 0x18 && function <= 0x1F) &&
+             (rd != 0U || shift != 0U)) ||
+            ((function == 0x20 || function == 0x21 || function == 0x22 ||
+              function == 0x23 || function == 0x24 || function == 0x25 ||
+              function == 0x26 || function == 0x27 || function == 0x2A ||
+              function == 0x2B || function == 0x2C || function == 0x2D ||
+              function == 0x2E || function == 0x2F) && shift != 0U))
             return takeException(ExceptionCode::ReservedInstruction);
         destination = rd;
         switch (function) {
