@@ -1,4 +1,5 @@
 #include "n64/machine.h"
+#include "n64/tlb.h"
 
 #include <cstdint>
 #include <cstdlib>
@@ -14,6 +15,45 @@ void require(bool condition, const char* message) {
         std::cerr << "FAIL: " << message << '\n';
         std::exit(1);
     }
+}
+
+void testTlbPairedPagesAsidGlobalAndPermissions() {
+    m64plus::n64::Tlb tlb;
+    std::uint32_t physical = 0;
+
+    require(tlb.writeEntry(0U, 0x00400000U, 0x12U, 0x100U, 0x101U,
+                           true, true, true, true, false),
+            "install non-global TLB pair for ASID 0x12");
+    require(tlb.translate(0x00400123U, 0x12U, false, physical) ==
+                m64plus::n64::TlbResult::Success && physical == 0x00100123U,
+            "TLB translates even 4 KiB page with its offset");
+    require(tlb.translate(0x00401123U, 0x12U, false, physical) ==
+                m64plus::n64::TlbResult::Success && physical == 0x00101123U,
+            "TLB translates odd 4 KiB page with its offset");
+    require(tlb.translate(0x00400123U, 0x13U, false, physical) ==
+                m64plus::n64::TlbResult::Miss,
+            "non-global TLB entry rejects a different ASID");
+
+    require(tlb.writeEntry(1U, 0x00600000U, 0x12U, 0x110U, 0x111U,
+                           true, true, true, true, true),
+            "install global TLB pair");
+    require(tlb.translate(0x00601123U, 0x34U, false, physical) ==
+                m64plus::n64::TlbResult::Success && physical == 0x00111123U,
+            "global TLB entry matches independently of ASID");
+
+    require(tlb.writeEntry(2U, 0x00800000U, 0x12U, 0x120U, 0x121U,
+                           true, false, true, true, false),
+            "install TLB pair with invalid odd page");
+    require(tlb.translate(0x00801000U, 0x12U, false, physical) ==
+                m64plus::n64::TlbResult::Invalid,
+            "TLB reports invalid odd page");
+
+    require(tlb.writeEntry(3U, 0x00A00000U, 0x12U, 0x130U, 0x131U,
+                           true, true, true, false, false),
+            "install TLB pair with clean odd page");
+    require(tlb.translate(0x00A01000U, 0x12U, true, physical) ==
+                m64plus::n64::TlbResult::Modified,
+            "TLB rejects store to page without dirty bit");
 }
 
 void testMachineOwnsAndProcessesRdpState() {
@@ -1379,6 +1419,7 @@ void testHleBootDetectsCicAndPalRegionFromRom() {
 } // namespace
 
 int main() {
+    testTlbPairedPagesAsidGlobalAndPermissions();
     testMachineOwnsAndProcessesRdpState();
     testCpuKsegDirectMappingWithoutTlb();
     testCpuFetchesAndExecutesFromCartridgeKseg1();
