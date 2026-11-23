@@ -237,6 +237,52 @@ void testCpuDoublewordMultiplyDivide() {
             "DDIVU stores unsigned remainder in HI");
 }
 
+
+void testCpuDoublewordMultiplyDivideEdgeCases() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    const std::uint32_t readHiLo[] = {
+        0x00006012U, // MFLO t4
+        0x00006810U  // MFHI t5
+    };
+    auto run = [&](std::uint32_t operation, std::uint64_t left, std::uint64_t right,
+                   std::uint64_t expectedLo, std::uint64_t expectedHi,
+                   const char* description) {
+        require(bus.write32(0x1000U, operation), "write edge-case multiply/divide instruction");
+        require(bus.write32(0x1004U, readHiLo[0]), "write edge-case MFLO");
+        require(bus.write32(0x1008U, readHiLo[1]), "write edge-case MFHI");
+        machine.cpu().reset(0xFFFFFFFF80001000ULL);
+        machine.cpu().setRegister(8U, left);
+        machine.cpu().setRegister(9U, right);
+        require(machine.stepCpu() && machine.stepCpu() && machine.stepCpu(),
+                "execute edge-case operation and read HI/LO");
+        require(machine.cpu().reg(12U) == expectedLo, description);
+        require(machine.cpu().reg(13U) == expectedHi, description);
+    };
+
+    run(0x0109001CU, 0x8000000000000000ULL, UINT64_MAX,
+        0x8000000000000000ULL, 0ULL,
+        "DMULT handles INT64_MIN multiplied by -1 without signed overflow");
+    run(0x0109001CU, 0x8000000000000000ULL, 2ULL,
+        0ULL, UINT64_MAX,
+        "DMULT produces the correct high half for INT64_MIN multiplied by 2");
+    run(0x0109001DU, UINT64_MAX, UINT64_MAX,
+        1ULL, 0xFFFFFFFFFFFFFFFEULL,
+        "DMULTU produces the full 128-bit UINT64_MAX squared product");
+    run(0x0109001EU, 0x8000000000000000ULL, UINT64_MAX,
+        0x8000000000000000ULL, 0ULL,
+        "DDIV handles INT64_MIN divided by -1 deterministically");
+    run(0x0109001EU, UINT64_MAX, 0ULL,
+        1ULL, UINT64_MAX,
+        "DDIV uses the documented deterministic quotient for negative divide by zero");
+    run(0x0109001EU, 7ULL, 0ULL,
+        UINT64_MAX, 7ULL,
+        "DDIV uses the documented deterministic quotient for nonnegative divide by zero");
+    run(0x0109001FU, 0xFEDCBA9876543210ULL, 0ULL,
+        UINT64_MAX, 0xFEDCBA9876543210ULL,
+        "DDIVU returns all-one quotient and original dividend remainder on divide by zero");
+}
+
 void testCpuSignedArithmeticAndImmediateComparisons() {
     N64Machine machine;
     Bus& bus = machine.bus();
