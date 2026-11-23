@@ -503,6 +503,48 @@ void testCpuTlbInvalidLoadFaultInvalidatesLoadLinkedReservation() {
 
 
 
+
+void testCpuTlbLoadMissInBranchDelaySlotInvalidatesLoadLinkedReservation() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x378U;
+    constexpr std::uint32_t initial = 0x1A2B3C4DU;
+    constexpr std::uint64_t branchTarget = 0xFFFFFFFF80002000ULL;
+    constexpr std::uint64_t unmappedAddress = 0x00400000ULL;
+
+    require(bus.write32(0x1000U, 0xC1090000U), "write LL before delay-slot TLB load miss");
+    require(bus.write32(0x1004U, 0x02000008U), "write JR r16 before delay-slot TLB load miss");
+    require(bus.write32(0x1008U, 0x8D490000U), "write LW in JR delay slot");
+    require(bus.write32(0x000U, 0xE1090000U), "write SC at TLB refill vector");
+    require(bus.write32(dataAddress, initial), "initialize delay-slot TLB LL/SC target");
+
+    machine.cpu().reset(0xFFFFFFFF80001000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    machine.cpu().setRegister(10U, unmappedAddress);
+    machine.cpu().setRegister(16U, branchTarget);
+    require(machine.stepCpu(), "LL establishes reservation before delay-slot TLB fault");
+    machine.cpu().setTlbEnabled(true);
+    require(machine.stepCpu(), "JR schedules branch before delay-slot TLB fault");
+    require(machine.stepCpu(), "LW in branch delay slot raises TLB load miss");
+    require(machine.cpu().hasLastException(), "CPU records delay-slot TLB load exception");
+    require(machine.cpu().lastExceptionCode() == 2U,
+            "CPU records TLB Load exception code in branch delay slot");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000000ULL,
+            "CPU transfers to TLB refill vector after delay-slot load miss");
+    require(machine.cpu().cp0().read(m64plus::n64::Cp0::kEpc) == 0xFFFFFFFF80001004ULL,
+            "CP0 EPC points to branch instruction for delay-slot TLB exception");
+    require((machine.cpu().cp0().read(m64plus::n64::Cp0::kCause) & (1ULL << 31U)) != 0,
+            "CP0 Cause sets branch-delay bit for delay-slot TLB exception");
+
+    machine.cpu().setTlbEnabled(false);
+    require(machine.stepCpu(), "SC executes at refill vector without reservation");
+    std::uint32_t value = 0;
+    require(bus.read32(dataAddress, value) && value == initial,
+            "SC after delay-slot TLB miss leaves reserved memory unchanged");
+    require(machine.cpu().reg(9U) == 0U,
+            "delay-slot TLB load miss invalidates LL reservation");
+}
+
 void testCpuTlbLoadMissInvalidatesLoadLinkedReservation() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -1353,6 +1395,7 @@ int main() {
     testCpuTlbInvalidStoreFaultInvalidatesLoadLinkedReservation();
     testCpuTlbInvalidLoadFaultInvalidatesLoadLinkedReservation();
     testCpuTlbLoadMissInvalidatesLoadLinkedReservation();
+    testCpuTlbLoadMissInBranchDelaySlotInvalidatesLoadLinkedReservation();
     testCpuTlbFetchMissInvalidatesLoadLinkedReservation();
     testCpuTlbInvalidFetchFaultInvalidatesLoadLinkedReservation();
     testCpuTlbModifiedStoreFaultInvalidatesLoadLinkedReservation();
