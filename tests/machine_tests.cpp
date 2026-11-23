@@ -1552,11 +1552,56 @@ void testCp0RandomCyclesWithinWiredBoundary() {
             "Random remains at 31 when all lower entries are wired");
 }
 
+
+void testCp0CountCompareTimerInterrupt() {
+    using m64plus::n64::Cp0;
+    Cp0 cp0;
+
+    constexpr std::uint64_t timerMask = 1ULL << 15U;
+    require(cp0.write(Cp0::kStatus, Cp0::kStatusIe | timerMask),
+            "enable global and timer interrupts");
+    require(cp0.write(Cp0::kCount, 0xFFFFFFFEULL),
+            "initialize Count before timer match");
+    require(cp0.write(Cp0::kCompare, 0xFFFFFFFFULL),
+            "set Compare to next Count value");
+
+    cp0.tick();
+    require(cp0.read(Cp0::kCount) == 0xFFFFFFFFULL,
+            "Count increments to Compare");
+    require((cp0.read(Cp0::kCause) & timerMask) != 0U,
+            "Count reaching Compare asserts timer pending bit");
+    require(cp0.interruptRequested(),
+            "enabled timer pending bit requests an interrupt");
+
+    require(cp0.write(Cp0::kCompare, 0U),
+            "writing Compare clears the timer pending bit");
+    require((cp0.read(Cp0::kCause) & timerMask) == 0U,
+            "Compare write clears timer pending state");
+    require(!cp0.interruptRequested(),
+            "cleared timer pending bit no longer requests interrupt");
+
+    require(cp0.write(Cp0::kCount, 0xFFFFFFFFULL),
+            "set Count to its maximum value");
+    require(cp0.write(Cp0::kCompare, 0U),
+            "set Compare to wrapped Count value");
+    cp0.tick();
+    require(cp0.read(Cp0::kCount) == 0U,
+            "Count wraps from 32-bit maximum to zero");
+    require((cp0.read(Cp0::kCause) & timerMask) != 0U,
+            "timer interrupt triggers when Count wraps to Compare");
+
+    require(cp0.write(Cp0::kStatus, Cp0::kStatusIe),
+            "mask the timer interrupt source");
+    require(!cp0.interruptRequested(),
+            "masked timer pending bit does not request an interrupt");
+}
+
 } // namespace
 
 int main() {
     testTlbPairedPagesAsidGlobalAndPermissions();
     testCp0RandomCyclesWithinWiredBoundary();
+    testCp0CountCompareTimerInterrupt();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
     testMachineOwnsAndProcessesRdpState();
