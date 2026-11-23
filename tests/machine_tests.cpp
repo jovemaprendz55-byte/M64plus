@@ -221,38 +221,56 @@ void testCpuUnalignedWordMemoryOperations() {
     Bus& bus = machine.bus();
     const std::uint32_t initialMemory = 0x11223344U;
     const std::uint64_t initialRegister = 0xFFFFFFFFAABBCCDDULL;
+    const std::uint32_t offsets[] = {0U, 1U, 2U, 3U};
+    const std::uint64_t expectedLwl[] = {
+        0x0000000011223344ULL, 0x00000000223344DDULL,
+        0x000000003344CCDDULL, 0x0000000044BBCCDDULL
+    };
+    const std::uint64_t expectedLwr[] = {
+        0xFFFFFFFFAABBCC11ULL, 0xFFFFFFFFAABB1122ULL,
+        0xFFFFFFFFAA112233ULL, 0x0000000011223344ULL
+    };
+    const std::uint32_t expectedSwl[] = {
+        0xAABBCCDDU, 0x11AABBCCU, 0x1122AABBU, 0x112233AAU
+    };
+    const std::uint32_t expectedSwr[] = {
+        0xDD223344U, 0xCCDD3344U, 0xBBCCDD44U, 0xAABBCCDDU
+    };
 
-    require(bus.write32(0U, initialMemory), "initialize LWL/LWR memory word");
-    require(bus.write32(4U, 0x88090001U), "write LWL instruction");
-    machine.cpu().reset(0xFFFFFFFF80000004ULL);
-    machine.cpu().setRegister(9U, initialRegister);
-    require(machine.stepCpu(), "execute LWL at byte offset one");
-    require(machine.cpu().reg(9U) == 0x00000000223344DDULL,
-            "LWL merges addressed bytes into most significant register bytes");
+    for (std::uint32_t offset : offsets) {
+        const std::uint32_t immediate = offset;
+        require(bus.write32(0U, initialMemory), "initialize unaligned load memory");
+        require(bus.write32(4U, 0x88090000U | immediate), "write LWL instruction");
+        machine.cpu().reset(0xFFFFFFFF80000004ULL);
+        machine.cpu().setRegister(9U, initialRegister);
+        require(machine.stepCpu(), "execute LWL for each byte offset");
+        require(machine.cpu().reg(9U) == expectedLwl[offset],
+                "LWL produces expected big-endian merge at every byte offset");
 
-    require(bus.write32(4U, 0x98090001U), "write LWR instruction");
-    machine.cpu().reset(0xFFFFFFFF80000004ULL);
-    machine.cpu().setRegister(9U, initialRegister);
-    require(machine.stepCpu(), "execute LWR at byte offset one");
-    require(machine.cpu().reg(9U) == 0xFFFFFFFFAABB1122ULL,
-            "LWR merges addressed bytes into least significant register bytes");
+        require(bus.write32(4U, 0x98090000U | immediate), "write LWR instruction");
+        machine.cpu().reset(0xFFFFFFFF80000004ULL);
+        machine.cpu().setRegister(9U, initialRegister);
+        require(machine.stepCpu(), "execute LWR for each byte offset");
+        require(machine.cpu().reg(9U) == expectedLwr[offset],
+                "LWR produces expected big-endian merge at every byte offset");
 
-    require(bus.write32(0U, initialMemory), "reset SWL memory word");
-    require(bus.write32(4U, 0xA8090001U), "write SWL instruction");
-    machine.cpu().reset(0xFFFFFFFF80000004ULL);
-    machine.cpu().setRegister(9U, initialRegister);
-    require(machine.stepCpu(), "execute SWL at byte offset one");
-    std::uint32_t stored = 0;
-    require(bus.read32(0U, stored) && stored == 0x11AABBCCU,
-            "SWL stores most significant register bytes and preserves preceding memory");
+        std::uint32_t stored = 0;
+        require(bus.write32(0U, initialMemory), "reset SWL memory");
+        require(bus.write32(4U, 0xA8090000U | immediate), "write SWL instruction");
+        machine.cpu().reset(0xFFFFFFFF80000004ULL);
+        machine.cpu().setRegister(9U, initialRegister);
+        require(machine.stepCpu(), "execute SWL for each byte offset");
+        require(bus.read32(0U, stored) && stored == expectedSwl[offset],
+                "SWL preserves untouched bytes at every byte offset");
 
-    require(bus.write32(0U, initialMemory), "reset SWR memory word");
-    require(bus.write32(4U, 0xB8090001U), "write SWR instruction");
-    machine.cpu().reset(0xFFFFFFFF80000004ULL);
-    machine.cpu().setRegister(9U, initialRegister);
-    require(machine.stepCpu(), "execute SWR at byte offset one");
-    require(bus.read32(0U, stored) && stored == 0xCCDD3344U,
-            "SWR stores least significant register bytes and preserves following memory");
+        require(bus.write32(0U, initialMemory), "reset SWR memory");
+        require(bus.write32(4U, 0xB8090000U | immediate), "write SWR instruction");
+        machine.cpu().reset(0xFFFFFFFF80000004ULL);
+        machine.cpu().setRegister(9U, initialRegister);
+        require(machine.stepCpu(), "execute SWR for each byte offset");
+        require(bus.read32(0U, stored) && stored == expectedSwr[offset],
+                "SWR preserves untouched bytes at every byte offset");
+    }
 }
 
 void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
