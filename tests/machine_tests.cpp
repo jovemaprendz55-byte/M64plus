@@ -308,31 +308,31 @@ void testCpuUnalignedDoublewordMemoryOperations() {
     for (std::uint32_t offset : offsets) {
         std::uint64_t loaded = 0;
         require(bus.write64(0U, initialMemory), "initialize LDL/LDR memory");
-        require(bus.write32(4U, 0x68090000U | offset), "write LDL instruction");
-        machine.cpu().reset(0xFFFFFFFF80000004ULL);
+        require(bus.write32(0x1000U, 0x68090000U | offset), "write LDL instruction");
+        machine.cpu().reset(0xFFFFFFFF80001000ULL);
         machine.cpu().setRegister(9U, initialRegister);
         require(machine.stepCpu(), "execute LDL at each byte offset");
         require(machine.cpu().reg(9U) == expectedLdl[offset],
                 "LDL merges expected big-endian bytes at every offset");
 
-        require(bus.write32(4U, 0x6C090000U | offset), "write LDR instruction");
-        machine.cpu().reset(0xFFFFFFFF80000004ULL);
+        require(bus.write32(0x1000U, 0x6C090000U | offset), "write LDR instruction");
+        machine.cpu().reset(0xFFFFFFFF80001000ULL);
         machine.cpu().setRegister(9U, initialRegister);
         require(machine.stepCpu(), "execute LDR at each byte offset");
         require(machine.cpu().reg(9U) == expectedLdr[offset],
                 "LDR merges expected big-endian bytes at every offset");
 
         require(bus.write64(0U, initialMemory), "reset SDL memory");
-        require(bus.write32(4U, 0xB0090000U | offset), "write SDL instruction");
-        machine.cpu().reset(0xFFFFFFFF80000004ULL);
+        require(bus.write32(0x1000U, 0xB0090000U | offset), "write SDL instruction");
+        machine.cpu().reset(0xFFFFFFFF80001000ULL);
         machine.cpu().setRegister(9U, initialRegister);
         require(machine.stepCpu(), "execute SDL at each byte offset");
         require(bus.read64(0U, loaded) && loaded == expectedSdl[offset],
                 "SDL preserves untouched bytes at every offset");
 
         require(bus.write64(0U, initialMemory), "reset SDR memory");
-        require(bus.write32(4U, 0xB4090000U | offset), "write SDR instruction");
-        machine.cpu().reset(0xFFFFFFFF80000004ULL);
+        require(bus.write32(0x1000U, 0xB4090000U | offset), "write SDR instruction");
+        machine.cpu().reset(0xFFFFFFFF80001000ULL);
         machine.cpu().setRegister(9U, initialRegister);
         require(machine.stepCpu(), "execute SDR at each byte offset");
         require(bus.read64(0U, loaded) && loaded == expectedSdr[offset],
