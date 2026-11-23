@@ -273,6 +273,73 @@ void testCpuUnalignedWordMemoryOperations() {
     }
 }
 
+ 
+void testCpuUnalignedDoublewordMemoryOperations() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    const std::uint64_t initialMemory = 0x1122334455667788ULL;
+    const std::uint64_t initialRegister = 0xA1A2A3A4A5A6A7A8ULL;
+    const std::uint32_t offsets[] = {0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U};
+    const std::uint64_t expectedLdl[] = {
+        0x1122334455667788ULL, 0x22334455667788A8ULL,
+        0x334455667788A7A8ULL, 0x4455667788A6A7A8ULL,
+        0x55667788A5A6A7A8ULL, 0x667788A4A5A6A7A8ULL,
+        0x7788A3A4A5A6A7A8ULL, 0x88A2A3A4A5A6A7A8ULL
+    };
+    const std::uint64_t expectedLdr[] = {
+        0xA1A2A3A4A5A6A711ULL, 0xA1A2A3A4A5A61122ULL,
+        0xA1A2A3A4A5112233ULL, 0xA1A2A3A411223344ULL,
+        0xA1A2A31122334455ULL, 0xA1A2112233445566ULL,
+        0xA111223344556677ULL, 0x1122334455667788ULL
+    };
+    const std::uint64_t expectedSdl[] = {
+        0xA1A2A3A4A5A6A7A8ULL, 0x11A1A2A3A4A5A6A7ULL,
+        0x1122A1A2A3A4A5A6ULL, 0x112233A1A2A3A4A5ULL,
+        0x11223344A1A2A3A4ULL, 0x1122334455A1A2A3ULL,
+        0x112233445566A1A2ULL, 0x11223344556677A1ULL
+    };
+    const std::uint64_t expectedSdr[] = {
+        0xA822334455667788ULL, 0xA7A8334455667788ULL,
+        0xA6A7A84455667788ULL, 0xA5A6A7A855667788ULL,
+        0xA4A5A6A7A8667788ULL, 0xA3A4A5A6A7A87788ULL,
+        0xA2A3A4A5A6A7A888ULL, 0xA1A2A3A4A5A6A7A8ULL
+    };
+
+    for (std::uint32_t offset : offsets) {
+        std::uint64_t loaded = 0;
+        require(bus.write64(0U, initialMemory), "initialize LDL/LDR memory");
+        require(bus.write32(4U, 0x68090000U | offset), "write LDL instruction");
+        machine.cpu().reset(0xFFFFFFFF80000004ULL);
+        machine.cpu().setRegister(9U, initialRegister);
+        require(machine.stepCpu(), "execute LDL at each byte offset");
+        require(machine.cpu().reg(9U) == expectedLdl[offset],
+                "LDL merges expected big-endian bytes at every offset");
+
+        require(bus.write32(4U, 0x6C090000U | offset), "write LDR instruction");
+        machine.cpu().reset(0xFFFFFFFF80000004ULL);
+        machine.cpu().setRegister(9U, initialRegister);
+        require(machine.stepCpu(), "execute LDR at each byte offset");
+        require(machine.cpu().reg(9U) == expectedLdr[offset],
+                "LDR merges expected big-endian bytes at every offset");
+
+        require(bus.write64(0U, initialMemory), "reset SDL memory");
+        require(bus.write32(4U, 0xB0090000U | offset), "write SDL instruction");
+        machine.cpu().reset(0xFFFFFFFF80000004ULL);
+        machine.cpu().setRegister(9U, initialRegister);
+        require(machine.stepCpu(), "execute SDL at each byte offset");
+        require(bus.read64(0U, loaded) && loaded == expectedSdl[offset],
+                "SDL preserves untouched bytes at every offset");
+
+        require(bus.write64(0U, initialMemory), "reset SDR memory");
+        require(bus.write32(4U, 0xB4090000U | offset), "write SDR instruction");
+        machine.cpu().reset(0xFFFFFFFF80000004ULL);
+        machine.cpu().setRegister(9U, initialRegister);
+        require(machine.stepCpu(), "execute SDR at each byte offset");
+        require(bus.read64(0U, loaded) && loaded == expectedSdr[offset],
+                "SDR preserves untouched bytes at every offset");
+    }
+}
+
 void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
     N64Machine machine;
     Bus& bus = machine.bus();
