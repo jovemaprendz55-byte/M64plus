@@ -1166,3 +1166,5 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Adicionado teste de cópia big-endian, avanço dos endereços, interrupção/ack, rejeição fora da ROM sem alteração parcial da RDRAM e direção não suportada.
 - Commits: interface PI `b725878c19dcebdb23884d48ae555332d412a173`; DMA `86ad9dc90fbf78f9d0237aaebbd35885b21ada20`; roteamento PI `ef371c210eb5b37f0d6b268bf21ca58fb211b883`; testes `70d6abe7c63502678cd982d5dbda74edda757f27`.
 - **Validação CI pendente** para a nova região de barramento e DMA. O modelo é síncrono e simplificado; não implementa timings reais, latência, bursts, cartucho gravável ou PI DMA reverso.
+
+- **Correção de teste encontrada durante CI:** a primeira ROM sintética do teste PI tinha 64 bytes, mas o payload começava no offset `0x40` e precisava de mais 8 bytes; o teste corretamente recusou a transferência fora do cartucho. A fixture foi ampliada para 72 bytes no commit `6e266b75e7929d807fb55daf638439e316f66687`. A implementação DMA não foi alterada por essa falha; CI do teste corrigido pendente.
