@@ -402,6 +402,35 @@ void testCpuExceptionInvalidatesLoadLinkedReservation() {
             "SC reports failure because exception invalidated reservation");
 }
 
+void testCpuInterruptInvalidatesLoadLinkedReservation() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x2F0U;
+    constexpr std::uint32_t initial = 0x87654321U;
+    require(bus.write32(0x000U, 0xC1090000U), "write LL before interrupt");
+    require(bus.write32(0x004U, 0xE1090000U), "write SC after interrupt");
+    require(bus.write32(0x180U, 0xE1090000U), "write SC at interrupt exception vector");
+    require(bus.write32(dataAddress, initial), "initialize interrupt LL/SC target");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    require(machine.stepCpu(), "LL establishes reservation before interrupt");
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus, 0x101ULL),
+            "enable global and software interrupt mask in CP0 Status");
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kCause, 0x100ULL),
+            "assert software interrupt pending in CP0 Cause");
+    require(machine.stepCpu(), "CPU accepts pending interrupt before SC");
+    require(machine.cpu().lastExceptionCode() == 0U,
+            "CPU records Interrupt exception code");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+            "CPU transfers control to general interrupt vector");
+    require(machine.stepCpu(), "SC executes at interrupt vector without reservation");
+    std::uint32_t value = 0;
+    require(bus.read32(dataAddress, value) && value == initial,
+            "SC after interrupt does not modify reserved memory");
+    require(machine.cpu().reg(9U) == 0U,
+            "SC reports failure because interrupt invalidated reservation");
+}
+
 void testCpuSignedArithmeticAndImmediateComparisons() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -876,6 +905,7 @@ int main() {
     testCpuLoadLinkedStoreConditional();
     testCpuLoadLinkedStoreConditionalDetectsBusWrites();
     testCpuExceptionInvalidatesLoadLinkedReservation();
+    testCpuInterruptInvalidatesLoadLinkedReservation();
     testCpuDoublewordLoadLinkedStoreConditional();
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
