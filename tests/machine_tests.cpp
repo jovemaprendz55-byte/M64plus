@@ -1678,6 +1678,68 @@ void testCpuDefersTimerInterruptUntilAfterBranchDelaySlot() {
             "target instruction does not execute before deferred interrupt handler");
 }
 
+void testCpuSyscallAndBreakpointExceptions() {
+    const struct ExceptionCase {
+        std::uint32_t instruction;
+        std::uint8_t code;
+        const char* description;
+    } cases[] = {
+        {0x0000000CU, 8U, "SYSCALL"},
+        {0x0000000DU, 9U, "BREAK"},
+        {0x0001234CU, 8U, "SYSCALL with code field"},
+        {0x0001234DU, 9U, "BREAK with code field"}
+    };
+    for (const auto& item : cases) {
+        N64Machine machine;
+        require(machine.bus().write32(0U, item.instruction),
+                "write syscall/break instruction");
+        machine.cpu().reset(0xFFFFFFFF80000000ULL);
+        require(machine.runCpuInstructions(1U) == 0U,
+                "syscall/break stops normal instruction execution");
+        require(machine.cpu().hasLastException() &&
+                machine.cpu().lastExceptionCode() == item.code,
+                item.description);
+        require(machine.cpu().lastExceptionInstruction() == item.instruction,
+                "syscall/break records the triggering instruction");
+        require(machine.cpu().cp0().read(m64plus::n64::Cp0::kEpc) ==
+                0xFFFFFFFF80000000ULL,
+                "syscall/break stores instruction address in EPC");
+        require((machine.cpu().cp0().read(m64plus::n64::Cp0::kCause) & 0x7CU) ==
+                (static_cast<std::uint64_t>(item.code) << 2U),
+                "syscall/break stores the correct Cause exception code");
+        require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+                "syscall/break enters general exception vector");
+    }
+}
+
+void testCpuSyscallAndBreakpointInBranchDelaySlot() {
+    const struct DelayCase {
+        std::uint32_t instruction;
+        std::uint8_t code;
+    } cases[] = {
+        {0x0000000CU, 8U},
+        {0x0000000DU, 9U}
+    };
+    for (const auto& item : cases) {
+        N64Machine machine;
+        require(machine.bus().write32(0U, 0x10000001U),
+                "write branch before syscall/break delay-slot test");
+        require(machine.bus().write32(4U, item.instruction),
+                "write syscall/break in branch delay slot");
+        machine.cpu().reset(0xFFFFFFFF80000000ULL);
+        require(machine.stepCpu(), "execute branch before syscall/break");
+        require(machine.stepCpu(), "take syscall/break from branch delay slot");
+        require(machine.cpu().lastExceptionCode() == item.code,
+                "delay-slot syscall/break raises the correct exception");
+        require(machine.cpu().cp0().read(m64plus::n64::Cp0::kEpc) ==
+                0xFFFFFFFF80000000ULL,
+                "delay-slot syscall/break records branch address in EPC");
+        require((machine.cpu().cp0().read(m64plus::n64::Cp0::kCause) &
+                 (1ULL << 31U)) != 0U,
+                "delay-slot syscall/break sets Cause.BD");
+    }
+}
+
 void testCpuRejectsInvalidBlezBgtzEncodings() {
     const std::uint32_t invalidBranches[] = {
         0x19080001U, // BLEZ with rt != 0
@@ -1940,6 +2002,8 @@ int main() {
     testCp0CountCompareTimerInterrupt();
     testCpuAcceptsCp0TimerInterruptBetweenInstructions();
     testCpuDefersTimerInterruptUntilAfterBranchDelaySlot();
+    testCpuSyscallAndBreakpointExceptions();
+    testCpuSyscallAndBreakpointInBranchDelaySlot();
     testCpuRejectsInvalidBlezBgtzEncodings();
     testCpuRejectsInvalidSpecialShiftAndJumpEncodings();
     testCpuBranchLikelyDelaySlotSemantics();
