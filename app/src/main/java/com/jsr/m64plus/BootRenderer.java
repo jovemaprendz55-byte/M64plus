@@ -62,6 +62,7 @@ final class BootRenderer implements GLSurfaceView.Renderer {
     private int textureWidth;
     private int textureHeight;
     private boolean loggedFirstFrame;
+    private ByteBuffer rgbaBuffer;
 
     BootRenderer(long handle, Object lock) {
         machineHandle = handle;
@@ -192,18 +193,22 @@ final class BootRenderer implements GLSurfaceView.Renderer {
             GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA,
                     width, height, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
         }
-        ByteBuffer rgba = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder());
+        int requiredBytes = width * height * 4;
+        if (rgbaBuffer == null || rgbaBuffer.capacity() < requiredBytes) {
+            rgbaBuffer = ByteBuffer.allocateDirect(requiredBytes).order(ByteOrder.nativeOrder());
+        }
+        rgbaBuffer.clear();
         for (int i = 2; i < snapshot.length; i++) {
             int argb = snapshot[i];
-            rgba.put((byte) ((argb >> 16) & 0xFF));
-            rgba.put((byte) ((argb >> 8) & 0xFF));
-            rgba.put((byte) (argb & 0xFF));
-            rgba.put((byte) ((argb >>> 24) & 0xFF));
+            rgbaBuffer.put((byte) ((argb >> 16) & 0xFF));
+            rgbaBuffer.put((byte) ((argb >> 8) & 0xFF));
+            rgbaBuffer.put((byte) (argb & 0xFF));
+            rgbaBuffer.put((byte) ((argb >>> 24) & 0xFF));
         }
-        rgba.position(0);
+        rgbaBuffer.position(0);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
         GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, width, height,
-                GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, rgba);
+                GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, rgbaBuffer);
     }
 
     private void drawTexture() {
