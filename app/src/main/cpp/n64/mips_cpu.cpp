@@ -148,6 +148,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
              (rt != 0U || rd != 0U || shift != 0U)) ||
             ((function >= 0x18 && function <= 0x1F) &&
              (rd != 0U || shift != 0U)) ||
+            (function == 0x0F && (rs != 0U || rt != 0U || rd != 0U)) ||
             ((function == 0x20 || function == 0x21 || function == 0x22 ||
               function == 0x23 || function == 0x24 || function == 0x25 ||
               function == 0x26 || function == 0x27 || function == 0x2A ||
@@ -176,6 +177,8 @@ bool MipsCpu::stepMemory(Memory& memory) {
         case 0x12: result = lo_; break; // MFLO
         case 0x0C: return takeException(ExceptionCode::Syscall); // SYSCALL
         case 0x0D: return takeException(ExceptionCode::Breakpoint); // BREAK
+        case 0x0F: // SYNC: ordering is preserved by the serialized CPU execution loop.
+            destination = 0; writeRegister = false; break;
         case 0x0A: // MOVZ: move when rt is zero.
             result = a;
             if (b == 0U) writeRegister = true;
