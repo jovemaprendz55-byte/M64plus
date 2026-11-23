@@ -18,8 +18,10 @@ public:
     bool write64(std::uint32_t address, std::uint64_t value);
     const std::uint8_t* data() const noexcept;
     std::size_t size() const noexcept;
+    std::uint64_t writeEpoch() const noexcept;
 private:
     bool contains(std::uint32_t address, std::size_t width) const noexcept;
     std::vector<std::uint8_t> bytes_;
+    std::uint64_t writeEpoch_ = 0;
 };
 } // namespace m64plus::n64
