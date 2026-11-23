@@ -1183,6 +1183,30 @@ void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
 }
 
 
+void testCpuRejectsInvalidCop0ReservedFields() {
+    const std::uint32_t invalidInstructions[] = {
+        0x40086008U, // MFC0 with reserved bit 3 set
+        0x40886008U, // MTC0 with reserved bit 3 set
+        0x42000048U, // TLBP with reserved bit 6 set
+        0x42000058U  // ERET with reserved bit 6 set
+    };
+    for (const std::uint32_t instruction : invalidInstructions) {
+        N64Machine machine;
+        require(machine.bus().write32(0U, instruction),
+                "write COP0 instruction with reserved bits set");
+        machine.cpu().reset(0xFFFFFFFF80000000ULL);
+        require(machine.runCpuInstructions(1U) == 0U,
+                "invalid COP0 reserved field raises an exception");
+        require(machine.cpu().hasLastException() &&
+                machine.cpu().lastExceptionCode() == 10U,
+                "invalid COP0 reserved field raises Reserved Instruction");
+        require(machine.cpu().lastExceptionInstruction() == instruction,
+                "CPU records invalid COP0 encoding");
+        require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+                "invalid COP0 encoding enters general exception vector");
+    }
+}
+
 void testCpuCop0TlbInstructionsWriteProbeAndReadEntry() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -2252,6 +2276,7 @@ int main() {
     testCpuBranchLikelyDelaySlotSemantics();
     testCpuEretRestoresExceptionReturnAddress();
     testCpuEretReturnsToBranchAfterDelaySlotException();
+    testCpuRejectsInvalidCop0ReservedFields();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
     testMachineOwnsAndProcessesRdpState();
