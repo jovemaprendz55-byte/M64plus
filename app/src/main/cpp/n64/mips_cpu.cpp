@@ -339,20 +339,20 @@ bool MipsCpu::stepMemory(Memory& memory) {
         case 0x01: take = signedA >= 0; break;
         case 0x02: take = signedA < 0; annulDelaySlot = !take; break; // BLTZL
         case 0x03: take = signedA >= 0; annulDelaySlot = !take; break; // BGEZL
-        case 0x10: take = signedA < 0; destination = 31; result = sequentialPc + 4U; writeRegister = true; break;
-        case 0x11: take = signedA >= 0; destination = 31; result = sequentialPc + 4U; writeRegister = true; break;
+        case 0x10: take = signedA < 0; destination = 31; result = sequentialPc + 4U; writeRegister = take; break;
+        case 0x11: take = signedA >= 0; destination = 31; result = sequentialPc + 4U; writeRegister = take; break;
         case 0x12: // BLTZALL: link and annul the delay slot when not taken.
             take = signedA < 0;
             destination = 31;
             result = sequentialPc + 4U;
-            writeRegister = true;
+            writeRegister = take;
             annulDelaySlot = !take;
             break;
-        case 0x13: // BGEZALL: link and annul the delay slot when not taken.
+        case 0x13: // BGEZALL: link only when taken; annul the delay slot otherwise.
             take = signedA >= 0;
             destination = 31;
             result = sequentialPc + 4U;
-            writeRegister = true;
+            writeRegister = take;
             annulDelaySlot = !take;
             break;
         default: return takeException(ExceptionCode::ReservedInstruction);
