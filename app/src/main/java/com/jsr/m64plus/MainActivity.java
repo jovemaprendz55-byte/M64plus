@@ -23,6 +23,10 @@ public final class MainActivity extends Activity {
     private GLSurfaceView glSurfaceView;
     private long nativeMachineHandle;
     private final Object nativeMachineLock = new Object();
+    private volatile boolean cpuExecutionRequested;
+    private volatile boolean cartridgeBooted;
+    private Thread cpuExecutionThread;
+    private static final int CPU_INSTRUCTIONS_PER_SLICE = 2048;
     private static native boolean nativeRdramSelfTest();
     private static native boolean nativeCpuSelfTest();
     private static native boolean nativeCpuBranchSelfTest();
@@ -43,6 +47,7 @@ public final class MainActivity extends Activity {
     static native int[] nativeGetFramebufferSnapshot(long handle);
     private static native boolean nativeLoadCartridge(long handle, byte[] romData);
     private static native boolean nativeBootCartridgeHle(long handle);
+    private static native int nativeRunCpuSlice(long handle, int instructionBudget);
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         boolean memoryPassed = nativeRdramSelfTest();
@@ -120,6 +125,7 @@ public final class MainActivity extends Activity {
     }
 
     private void loadRomInBackground(Uri uri) {
+        stopCpuExecution();
         new Thread(() -> {
             String message;
             try (InputStream input = getContentResolver().openInputStream(uri);
@@ -141,6 +147,7 @@ public final class MainActivity extends Activity {
                             nativeLoadCartridge(nativeMachineHandle, romData);
                     if (loaded) booted = nativeBootCartridgeHle(nativeMachineHandle);
                 }
+                cartridgeBooted = loaded && booted;
                 message = !loaded
                         ? "ROM inválida. Use uma ROM .z64 big-endian."
                         : (booted
@@ -154,12 +161,60 @@ public final class MainActivity extends Activity {
                 Log.e(TAG, message, exception);
             }
             final String resultMessage = message;
-            runOnUiThread(() -> Toast.makeText(MainActivity.this, resultMessage,
-                    Toast.LENGTH_LONG).show());
+            runOnUiThread(() -> {
+                Toast.makeText(MainActivity.this, resultMessage, Toast.LENGTH_LONG).show();
+                if (cartridgeBooted) startCpuExecution();
+            });
         }, "M64plus-ROM-loader").start();
     }
 
+    private void startCpuExecution() {
+        if (!cartridgeBooted || nativeMachineHandle == 0L || cpuExecutionRequested) return;
+        cpuExecutionRequested = true;
+        cpuExecutionThread = new Thread(() -> {
+            Log.i(TAG, "CPU_EXECUTION=STARTED; slice=" + CPU_INSTRUCTIONS_PER_SLICE);
+            while (cpuExecutionRequested) {
+                final int executed;
+                final long pc;
+                synchronized (nativeMachineLock) {
+                    if (!cpuExecutionRequested || nativeMachineHandle == 0L) break;
+                    executed = nativeRunCpuSlice(nativeMachineHandle, CPU_INSTRUCTIONS_PER_SLICE);
+                    pc = nativeMachineCpuPc(nativeMachineHandle);
+                }
+                if (executed <= 0) {
+                    Log.w(TAG, "CPU_EXECUTION=STOPPED; no instruction executed; PC=0x"
+                            + Long.toHexString(pc));
+                    cpuExecutionRequested = false;
+                    break;
+                }
+                try {
+                    Thread.sleep(1L);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            Log.i(TAG, "CPU_EXECUTION=EXITED");
+        }, "M64plus-CPU");
+        cpuExecutionThread.start();
+    }
+
+    private void stopCpuExecution() {
+        cpuExecutionRequested = false;
+        Thread worker = cpuExecutionThread;
+        if (worker != null && worker != Thread.currentThread()) {
+            worker.interrupt();
+            try {
+                worker.join(500L);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        cpuExecutionThread = null;
+    }
+
     @Override protected void onDestroy() {
+        stopCpuExecution();
         if (glSurfaceView != null) glSurfaceView.onPause();
         synchronized (nativeMachineLock) {
             if (nativeMachineHandle != 0L) {
@@ -169,6 +224,6 @@ public final class MainActivity extends Activity {
         }
         super.onDestroy();
     }
-    @Override protected void onPause() { if (glSurfaceView != null) glSurfaceView.onPause(); super.onPause(); }
-    @Override protected void onResume() { super.onResume(); if (glSurfaceView != null) glSurfaceView.onResume(); }
+    @Override protected void onPause() { stopCpuExecution(); if (glSurfaceView != null) glSurfaceView.onPause(); super.onPause(); }
+    @Override protected void onResume() { super.onResume(); if (glSurfaceView != null) glSurfaceView.onResume(); if (cartridgeBooted) startCpuExecution(); }
 }
