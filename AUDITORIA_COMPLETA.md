@@ -1230,3 +1230,17 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 **Limitações importantes:** esta é somente a primitiva nativa de execução limitada. Ainda não foi conectada à Activity, a uma thread de emulação ou a um scheduler. Não há sincronização JNI adicional para executá-la em paralelo com o renderer. O orçamento conta chamadas bem-sucedidas a `stepCpu()`; exceções arquiteturais tratadas pelo CPU podem contar como uma etapa, pois o tratamento de exceção também avança o estado. O executor não prova compatibilidade com jogos: continuam faltando instruções MIPS III, periféricos, VI, áudio e rasterização RDP completa.
 
 **Validação CI:** pendente após os commits desta seção. Não considerar APK novo aprovado até o job Android `assemble-debug` concluir com sucesso.
+
+## 17.18 — Integração inicial do executor MIPS com Android
+
+**JNI:** foi criada `nativeRunCpuSlice(handle, instructionBudget)`, que valida o ponteiro e o orçamento e limita cada chamada a no máximo 4096 instruções. A Activity solicita fatias de 2048 instruções.
+
+**Thread Android:** após carregar uma ROM e o boot HLE ser aceito, a Activity inicia a thread `M64plus-CPU`. Cada fatia é executada sob o mesmo `nativeMachineLock` usado pelo renderer e pela destruição da máquina. Há uma pausa de 1 ms entre fatias para ceder tempo ao sistema. A thread para quando nenhuma instrução é executada, quando a Activity pausa ou quando a máquina é destruída. Ao voltar ao primeiro plano, a execução é retomada se o boot HLE havia sido aceito.
+
+**Arquivos:** `app/src/main/cpp/native-lib.cpp` e `app/src/main/java/com/jsr/m64plus/MainActivity.java`.
+
+**Segurança de concorrência:** CPU, snapshot do framebuffer, carregamento/boot da ROM e destruição da máquina são serializados pelo mesmo monitor Java. O executor nativo permanece limitado por chamada; não foi adicionado loop infinito no JNI.
+
+**Limitações:** a CPU pode parar rapidamente ao encontrar uma instrução ainda não implementada ou uma falha de fetch. Ainda não existe scheduler de ciclos N64, sincronização CPU/RSP/RDP, VI, áudio ou rasterização completa. O framebuffer continuará sendo o triângulo diagnóstico enquanto o RDP não produzir uma imagem de jogo válida. O HLE continua sendo uma aproximação e não executa PIF/IPL3 real.
+
+**Validação CI:** pendente para os commits desta seção. Não considerar APK novo aprovado até os jobs nativos e Android terminarem com sucesso.
