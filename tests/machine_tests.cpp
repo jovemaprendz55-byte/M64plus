@@ -103,6 +103,13 @@ void testCpuRunnerStopsWhenInstructionRaisesException() {
             "CPU runner stops when step handles an exception without retiring an instruction");
     require(machine.cpu().instructionsExecuted() == 0U,
             "exception does not count as a retired instruction in CPU runner");
+    require(machine.cpu().hasLastException(), "CPU records the last exception");
+    require(machine.cpu().lastExceptionPc() == 0xFFFFFFFF80000000ULL,
+            "CPU records the address of the faulting instruction");
+    require(machine.cpu().lastExceptionInstruction() == 0xFFFFFFFFU,
+            "CPU records the faulting instruction word");
+    require(machine.cpu().lastExceptionCode() == 10U,
+            "CPU records Reserved Instruction exception code");
 }
 
 void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
