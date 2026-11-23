@@ -1712,7 +1712,11 @@ void testCpuRejectsInvalidSpecialShiftAndJumpEncodings() {
         0x00200808U, // JR with rt != 0
         0x00201808U, // JR with rd != 0
         0x00210809U, // JALR with rt != 0
-        0x00200849U  // JALR with shift != 0
+        0x00200849U, // JALR with shift != 0
+        0x00200010U, // MFHI with rs != 0
+        0x00210011U, // MTHI with rt != 0
+        0x00220818U, // MULT with rd != 0
+        0x00221860U  // ADD with shift != 0
     };
     for (const std::uint32_t instruction : invalidInstructions) {
         N64Machine machine;
