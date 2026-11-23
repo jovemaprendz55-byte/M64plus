@@ -184,12 +184,67 @@ void testSharedCpuRspBusAndSpBreak() {
             "integrated RSP executes saturated VADD");
     require(bus.spHalted() && bus.spBroke(), "second task also signals BREAK");
 }
+
+void testCpuProgramsPiDmaAndExecutesCartridgePayload() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+
+    std::uint8_t rom[0x48U]{};
+    rom[0] = 0x80U; rom[1] = 0x37U; rom[2] = 0x12U; rom[3] = 0x40U;
+    const std::uint32_t payload[] = {0x24081234U, 0x25090001U};
+    for (unsigned i = 0; i < 2U; ++i) {
+        const std::uint32_t instruction = payload[i];
+        const std::size_t offset = 0x40U + i * 4U;
+        rom[offset] = static_cast<std::uint8_t>(instruction >> 24U);
+        rom[offset + 1U] = static_cast<std::uint8_t>(instruction >> 16U);
+        rom[offset + 2U] = static_cast<std::uint8_t>(instruction >> 8U);
+        rom[offset + 3U] = static_cast<std::uint8_t>(instruction);
+    }
+    require(bus.loadCartridge(rom, sizeof(rom)),
+            "load cartridge for CPU-driven PI DMA integration");
+
+    // The emulated CPU programs PI through its KSEG1 MMIO address.
+    const std::uint32_t dmaProgram[] = {
+        0x3C08A460U, // LUI t0,0xA460 -> PI registers
+        0x24090200U, // ADDIU t1,zero,0x200 -> RDRAM destination
+        0xAD090000U, // SW t1,PI_DRAM_ADDR(t0)
+        0x3C091000U, // LUI t1,0x1000
+        0x35290040U, // ORI t1,t1,0x40 -> cartridge source
+        0xAD090004U, // SW t1,PI_CART_ADDR(t0)
+        0x24090007U, // ADDIU t1,zero,7 -> eight bytes
+        0xAD09000CU  // SW t1,PI_WR_LEN(t0), starts cart-to-RDRAM DMA
+    };
+    for (std::uint32_t i = 0; i < 8U; ++i)
+        require(bus.write32(i * 4U, dmaProgram[i]),
+                "write CPU program that configures PI DMA");
+    for (unsigned i = 0; i < 8U; ++i)
+        require(machine.stepCpu(), "CPU executes PI DMA setup instruction");
+
+    std::uint32_t copied = 0;
+    require(bus.read32(0x200U, copied) && copied == payload[0],
+            "CPU-triggered PI DMA copies first instruction into RDRAM");
+    require(bus.read32(0x204U, copied) && copied == payload[1],
+            "CPU-triggered PI DMA copies second instruction into RDRAM");
+    require(bus.read32(Bus::kPiStatus, copied) &&
+            (copied & Bus::kPiStatusInterrupt) != 0U,
+            "CPU-triggered PI DMA completes and raises PI interrupt");
+
+    machine.cpu().reset(0xFFFFFFFF80000200ULL);
+    require(machine.stepCpu(), "CPU fetches first cartridge payload instruction from RDRAM");
+    require(machine.stepCpu(), "CPU fetches second cartridge payload instruction from RDRAM");
+    require(machine.cpu().reg(8) == 0x1234U,
+            "CPU executes first instruction copied from cartridge");
+    require(machine.cpu().reg(9) == 0x1235U,
+            "CPU executes second instruction copied from cartridge");
+}
+
 } // namespace
 
 int main() {
     testMachineOwnsAndProcessesRdpState();
     testCpuKsegDirectMappingWithoutTlb();
     testCpuFetchesAndExecutesFromCartridgeKseg1();
+    testCpuProgramsPiDmaAndExecutesCartridgePayload();
     testMachineDoesNotRetryUnsupportedRspInstruction();
     testSharedCpuRspBusAndSpBreak();
     std::cout << "N64 machine CPU/RSP integration tests passed.\n";
