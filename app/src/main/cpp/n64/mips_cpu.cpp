@@ -193,6 +193,73 @@ bool MipsCpu::stepMemory(Memory& memory) {
             writeRegister = false;
             break;
         }
+        case 0x1C: { // DMULT (signed 64-bit operands)
+            const std::uint64_t a0 = static_cast<std::uint32_t>(a);
+            const std::uint64_t a1 = a >> 32U;
+            const std::uint64_t b0 = static_cast<std::uint32_t>(b);
+            const std::uint64_t b1 = b >> 32U;
+            const std::uint64_t p00 = a0 * b0;
+            const std::uint64_t p01 = a0 * b1;
+            const std::uint64_t p10 = a1 * b0;
+            const std::uint64_t p11 = a1 * b1;
+            const std::uint64_t middle = (p00 >> 32U) +
+                static_cast<std::uint32_t>(p01) + static_cast<std::uint32_t>(p10);
+            const std::uint64_t low = (middle << 32U) | static_cast<std::uint32_t>(p00);
+            std::uint64_t high = p11 + (p01 >> 32U) + (p10 >> 32U) + (middle >> 32U);
+            if ((a >> 63U) != 0U) high -= b;
+            if ((b >> 63U) != 0U) high -= a;
+            hi_ = high;
+            lo_ = low;
+            destination = 0;
+            writeRegister = false;
+            break;
+        }
+        case 0x1D: { // DMULTU (unsigned 64-bit operands)
+            const std::uint64_t a0 = static_cast<std::uint32_t>(a);
+            const std::uint64_t a1 = a >> 32U;
+            const std::uint64_t b0 = static_cast<std::uint32_t>(b);
+            const std::uint64_t b1 = b >> 32U;
+            const std::uint64_t p00 = a0 * b0;
+            const std::uint64_t p01 = a0 * b1;
+            const std::uint64_t p10 = a1 * b0;
+            const std::uint64_t p11 = a1 * b1;
+            const std::uint64_t middle = (p00 >> 32U) +
+                static_cast<std::uint32_t>(p01) + static_cast<std::uint32_t>(p10);
+            lo_ = (middle << 32U) | static_cast<std::uint32_t>(p00);
+            hi_ = p11 + (p01 >> 32U) + (p10 >> 32U) + (middle >> 32U);
+            destination = 0;
+            writeRegister = false;
+            break;
+        }
+        case 0x1E: { // DDIV (signed 64-bit operands)
+            const auto dividend = static_cast<std::int64_t>(a);
+            const auto divisor = static_cast<std::int64_t>(b);
+            std::int64_t quotient = 0;
+            std::int64_t remainder = dividend;
+            if (divisor == 0) {
+                quotient = dividend < 0 ? 1 : -1;
+            } else if (dividend == INT64_MIN && divisor == -1) {
+                quotient = INT64_MIN;
+                remainder = 0;
+            } else {
+                quotient = dividend / divisor;
+                remainder = dividend % divisor;
+            }
+            lo_ = static_cast<std::uint64_t>(quotient);
+            hi_ = static_cast<std::uint64_t>(remainder);
+            destination = 0;
+            writeRegister = false;
+            break;
+        }
+        case 0x1F: { // DDIVU (unsigned 64-bit operands)
+            const std::uint64_t quotient = b == 0U ? UINT64_MAX : a / b;
+            const std::uint64_t remainder = b == 0U ? a : a % b;
+            lo_ = quotient;
+            hi_ = remainder;
+            destination = 0;
+            writeRegister = false;
+            break;
+        }
         case 0x38: result = b << shift; break; // DSLL
         case 0x3A: result = b >> shift; break; // DSRL
         case 0x3B: result = static_cast<std::uint64_t>(
