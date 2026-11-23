@@ -12,6 +12,7 @@ public final class MainActivity extends Activity {
     static { System.loadLibrary("m64plus_native"); }
     private GLSurfaceView glSurfaceView;
     private long nativeMachineHandle;
+    private final Object nativeMachineLock = new Object();
     private static native boolean nativeRdramSelfTest();
     private static native boolean nativeCpuSelfTest();
     private static native boolean nativeCpuBranchSelfTest();
@@ -29,6 +30,7 @@ public final class MainActivity extends Activity {
     private static native void nativeDestroyMachine(long handle);
     private static native boolean nativeResetMachine(long handle);
     private static native long nativeMachineCpuPc(long handle);
+    static native int[] nativeGetFramebufferSnapshot(long handle);
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         boolean memoryPassed = nativeRdramSelfTest();
@@ -68,7 +70,7 @@ public final class MainActivity extends Activity {
         glSurfaceView = new GLSurfaceView(this);
         glSurfaceView.setEGLContextClientVersion(2);
         glSurfaceView.setPreserveEGLContextOnPause(true);
-        glSurfaceView.setRenderer(new BootRenderer());
+        glSurfaceView.setRenderer(new BootRenderer(nativeMachineHandle, nativeMachineLock));
         glSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
         glSurfaceView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                 | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -76,9 +78,12 @@ public final class MainActivity extends Activity {
         setContentView(glSurfaceView);
     }
     @Override protected void onDestroy() {
-        if (nativeMachineHandle != 0L) {
-            nativeDestroyMachine(nativeMachineHandle);
-            nativeMachineHandle = 0L;
+        if (glSurfaceView != null) glSurfaceView.onPause();
+        synchronized (nativeMachineLock) {
+            if (nativeMachineHandle != 0L) {
+                nativeDestroyMachine(nativeMachineHandle);
+                nativeMachineHandle = 0L;
+            }
         }
         super.onDestroy();
     }
