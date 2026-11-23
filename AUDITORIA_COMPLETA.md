@@ -46,7 +46,7 @@ Ainda não é um emulador capaz de executar jogos comerciais de ponta a ponta. F
 
 ### 3.2 Ausente ou incompleto
 - Operações de 64 bits DMULT/DDIV e gerenciamento completo de HI/LO.
-- Acessos desalinhados LWL/LWR/SWL/SWR e LDL/LDR/SDL/SDR implementados; ainda precisam de testes de fronteira e validação independente.
+- Acessos desalinhados LWL/LWR/SWL/SWR e LDL/LDR/SDL/SDR implementados; testes cobrem todos os deslocamentos possíveis e acessos fora dos limites da RDRAM (BusData), incluindo preservação do registrador de destino e da última palavra válida.
 - LL/SC e mecanismo de reservation/LLbit.
 - Instruções branch-likely: BEQL, BNEL, BLEZL, BGTZL, BLTZL, BGEZL, BLTZALL e BGEZALL.
 - SYSCALL e BREAK da CPU, além de outras instruções do conjunto.
@@ -60,6 +60,13 @@ Ainda não é um emulador capaz de executar jogos comerciais de ponta a ponta. F
 - Teste de integração cobre resultados básicos de ADDI, DADDI, DADD, DSUB, SLTI/SLTIU e casos de overflow de ADDI/DADDI.
 - Commit de implementação: `d06bbe36444097e756e68a9bfeb610688819cc51`; commit de testes: `295a9e97ec2b35c371c968ba23c1c6caecd0c621`.
 - CI da etapa aritmética: workflow [45133838344](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45133838344), commit `7c66249b4d73e6d6baa5b28f6e5bc978812247f4`; `native-host-tests` e `assemble-debug` concluíram com sucesso.
+
+### 3.2.2 Atualização — acessos desalinhados e fronteiras da RDRAM (2026-11-23)
+- Os testes de LDL/LDR/SDL/SDR cobrem os oito offsets de byte e agora também verificam endereços fora dos 8 MiB de RDRAM.
+- O teste de fronteira confirma a exceção BusData (ExcCode 7), que o registrador de destino não é alterado e que a última palavra válida da RDRAM permanece intacta.
+- Uma primeira versão do teste falhou porque os opcodes codificavam o registrador-base errado; os quatro opcodes foram corrigidos para usar `$t0`. A falha era do fixture de teste, não da implementação das instruções.
+- CI final: workflow [45137496411](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45137496411), commit `9848e4d57018928bab4caa6f29ea0c22f73719be`; `native-host-tests` e `assemble-debug` concluíram com sucesso.
+- Artefato APK: `m64plus-debug-apk`, 648.727 bytes, SHA-256 `ed3ac0cd7ceaa455195e3eef70e341e78c1b5f54de2241d9729dc70417b28b09`, expira em 2027-02-21.
 
 ### 3.3 Defeitos e lacunas confirmados
 1. **Mapeamento KSEG0/KSEG1 — CORRIGIDO em 2026-11-21:** a CPU agora aplica a tradução direta desses segmentos mesmo quando `tlbEnabled_` está desativado, tanto na busca de instruções quanto em loads/stores. Foi adicionado teste de regressão que executa código via KSEG0 e grava em memória via KSEG1. Commits: `b71d413` (correção) e `f83f4a0` (teste). O workflow Android foi iniciado; resultado ainda pendente no momento desta atualização.
