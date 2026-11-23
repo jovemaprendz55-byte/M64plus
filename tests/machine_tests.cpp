@@ -410,6 +410,52 @@ void testCpuTlbStoreFaultInvalidatesLoadLinkedReservation() {
 }
 
 
+void testCpuTlbInvalidStoreFaultInvalidatesLoadLinkedReservation() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x360U;
+    constexpr std::uint32_t initial = 0x0BADF00DU;
+    constexpr std::uint64_t invalidVirtualAddress = 0x00400000ULL;
+
+    require(bus.write32(0x1000U, 0xC1090000U), "write LL before invalid TLB store");
+    require(bus.write32(0x1004U, 0x42000002U), "write TLBWI for invalid mapping");
+    require(bus.write32(0x1008U, 0xAD4B0000U), "write SW through invalid TLB mapping");
+    require(bus.write32(0x180U, 0xE1090000U), "write SC at general exception vector");
+    require(bus.write32(dataAddress, initial), "initialize invalid-TLB LL/SC target");
+
+    machine.cpu().reset(0xFFFFFFFF80001000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    machine.cpu().setRegister(10U, invalidVirtualAddress);
+    machine.cpu().setRegister(11U, 0xA5A5A5A5U);
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kIndex, 0U),
+            "select TLB entry for invalid mapping");
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kEntryHi,
+                                         invalidVirtualAddress),
+            "set virtual page for invalid TLB mapping");
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kEntryLo0, 0U),
+            "clear even-page valid bit in TLB mapping");
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kEntryLo1, 0U),
+            "clear odd-page valid bit in TLB mapping");
+    machine.cpu().setTlbEnabled(true);
+
+    require(machine.stepCpu(), "LL establishes reservation before invalid TLB store");
+    require(machine.stepCpu(), "TLBWI installs invalid translation");
+    require(machine.stepCpu(), "SW through invalid TLB entry raises TLB store exception");
+    require(machine.cpu().hasLastException(), "CPU records invalid TLB store exception");
+    require(machine.cpu().lastExceptionCode() == 3U,
+            "CPU records TLB Store exception code for invalid entry");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+            "CPU uses general exception vector for invalid TLB entry");
+    require(machine.stepCpu(), "SC executes at general exception vector without reservation");
+
+    std::uint32_t value = 0;
+    require(bus.read32(dataAddress, value) && value == initial,
+            "SC after invalid TLB store does not modify reserved memory");
+    require(machine.cpu().reg(9U) == 0U,
+            "SC reports failure because invalid TLB store fault invalidated reservation");
+}
+
+
 void testCpuDoublewordLoadLinkedStoreConditional() {
     N64Machine machine;
     Bus& bus = machine.bus();
