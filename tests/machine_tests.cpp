@@ -510,7 +510,7 @@ void testCpuTlbFetchMissInvalidatesLoadLinkedReservation() {
     constexpr std::uint64_t virtualAddress = 0x00400000ULL;
 
     require(bus.write32(0x1000U, 0xC1090000U), "write LL before TLB instruction-fetch miss");
-    require(bus.write32(0x1004U, 0x01000008U), "write JR to unmapped virtual address");
+    require(bus.write32(0x1004U, 0x02000008U), "write JR r16 to unmapped virtual address");
     require(bus.write32(0x1008U, 0x00000000U), "write JR delay-slot NOP");
     require(bus.write32(0x000U, 0xE1090000U), "write SC at TLB refill vector");
     require(bus.write32(dataAddress, initial), "initialize TLB-fetch-miss LL/SC target");
