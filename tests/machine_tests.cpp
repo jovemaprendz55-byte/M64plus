@@ -2681,6 +2681,14 @@ void testCpuEretRestoresExceptionReturnAddress() {
 
     machine.cpu().reset(initialPc);
     require(machine.stepCpu(), "CPU takes reserved-instruction exception");
+    if (machine.cpu().pc() != 0xFFFFFFFF80000180ULL) {
+        std::cerr << "DEBUG ERET initial exception: pc=0x" << std::hex
+                  << machine.cpu().pc() << " code="
+                  << static_cast<unsigned>(machine.cpu().lastExceptionCode())
+                  << " faultPc=0x" << machine.cpu().lastExceptionPc()
+                  << " instruction=0x" << machine.cpu().lastExceptionInstruction()
+                  << std::dec << '\\n';
+    }
     require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
             "reserved instruction enters general exception vector");
     require(machine.cpu().cp0().read(m64plus::n64::Cp0::kEpc) == initialPc,
