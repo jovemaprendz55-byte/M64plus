@@ -1622,6 +1622,39 @@ void testCpuEretRestoresExceptionReturnAddress() {
             "ERET clears CP0 EXL");
 }
 
+
+void testCpuEretReturnsToBranchAfterDelaySlotException() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint64_t branchPc = 0xFFFFFFFF80001000ULL;
+    constexpr std::uint64_t causeBd = 1ULL << 31U;
+
+    require(bus.write32(0x1000U, 0x10000001U),
+            "write BEQ with a delay slot at the test address");
+    require(bus.write32(0x1004U, 0x42000018U),
+            "write ERET into the branch delay slot");
+    require(bus.write32(0x0180U, 0x42000018U),
+            "write ERET into the general exception handler");
+
+    machine.cpu().reset(branchPc);
+    require(machine.stepCpu(), "CPU executes branch before delay-slot exception");
+    require(machine.cpu().pc() == branchPc + 4U,
+            "branch schedules its delay-slot instruction");
+    require(machine.stepCpu(), "ERET in delay slot raises Reserved Instruction");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+            "delay-slot exception enters general exception vector");
+    require(machine.cpu().cp0().read(m64plus::n64::Cp0::kEpc) == branchPc,
+            "delay-slot exception records branch address in EPC");
+    require((machine.cpu().cp0().read(m64plus::n64::Cp0::kCause) & causeBd) != 0U,
+            "delay-slot exception sets Cause.BD");
+
+    require(machine.stepCpu(), "exception handler ERET executes");
+    require(machine.cpu().pc() == branchPc,
+            "ERET resumes at branch instruction recorded in EPC");
+    require(!machine.cpu().cp0().exceptionLevel(),
+            "ERET clears EXL after a delay-slot exception");
+}
+
 } // namespace
 
 int main() {
@@ -1629,6 +1662,7 @@ int main() {
     testCp0RandomCyclesWithinWiredBoundary();
     testCp0CountCompareTimerInterrupt();
     testCpuEretRestoresExceptionReturnAddress();
+    testCpuEretReturnsToBranchAfterDelaySlotException();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
     testMachineOwnsAndProcessesRdpState();
