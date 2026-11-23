@@ -124,12 +124,17 @@ void testCpuHiLoMultiplyDivideAndTransfers() {
         0x00005810U, // MFHI t3
         0x0109001AU, // DIV t0,t1 -> quotient -2, remainder -1
         0x00006012U, // MFLO t4
-        0x00006810U  // MFHI t5
+        0x00006810U, // MFHI t5
+        0x240E1234U, // ADDIU t6,zero,0x1234
+        0x01C00011U, // MTHI t6
+        0x00007810U, // MFHI t7
+        0x01C00013U, // MTLO t6
+        0x00008012U  // MFLO s0
     };
-    for (std::uint32_t i = 0; i < 8U; ++i)
+    for (std::uint32_t i = 0; i < 13U; ++i)
         require(bus.write32(i * 4U, program[i]), "load HI/LO arithmetic program");
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
-    for (unsigned i = 0; i < 8U; ++i)
+    for (unsigned i = 0; i < 13U; ++i)
         require(machine.stepCpu(), "execute HI/LO arithmetic instruction");
     require(machine.cpu().reg(10U) == 0xFFFFFFFFFFFFFFEBULL,
             "MULT writes sign-extended product to LO and MFLO reads it");
@@ -139,6 +144,10 @@ void testCpuHiLoMultiplyDivideAndTransfers() {
             "DIV writes signed quotient to LO");
     require(machine.cpu().reg(13U) == 0xFFFFFFFFFFFFFFFFULL,
             "DIV writes signed remainder to HI");
+    require(machine.cpu().reg(15U) == 0x1234U,
+            "MTHI writes HI and MFHI transfers it to a GPR");
+    require(machine.cpu().reg(16U) == 0x1234U,
+            "MTLO writes LO and MFLO transfers it to a GPR");
 }
 
 void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
