@@ -1,8 +1,75 @@
 #include "n64/machine.h"
 
+#include <algorithm>
+#include <cstdint>
+
 namespace m64plus::n64 {
 
 N64Machine::N64Machine() { reset(); }
+
+bool N64Machine::bootCartridgeHle() noexcept {
+    constexpr std::uint32_t kRomPayloadOffset = 0x1000U;
+    constexpr std::size_t kMaxBootPayload = 0x100000U;
+    constexpr std::uint32_t kBootDmemBase = Bus::kSpDmemBase;
+    constexpr std::uint64_t kBootStatus = 0x34000000ULL;
+
+    if (bus_.cartridgeSize() < kRomPayloadOffset + 4U) return false;
+    std::uint32_t entryPoint = 0;
+    if (!bus_.read32(Bus::kCartridgeBase + 8U, entryPoint)) return false;
+    if (entryPoint < 0x80000000U || entryPoint >= 0xA0000000U ||
+        (entryPoint & 3U) != 0U) return false;
+
+    const std::size_t available = bus_.cartridgeSize() - kRomPayloadOffset;
+    const std::size_t payloadSize = std::min(available, kMaxBootPayload);
+    const std::uint32_t physicalEntry = entryPoint & 0x1FFFFFFFU;
+    if (payloadSize == 0U ||
+        static_cast<std::uint64_t>(physicalEntry) + payloadSize > Rdram::kSize)
+        return false;
+
+    // Reset hardware state while preserving the inserted cartridge.
+    reset();
+
+    // HLE the PIF/IPL2 handoff: make the cartridge header and IPL3 visible in DMEM.
+    for (std::uint32_t i = 0; i < kRomPayloadOffset; ++i) {
+        std::uint8_t byte = 0;
+        if (!bus_.read8(Bus::kCartridgeBase + i, byte) ||
+            !bus_.write8(kBootDmemBase + i, byte)) return false;
+    }
+
+    // HLE the common IPL3 action: copy up to 1 MiB from ROM offset 0x1000
+    // to the entry point specified by the cartridge header.
+    for (std::size_t i = 0; i < payloadSize; ++i) {
+        std::uint8_t byte = 0;
+        if (!bus_.read8(Bus::kCartridgeBase + kRomPayloadOffset +
+                        static_cast<std::uint32_t>(i), byte) ||
+            !bus_.rdram().write8(physicalEntry + static_cast<std::uint32_t>(i), byte))
+            return false;
+    }
+
+    // Common NTSC, cartridge, cold-reset, CIC-6102-compatible boot parameters.
+    const auto writeBootWord = [this](std::uint32_t address, std::uint32_t value) {
+        return bus_.rdram().write32(address, value);
+    };
+    if (!writeBootWord(0x300U, 1U) ||       // osTvType: NTSC
+        !writeBootWord(0x304U, 0U) ||       // osRomType: cartridge
+        !writeBootWord(0x308U, 0xB0000000U) || // osRomBase
+        !writeBootWord(0x30CU, 0U) ||       // osResetType: cold
+        !writeBootWord(0x314U, 0U) ||       // IPL2 version
+        !writeBootWord(0x318U, static_cast<std::uint32_t>(Rdram::kSize)))
+        return false;
+
+    const std::uint64_t canonicalEntry = static_cast<std::uint64_t>(
+        static_cast<std::int64_t>(static_cast<std::int32_t>(entryPoint)));
+    cpu_.reset(canonicalEntry);
+    cpu_.setRegister(11U, 0xFFFFFFFFA4000040ULL); // t3: IPL3/DMEM handoff address
+    cpu_.setRegister(19U, 0U);                    // s3: cartridge ROM type
+    cpu_.setRegister(20U, 1U);                    // s4: NTSC
+    cpu_.setRegister(21U, 0U);                    // s5: cold reset
+    cpu_.setRegister(22U, 0x3FU);                 // s6: CIC-6102 seed
+    cpu_.setRegister(23U, 0U);                    // s7: IPL2 version
+    cpu_.setRegister(29U, 0xFFFFFFFFA4001FF0ULL); // sp: boot stack in DMEM
+    return cpu_.setCp0Register(Cp0::kStatus, kBootStatus);
+}
 
 void N64Machine::reset() noexcept {
     bus_.reset();
