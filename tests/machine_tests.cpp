@@ -507,14 +507,22 @@ void testCpuTlbFetchMissInvalidatesLoadLinkedReservation() {
     Bus& bus = machine.bus();
     constexpr std::uint32_t dataAddress = 0x36CU;
     constexpr std::uint32_t initial = 0xA55A3CC3U;
+    constexpr std::uint64_t virtualAddress = 0x00400000ULL;
 
     require(bus.write32(0x1000U, 0xC1090000U), "write LL before TLB instruction-fetch miss");
+    require(bus.write32(0x1004U, 0x01000008U), "write JR to unmapped virtual address");
+    require(bus.write32(0x1008U, 0x00000000U), "write JR delay-slot NOP");
     require(bus.write32(0x000U, 0xE1090000U), "write SC at TLB refill vector");
     require(bus.write32(dataAddress, initial), "initialize TLB-fetch-miss LL/SC target");
 
     machine.cpu().reset(0xFFFFFFFF80001000ULL);
     machine.cpu().setRegister(8U, dataAddress);
+    machine.cpu().setRegister(16U, virtualAddress);
     require(machine.stepCpu(), "LL establishes reservation before TLB instruction-fetch miss");
+    require(machine.stepCpu(), "JR schedules branch to unmapped virtual address");
+    require(machine.stepCpu(), "JR delay slot completes before TLB fetch");
+    require(machine.cpu().pc() == virtualAddress,
+            "CPU reaches unmapped virtual address after JR delay slot");
     machine.cpu().setTlbEnabled(true);
     require(machine.stepCpu(), "instruction fetch through unmapped TLB address raises refill exception");
     require(machine.cpu().hasLastException(), "CPU records TLB instruction-fetch exception");
