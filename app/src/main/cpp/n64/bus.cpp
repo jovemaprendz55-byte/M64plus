@@ -130,6 +130,7 @@ bool Bus::writeByte(std::uint32_t address, std::uint8_t value) noexcept {
     case BusRegion::MiRegisters:
     case BusRegion::SpRegisters:
     case BusRegion::DpRegisters:
+    case BusRegion::PiRegisters:
         return false; // Device registers require aligned 32-bit accesses.
     case BusRegion::Unmapped:
         return false;
@@ -167,7 +168,7 @@ bool Bus::writeBytes(std::uint32_t address, const std::uint8_t* input,
                      std::size_t width) noexcept {
     BusRegion selected = BusRegion::Unmapped;
     if (input == nullptr || !rangeFits(address, width, selected)) return false;
-    if (selected == BusRegion::MiRegisters || selected == BusRegion::SpRegisters || selected == BusRegion::DpRegisters) {
+    if (selected == BusRegion::MiRegisters || selected == BusRegion::SpRegisters || selected == BusRegion::DpRegisters || selected == BusRegion::PiRegisters) {
         if (width != 4U || (address & 3U) != 0) return false;
         const std::uint32_t value = (static_cast<std::uint32_t>(input[0]) << 24U) |
             (static_cast<std::uint32_t>(input[1]) << 16U) |
