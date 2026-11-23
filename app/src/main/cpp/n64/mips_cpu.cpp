@@ -6,6 +6,10 @@
 #include <cstdint>
 namespace m64plus::n64 {
 namespace {
+std::uint64_t memoryWriteEpoch(const Rdram&) noexcept { return 0; }
+std::uint64_t memoryWriteEpoch(const Bus& memory) noexcept {
+    return memory.rdramWriteEpoch();
+}
 std::uint64_t signExtend32(std::uint32_t value) {
     return static_cast<std::uint64_t>(static_cast<std::int64_t>(static_cast<std::int32_t>(value)));
 }
@@ -23,6 +27,7 @@ void MipsCpu::reset(std::uint64_t pc) {
     lo_ = 0;
     reservationValid_ = false;
     reservationAddress_ = 0;
+    reservationWriteEpoch_ = 0;
     pendingBranch_ = false;
     pendingBranchTarget_ = 0;
     cp0_.reset();
@@ -526,6 +531,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
             if (opcode == 0x30) {
                 reservationValid_ = true;
                 reservationAddress_ = address;
+                reservationWriteEpoch_ = memoryWriteEpoch(memory);
             }
         } else {
             if (!memory.read64(address, result)) return takeException(ExceptionCode::BusData, effective);
@@ -564,7 +570,8 @@ bool MipsCpu::stepMemory(Memory& memory) {
         if ((opcode == 0x3F || opcode == 0x3C) && (address & 7U)) return takeException(ExceptionCode::AddressStore, effective);
         bool stored = false;
         if (opcode == 0x38 || opcode == 0x3C) { // SC / SCD
-            const bool reservationMatches = reservationValid_ && reservationAddress_ == address;
+            const bool reservationMatches = reservationValid_ && reservationAddress_ == address &&
+                reservationWriteEpoch_ == memoryWriteEpoch(memory);
             reservationValid_ = false;
             if (reservationMatches) {
                 stored = opcode == 0x38
