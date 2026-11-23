@@ -5,7 +5,10 @@
 #include "n64/tlb.h"
 #include "n64/bus.h"
 #include "n64/machine.h"
+#include "n64/framebuffer.h"
 #include <cstdint>
+#include <limits>
+#include <vector>
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeRdramSelfTest(JNIEnv*, jclass) {
     m64plus::n64::Rdram memory;
@@ -709,4 +712,44 @@ Java_com_jsr_m64plus_MainActivity_nativeMachineCpuPc(JNIEnv*, jclass, jlong hand
     auto* machine = reinterpret_cast<m64plus::n64::N64Machine*>(static_cast<std::uintptr_t>(handle));
     if (machine == nullptr) return 0;
     return static_cast<jlong>(machine->cpu().pc());
+}
+
+
+extern "C" JNIEXPORT jintArray JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeGetFramebufferSnapshot(
+        JNIEnv* env, jclass, jlong handle) {
+    auto* machine = reinterpret_cast<m64plus::n64::N64Machine*>(
+            static_cast<std::uintptr_t>(handle));
+    if (machine == nullptr) return nullptr;
+
+    constexpr std::uint16_t kSnapshotHeight = 240U;
+    const auto& image = machine->rdp().colorImage;
+    if (!machine->rdp().hasColorImage || image.width == 0U ||
+        image.width > m64plus::n64::RdpFramebuffer::kMaxWidth) {
+        return nullptr;
+    }
+
+    std::vector<std::uint32_t> pixels;
+    if (!m64plus::n64::RdpFramebuffer::copyToArgb8888(
+                machine->bus().rdram(), image, kSnapshotHeight, pixels)) {
+        return nullptr;
+    }
+
+    const std::size_t count = pixels.size() + 2U;
+    if (count > static_cast<std::size_t>(std::numeric_limits<jsize>::max())) {
+        return nullptr;
+    }
+    jintArray result = env->NewIntArray(static_cast<jsize>(count));
+    if (result == nullptr) return nullptr;
+
+    const jint dimensions[2] = {
+        static_cast<jint>(image.width),
+        static_cast<jint>(kSnapshotHeight)
+    };
+    env->SetIntArrayRegion(result, 0, 2, dimensions);
+    if (env->ExceptionCheck()) return nullptr;
+    env->SetIntArrayRegion(result, 2, static_cast<jsize>(pixels.size()),
+                           reinterpret_cast<const jint*>(pixels.data()));
+    if (env->ExceptionCheck()) return nullptr;
+    return result;
 }
