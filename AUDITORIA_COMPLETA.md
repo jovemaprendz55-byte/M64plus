@@ -1323,3 +1323,16 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Na primeira execução, o teste falhou porque as palavras de instrução usavam o registrador `$t1` também como base efetiva, em vez de `$zero`; os opcodes de teste foram corrigidos para codificar base zero. A execução CI `45134210884` terminou com sucesso nos jobs `native-host-tests` e `assemble-debug`. Uma ampliação posterior adicionou cobertura dos quatro offsets; a validação CI dessa ampliação está pendente.
 
 **Limitação:** os acessos de palavra desalinhados têm cobertura nos quatro offsets; ainda faltam testes de casos de fronteira de memória. As variantes de 64 bits `LDL/LDR/SDL/SDR` continuam ausentes.
+
+
+### 17.22 — Acessos desalinhados de doubleword em big-endian (23/11/2026)
+
+- Implementadas as instruções MIPS III `LDL`, `LDR`, `SDL` e `SDR` no núcleo CPU.
+- As leituras e escritas trabalham sobre doublewords alinhadas de 8 bytes e mesclam os bytes com o registrador ou com o conteúdo existente na memória, seguindo a ordem big-endian.
+- As operações usam a tradução de endereço já aplicada pelo caminho de load/store e retornam exceção de barramento quando o acesso à doubleword alinhada falha.
+- Criado o teste de integração `testCpuUnalignedDoublewordMemoryOperations`, com vetores explícitos para os oito offsets (0 a 7) de cada uma das quatro instruções.
+- Arquivos alterados: `app/src/main/cpp/n64/mips_cpu.cpp` e `tests/machine_tests.cpp`.
+- Commits: implementação `dfcae29d1282336297112e4f8a3324c5df64d417`; teste `7bfe172038f2ea3fa826311be4123b9110435bdd`; registro do teste no executável de integração `1b665a43b734cfd14e19e721a751177605792970`.
+- A execução CI da implementação isolada passou nos testes nativos; a execução com o teste de integração completo e a compilação Android ainda estão pendentes. Não declarar a etapa aprovada até ambos terminarem com sucesso.
+
+**Limitação:** os testes cobrem os oito offsets com dados sintéticos em RDRAM. Ainda faltam testes de fronteira de memória, validação contra suites de instruções MIPS III e execução em ROMs comerciais. A implementação não significa que o emulador já esteja pronto para jogos.
