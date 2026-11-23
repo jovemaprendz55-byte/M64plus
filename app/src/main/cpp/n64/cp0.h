@@ -27,6 +27,7 @@ public:
     static constexpr unsigned kStatus = 12;
     static constexpr unsigned kCause = 13;
     static constexpr unsigned kEpc = 14;
+    static constexpr unsigned kErrorEpc = 30;
     static constexpr unsigned kXContext = 20;
     static constexpr std::uint64_t kStatusExl = 1ULL << 1U;
     static constexpr std::uint64_t kStatusErl = 1ULL << 2U;
