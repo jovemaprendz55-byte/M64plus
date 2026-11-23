@@ -1636,6 +1636,48 @@ void testCpuAcceptsCp0TimerInterruptBetweenInstructions() {
             "interrupted instruction does not execute before handler entry");
 }
 
+void testCpuDefersTimerInterruptUntilAfterBranchDelaySlot() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    require(bus.write32(0x000U, 0x10000001U), "write taken BEQ before timer interrupt");
+    require(bus.write32(0x004U, 0x25080001U), "write ADDIU in branch delay slot");
+    require(bus.write32(0x008U, 0x25290001U), "write target instruction after delay slot");
+    require(bus.write32(0x180U, 0x42000018U), "write ERET at deferred timer handler");
+
+    auto& cpu = machine.cpu();
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    constexpr std::uint64_t timerMask = 1ULL << 15U;
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kCount, 0U),
+            "initialize Count before branch-delay timer test");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kCompare, 1U),
+            "schedule timer interrupt immediately after branch");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                               m64plus::n64::Cp0::kStatusIe | timerMask),
+            "enable timer interrupt before branch");
+
+    require(machine.stepCpu(), "CPU executes branch while timer is not yet pending");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kCause) & timerMask) != 0U,
+            "timer becomes pending after branch instruction");
+    require(cpu.pc() == 0xFFFFFFFF80000004ULL,
+            "CPU points to branch delay slot while interrupt is pending");
+
+    require(machine.stepCpu(), "CPU executes delay slot instead of taking interrupt");
+    require(cpu.reg(8U) == 1U,
+            "branch delay-slot instruction executes before timer interrupt");
+    require(cpu.pc() == 0xFFFFFFFF80000008ULL,
+            "taken branch reaches its target after delay slot");
+
+    require(machine.stepCpu(), "CPU accepts pending timer interrupt after delay slot");
+    require(cpu.pc() == 0xFFFFFFFF80000180ULL,
+            "deferred timer interrupt enters general exception vector");
+    require(cpu.cp0().read(m64plus::n64::Cp0::kEpc) == 0xFFFFFFFF80000008ULL,
+            "deferred interrupt saves branch target as EPC");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kCause) & (1ULL << 31U)) == 0U,
+            "deferred interrupt does not incorrectly set Cause.BD");
+    require(cpu.reg(9U) == 0U,
+            "target instruction does not execute before deferred interrupt handler");
+}
+
 void testCpuEretRestoresExceptionReturnAddress() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -1701,6 +1743,7 @@ int main() {
     testCp0RandomCyclesWithinWiredBoundary();
     testCp0CountCompareTimerInterrupt();
     testCpuAcceptsCp0TimerInterruptBetweenInstructions();
+    testCpuDefersTimerInterruptUntilAfterBranchDelaySlot();
     testCpuEretRestoresExceptionReturnAddress();
     testCpuEretReturnsToBranchAfterDelaySlotException();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
