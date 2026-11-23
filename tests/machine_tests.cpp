@@ -1772,6 +1772,46 @@ void testCpuBranchLikelyDelaySlotSemantics() {
                       "execute untaken BLTZALL branch-likely");
     runLinkLikelyCase(0x05130002U, 0xFFFFFFFFFFFFFFFFULL, false,
                       "execute untaken BGEZALL branch-likely");
+
+    auto runLinkCase = [](std::uint32_t branch, std::uint64_t value,
+                          bool taken, const char* description) {
+        N64Machine machine;
+        Bus& bus = machine.bus();
+        require(bus.write32(0x000U, branch), "write REGIMM link instruction");
+        require(bus.write32(0x004U, 0x240A0001U),
+                "write REGIMM link delay-slot instruction");
+        require(bus.write32(0x008U, 0x240B0001U),
+                "write instruction after REGIMM link");
+        require(bus.write32(0x00CU, 0x240C0001U),
+                "write REGIMM link target instruction");
+        auto& cpu = machine.cpu();
+        cpu.reset(0xFFFFFFFF80000000ULL);
+        cpu.setRegister(8U, value);
+        require(machine.stepCpu(), description);
+        require(cpu.reg(31U) == (taken ? 0xFFFFFFFF80000008ULL : 0U),
+                "REGIMM branch-and-link writes return address only when taken");
+        if (taken) {
+            require(cpu.pc() == 0xFFFFFFFF80000004ULL,
+                    "taken REGIMM branch-and-link schedules delay slot");
+            require(machine.stepCpu(), "execute taken REGIMM branch-and-link delay slot");
+            require(cpu.reg(10U) == 1U && cpu.pc() == 0xFFFFFFFF8000000CU,
+                    "taken REGIMM branch-and-link reaches target");
+        } else {
+            require(cpu.pc() == 0xFFFFFFFF80000008ULL,
+                    "untaken REGIMM branch-and-link continues sequentially");
+            require(machine.stepCpu(), "execute instruction after untaken REGIMM branch");
+            require(cpu.reg(11U) == 1U,
+                    "untaken REGIMM branch executes sequential instruction");
+        }
+    };
+    runLinkCase(0x05100002U, 0xFFFFFFFFFFFFFFFFULL, true,
+                "execute taken BLTZAL branch-and-link");
+    runLinkCase(0x05110002U, 0U, true,
+                "execute taken BGEZAL branch-and-link");
+    runLinkCase(0x05100002U, 0U, false,
+                "execute untaken BLTZAL branch-and-link");
+    runLinkCase(0x05110002U, 0xFFFFFFFFFFFFFFFFULL, false,
+                "execute untaken BGEZAL branch-and-link");
 }
 
 void testCpuEretRestoresExceptionReturnAddress() {
