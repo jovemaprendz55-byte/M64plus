@@ -1217,14 +1217,14 @@ void testCpuCop0RequiresKernelPrivilege() {
         require(machine.bus().write32(0U, 0x40086000U),
                 "write MFC0 instruction for privilege test");
         auto& cpu = machine.cpu();
-        cpu.reset(0xFFFFFFFF80000000ULL);
+        cpu.reset(0U);
         require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, status),
                 "set CP0 privilege mode for test");
         const std::uint64_t executed = machine.runCpuInstructions(1U);
         if (shouldExecute) {
             require(executed == 1U && !cpu.hasLastException(),
                     message);
-            require(cpu.pc() == 0xFFFFFFFF80000004ULL,
+            require(cpu.pc() == 4U,
                     "privileged override continues after MFC0");
         } else {
             require(executed == 0U && cpu.hasLastException() &&
@@ -1265,7 +1265,7 @@ void testCpuCop0PrivilegedOperationsRequireKernelPrivilege() {
             require(machine.bus().write32(0U, instruction),
                     "write privileged COP0 operation");
             auto& cpu = machine.cpu();
-            cpu.reset(0xFFFFFFFF80000000ULL);
+            cpu.reset(0U);
             require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, status),
                     "set non-kernel mode for privileged COP0 operation");
             require(machine.runCpuInstructions(1U) == 0U,
@@ -1517,7 +1517,7 @@ void testCpuMtc0RequiresKernelPrivilege() {
         require(machine.bus().write32(0U, mtc0Wired),
                 "write MTC0 Wired instruction");
         auto& cpu = machine.cpu();
-        cpu.reset(0xFFFFFFFF80000000ULL);
+        cpu.reset(0U);
         cpu.setRegister(8U, 17U);
         require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, status),
                 "set non-kernel privilege for MTC0");
