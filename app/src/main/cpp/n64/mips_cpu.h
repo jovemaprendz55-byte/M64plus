@@ -18,6 +18,10 @@ public:
     std::uint64_t reg(unsigned index) const noexcept;
     std::uint64_t pc() const noexcept;
     std::uint64_t instructionsExecuted() const noexcept;
+    bool hasLastException() const noexcept;
+    std::uint64_t lastExceptionPc() const noexcept;
+    std::uint32_t lastExceptionInstruction() const noexcept;
+    std::uint8_t lastExceptionCode() const noexcept;
     const Cp0& cp0() const noexcept;
 private:
     template <typename Memory> bool stepMemory(Memory& memory);
