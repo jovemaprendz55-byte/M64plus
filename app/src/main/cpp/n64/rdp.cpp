@@ -31,12 +31,12 @@ bool fillRectangle(Bus& bus, const RdpSyncState& state,
     if (state.hasScissor) {
         const std::uint32_t scissorLeft = state.scissor.xh >> 2U;
         const std::uint32_t scissorTop = state.scissor.yh >> 2U;
-        const std::uint32_t scissorRight = state.scissor.xl >> 2U;
+        const std::uint32_t scissorRightExclusive = state.scissor.xl >> 2U;
         const std::uint32_t scissorBottomExclusive = state.scissor.yl >> 2U;
-        if (scissorBottomExclusive == 0U) return false;
+        if (scissorRightExclusive == 0U || scissorBottomExclusive == 0U) return false;
         if (left < scissorLeft) left = scissorLeft;
         if (top < scissorTop) top = scissorTop;
-        if (right > scissorRight) right = scissorRight;
+        if (right >= scissorRightExclusive) right = scissorRightExclusive - 1U;
         if (bottom >= scissorBottomExclusive) bottom = scissorBottomExclusive - 1U;
     }
 
