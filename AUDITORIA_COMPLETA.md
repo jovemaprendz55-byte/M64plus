@@ -1262,3 +1262,5 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Arquivos: `mips_cpu.h/.cpp`, `native-lib.cpp`, `MainActivity.java`, `tests/machine_tests.cpp`.
 - Limitação: o campo da instrução será zero se a exceção ocorrer antes de completar o fetch (por exemplo, endereço inválido ou falha de barramento); o PC e código da exceção ainda identificam o motivo. O diagnóstico não significa que o jogo já esteja compatível.
 - Validação CI pendente; aguardar jobs nativos e Android.
+
+- **Ajuste do teste:** o primeiro valor de fixture `0xFFFFFFFF` decodifica como opcode SD no subconjunto MIPS implementado, portanto não era uma instrução reservada. A falha foi do teste, não da coleta da exceção. Fixture substituída por `0x7000003F`, opcode SPECIAL2 não suportado neste núcleo, para exercitar de fato Reserved Instruction. CI de confirmação pendente.
