@@ -13,6 +13,8 @@ public:
     bool step(Rdram& memory);
     bool step(Bus& memory);
     void setTlbEnabled(bool enabled) noexcept;
+    void setRegister(unsigned index, std::uint64_t value) noexcept;
+    bool setCp0Register(unsigned index, std::uint64_t value) noexcept;
     std::uint64_t reg(unsigned index) const noexcept;
     std::uint64_t pc() const noexcept;
     std::uint64_t instructionsExecuted() const noexcept;
