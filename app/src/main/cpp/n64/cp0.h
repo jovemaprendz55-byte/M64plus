@@ -43,6 +43,7 @@ public:
     void setExternalInterrupt(bool asserted) noexcept;
     bool interruptRequested() const noexcept;
     bool kernelMode() const noexcept;
+    bool supervisorMode() const noexcept;
     std::uint64_t raiseException(ExceptionCode code, std::uint64_t instructionPc,
                                  bool inDelaySlot = false,
                                  std::uint64_t badAddress = 0,
