@@ -1253,3 +1253,12 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Arquivos: `app/src/main/cpp/n64/machine.cpp`, `tests/machine_tests.cpp`.
 - Isso permite que a thread Java existente registre o PC após a exceção e pare, em vez de continuar em um ciclo de fatias. A causa detalhada ainda não é apresentada na interface/log Java; somente o PC atual é registrado.
 - CI desta correção pendente. Não gerar/indicar APK como contendo esta correção até o novo workflow terminar com ambos os jobs aprovados.
+
+### 17.18.2 — Diagnóstico da instrução MIPS que causou a parada
+
+- A CPU agora preserva o último evento de exceção: endereço virtual da instrução, palavra de 32 bits (quando o fetch foi concluído), código arquitetural da exceção e indicador de validade. O estado é limpo em `reset()`.
+- JNI `nativeMachineCpuExceptionInfo` disponibiliza os quatro valores ao Android. Quando uma fatia retorna zero, a thread registra `CPU_EXCEPTION` com código, PC da instrução, opcode/palavra e PC do vetor de exceção. Se não houver exceção registrada, mantém a mensagem genérica de parada.
+- Adicionado teste para opcode reservado `0xFFFFFFFF`: verifica exceção Reserved Instruction (código 10), PC original e palavra da instrução.
+- Arquivos: `mips_cpu.h/.cpp`, `native-lib.cpp`, `MainActivity.java`, `tests/machine_tests.cpp`.
+- Limitação: o campo da instrução será zero se a exceção ocorrer antes de completar o fetch (por exemplo, endereço inválido ou falha de barramento); o PC e código da exceção ainda identificam o motivo. O diagnóstico não significa que o jogo já esteja compatível.
+- Validação CI pendente; aguardar jobs nativos e Android.
