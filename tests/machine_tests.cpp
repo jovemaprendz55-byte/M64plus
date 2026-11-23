@@ -378,6 +378,30 @@ void testCpuLoadLinkedStoreConditionalDetectsBusWrites() {
             "SC reports failure after external RDRAM write epoch changes");
 }
 
+void testCpuExceptionInvalidatesLoadLinkedReservation() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x2E0U;
+    constexpr std::uint32_t initial = 0x12345678U;
+    require(bus.write32(0x000U, 0xC1090000U), "write LL before exception");
+    require(bus.write32(0x004U, 0x7000003FU), "write reserved instruction to raise exception");
+    require(bus.write32(0x180U, 0xE1090000U), "write SC at general exception vector");
+    require(bus.write32(dataAddress, initial), "initialize exception LL/SC target");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    require(machine.stepCpu(), "LL establishes reservation before exception");
+    require(machine.stepCpu(), "reserved instruction raises and records exception");
+    require(machine.cpu().hasLastException(), "CPU records exception after LL");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+            "CPU transfers control to general exception vector");
+    require(machine.stepCpu(), "SC executes at exception vector without reservation");
+    std::uint32_t value = 0;
+    require(bus.read32(dataAddress, value) && value == initial,
+            "SC after exception does not modify reserved memory");
+    require(machine.cpu().reg(9U) == 0U,
+            "SC reports failure because exception invalidated reservation");
+}
+
 void testCpuSignedArithmeticAndImmediateComparisons() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -851,6 +875,7 @@ int main() {
     testCpuDoublewordMultiplyDivideEdgeCases();
     testCpuLoadLinkedStoreConditional();
     testCpuLoadLinkedStoreConditionalDetectsBusWrites();
+    testCpuExceptionInvalidatesLoadLinkedReservation();
     testCpuDoublewordLoadLinkedStoreConditional();
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
