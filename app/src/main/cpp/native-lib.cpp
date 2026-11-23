@@ -687,6 +687,24 @@ Java_com_jsr_m64plus_MainActivity_nativeCpuBusIntegrationSelfTest(JNIEnv*, jclas
     return JNI_TRUE;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeLoadCartridge(
+        JNIEnv* env, jclass, jlong handle, jbyteArray romData) {
+    auto* machine = reinterpret_cast<m64plus::n64::N64Machine*>(
+            static_cast<std::uintptr_t>(handle));
+    if (machine == nullptr || romData == nullptr) return JNI_FALSE;
+    const jsize length = env->GetArrayLength(romData);
+    if (length < 0 || static_cast<std::size_t>(length) >
+            m64plus::n64::Bus::kMaxCartridgeSize) return JNI_FALSE;
+    jbyte* bytes = env->GetByteArrayElements(romData, nullptr);
+    if (bytes == nullptr) return JNI_FALSE;
+    const bool loaded = machine->bus().loadCartridge(
+            reinterpret_cast<const std::uint8_t*>(bytes),
+            static_cast<std::size_t>(length));
+    env->ReleaseByteArrayElements(romData, bytes, JNI_ABORT);
+    return loaded ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeCreateMachine(JNIEnv*, jclass) {
     auto* machine = new (std::nothrow) m64plus::n64::N64Machine();
