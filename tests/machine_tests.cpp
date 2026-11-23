@@ -1187,6 +1187,8 @@ void testCpuRejectsInvalidCop0ReservedFields() {
     const std::uint32_t invalidInstructions[] = {
         0x40086008U, // MFC0 with reserved bit 3 set
         0x40886008U, // MTC0 with reserved bit 3 set
+        0x40086009U, // MFC0 with unsupported register select 1
+        0x40886009U, // MTC0 with unsupported register select 1
         0x42000048U, // TLBP with reserved bit 6 set
         0x42000058U  // ERET with reserved bit 6 set
     };
