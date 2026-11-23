@@ -324,13 +324,13 @@ void testCpuAddressStoreFaultInvalidatesLoadLinkedReservation() {
     Bus& bus = machine.bus();
     constexpr std::uint32_t dataAddress = 0x330U;
     constexpr std::uint32_t initial = 0x13579BDFU;
-    require(bus.write32(0x000U, 0xC1080000U), "write LL before address-store fault");
+    require(bus.write32(0x000U, 0xC1090000U), "write LL before address-store fault");
     require(bus.write32(0x004U, 0xAD0B0001U), "write misaligned SW to raise address-store exception");
-    require(bus.write32(0x180U, 0xE1080000U), "write SC at address-store exception vector");
+    require(bus.write32(0x180U, 0xE1090000U), "write SC at address-store exception vector");
     require(bus.write32(dataAddress, initial), "initialize address-store LL/SC target");
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
     machine.cpu().setRegister(8U, dataAddress);
-    machine.cpu().setRegister(9U, 0xA5A5A5A5U);
+    machine.cpu().setRegister(11U, 0xA5A5A5A5U);
     require(machine.stepCpu(), "LL establishes reservation before address-store fault");
     require(machine.stepCpu(), "misaligned SW raises address-store exception");
     require(machine.cpu().hasLastException(), "CPU records address-store exception after LL");
@@ -342,7 +342,7 @@ void testCpuAddressStoreFaultInvalidatesLoadLinkedReservation() {
     std::uint32_t value = 0;
     require(bus.read32(dataAddress, value) && value == initial,
             "SC after address-store fault does not modify reserved memory");
-    require(machine.cpu().reg(8U) == 0U,
+    require(machine.cpu().reg(9U) == 0U,
             "SC reports failure because address-store fault invalidated reservation");
 }
 
