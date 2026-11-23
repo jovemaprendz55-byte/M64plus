@@ -117,7 +117,20 @@ bool MipsCpu::stepMemory(Memory& memory) {
     case 0x00:
         destination = rd;
         switch (function) {
-        case 0x00: result = signExtend32(static_cast<std::uint32_t>(b) << shift); break;
+        case 0x00: result = signExtend32(static_cast<std::uint32_t>(b) << shift); break; // SLL
+        case 0x02: result = signExtend32(static_cast<std::uint32_t>(b) >> shift); break; // SRL
+        case 0x03: result = signExtend32(static_cast<std::uint32_t>(
+            static_cast<std::int32_t>(b) >> shift)); break; // SRA
+        case 0x04: result = signExtend32(static_cast<std::uint32_t>(b) <<
+            (static_cast<unsigned>(a) & 31U)); break; // SLLV
+        case 0x06: result = signExtend32(static_cast<std::uint32_t>(b) >>
+            (static_cast<unsigned>(a) & 31U)); break; // SRLV
+        case 0x07: result = signExtend32(static_cast<std::uint32_t>(
+            static_cast<std::int32_t>(b) >> (static_cast<unsigned>(a) & 31U))); break; // SRAV
+        case 0x14: result = b << (static_cast<unsigned>(a) & 63U); break; // DSLLV
+        case 0x16: result = b >> (static_cast<unsigned>(a) & 63U); break; // DSRLV
+        case 0x17: result = static_cast<std::uint64_t>(
+            static_cast<std::int64_t>(b) >> (static_cast<unsigned>(a) & 63U)); break; // DSRAV
         case 0x10: result = hi_; break; // MFHI
         case 0x11: hi_ = a; destination = 0; writeRegister = false; break; // MTHI
         case 0x12: result = lo_; break; // MFLO
@@ -172,7 +185,14 @@ bool MipsCpu::stepMemory(Memory& memory) {
             writeRegister = false;
             break;
         }
-        case 0x02: result = signExtend32(static_cast<std::uint32_t>(b) >> shift); break;
+        case 0x38: result = b << shift; break; // DSLL
+        case 0x3A: result = b >> shift; break; // DSRL
+        case 0x3B: result = static_cast<std::uint64_t>(
+            static_cast<std::int64_t>(b) >> shift); break; // DSRA
+        case 0x3C: result = b << (shift + 32U); break; // DSLL32
+        case 0x3E: result = b >> (shift + 32U); break; // DSRL32
+        case 0x3F: result = static_cast<std::uint64_t>(
+            static_cast<std::int64_t>(b) >> (shift + 32U)); break; // DSRA32
         case 0x08:
             if (inDelaySlot) return takeException(ExceptionCode::ReservedInstruction);
             scheduleBranch = true; branchTarget = a; break;
