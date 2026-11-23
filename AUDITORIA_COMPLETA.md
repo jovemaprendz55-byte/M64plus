@@ -1115,3 +1115,10 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Commits na `main`: header `a6d0faa`, implementação `ed8b45d`, testes `47d2716`.
 - **Limitação importante:** isso ainda não é um seletor de ROM Android nem boot de cartucho. Formatos `.v64` e `.n64` não são convertidos; PI DMA não está implementado; não há configuração de CIC/boot code/seed, checksum ou execução do IPL3. A API recebe bytes já carregados e somente mapeia a ROM.
 - CI para os commits e a auditoria ainda pendente.
+
+
+### Correção de CI da região Cartridge
+
+- O primeiro CI do commit do cabeçalho detectou que os novos valores `BusRegion::Cartridge` não estavam tratados nos dois switches de acesso por byte; `-Werror=switch` corretamente interrompeu a compilação.
+- Correção aplicada em `bus.cpp` no commit `96a13c4`: leitura de bytes consulta a ROM carregada e escrita retorna `false` (ROM somente leitura).
+- A execução que revelou o erro: [#45115475958](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45115475958). O CI dos commits posteriores deve confirmar a correção.
