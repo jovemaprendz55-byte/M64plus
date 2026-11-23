@@ -1208,3 +1208,13 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - O primeiro fixture sintético de teste falhou porque somou incorretamente dois words em vez de representar o valor de 64 bits como soma de words de 32 bits. A fixture foi corrigida distribuindo a soma alvo em words de 32 bits; não houve alteração no algoritmo de detecção.
 - Workflow [#45117880253](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45117880253): build e execução dos testes nativos passaram após a correção do fixture; assemble-debug ainda estava em andamento no momento do registro.
 - Limitações: soma little-endian precisa ser confrontada com ROMs reais de várias famílias CIC; identificação não executa a autenticação PIF/CIC nem verifica o hash de boot do IPL3; não calcula CRC1/CRC2; região por country code é uma aproximação e ainda precisa de matriz completa validada.
+
+
+## 17.16 Acionamento do boot HLE pelo seletor Android (2026-11-23)
+
+- Adicionada JNI nativeBootCartridgeHle(handle), que chama N64Machine::bootCartridgeHle() após validar o handle.
+- MainActivity agora chama a função logo após nativeLoadCartridge, mantendo as duas operações sob nativeMachineLock. A mensagem informa separadamente ROM rejeitada, boot HLE recusado ou boot HLE iniciado.
+- O seletor Android deixa de apenas carregar os bytes: agora dispara a preparação inicial do estado da CPU/RDRAM para o cartucho.
+- Commit JNI: d1da8b5bc06301010327a15819b519e588348991; commit Java: 063e88e0965aa9efd223c10397f73a9924c6b3cc.
+- Workflow [#45117944392](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45117944392): testes nativos passaram; assemble-debug estava em andamento no momento do registro.
+- Limitação: ainda não existe loop de execução da CPU no aplicativo, agendamento CPU/RSP/RDP, VI ativo ou renderização de frames do jogo. A interface agora carrega a ROM e inicializa o estado HLE, mas ainda não executa o jogo de forma contínua.
