@@ -89,6 +89,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
     std::uint32_t instruction = 0;
     if (!memory.read32(instructionAddress, instruction))
         return takeException(ExceptionCode::BusInstruction, pc_);
+    currentInstruction = instruction;
     const std::uint64_t oldBranchTarget = pendingBranchTarget_;
     const unsigned opcode = instruction >> 26U;
     const unsigned rs = (instruction >> 21U) & 31U;
