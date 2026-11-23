@@ -705,6 +705,15 @@ Java_com_jsr_m64plus_MainActivity_nativeLoadCartridge(
     return loaded ? JNI_TRUE : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeBootCartridgeHle(
+        JNIEnv*, jclass, jlong handle) {
+    auto* machine = reinterpret_cast<m64plus::n64::N64Machine*>(
+            static_cast<std::uintptr_t>(handle));
+    if (machine == nullptr) return JNI_FALSE;
+    return machine->bootCartridgeHle() ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeCreateMachine(JNIEnv*, jclass) {
     auto* machine = new (std::nothrow) m64plus::n64::N64Machine();
