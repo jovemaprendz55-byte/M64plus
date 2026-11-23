@@ -96,7 +96,7 @@ void testCpuFetchesAndExecutesFromCartridgeKseg1() {
 
 void testCpuRunnerStopsWhenInstructionRaisesException() {
     N64Machine machine;
-    require(machine.bus().write32(0U, 0xFFFFFFFFU),
+    require(machine.bus().write32(0U, 0x7000003FU),
             "write unsupported instruction for CPU runner");
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
     require(machine.runCpuInstructions(64U) == 0U,
@@ -106,7 +106,7 @@ void testCpuRunnerStopsWhenInstructionRaisesException() {
     require(machine.cpu().hasLastException(), "CPU records the last exception");
     require(machine.cpu().lastExceptionPc() == 0xFFFFFFFF80000000ULL,
             "CPU records the address of the faulting instruction");
-    require(machine.cpu().lastExceptionInstruction() == 0xFFFFFFFFU,
+    require(machine.cpu().lastExceptionInstruction() == 0x7000003FU,
             "CPU records the faulting instruction word");
     require(machine.cpu().lastExceptionCode() == 10U,
             "CPU records Reserved Instruction exception code");
