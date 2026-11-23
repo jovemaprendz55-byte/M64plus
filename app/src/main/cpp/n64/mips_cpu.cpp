@@ -113,6 +113,14 @@ bool MipsCpu::stepMemory(Memory& memory) {
         const auto offset = static_cast<std::int64_t>(static_cast<std::int16_t>(immediate)) * 4;
         return static_cast<std::uint64_t>(static_cast<std::int64_t>(sequentialPc) + offset);
     };
+    const auto addOverflow64 = [](std::uint64_t left, std::uint64_t right,
+                                   std::uint64_t sum) {
+        return ((~(left ^ right) & (left ^ sum)) >> 63U) != 0U;
+    };
+    const auto subOverflow64 = [](std::uint64_t left, std::uint64_t right,
+                                   std::uint64_t difference) {
+        return (((left ^ right) & (left ^ difference)) >> 63U) != 0U;
+    };
     switch (opcode) {
     case 0x00:
         destination = rd;
@@ -202,7 +210,23 @@ bool MipsCpu::stepMemory(Memory& memory) {
             destination = rd;
             result = sequentialPc + 4U; writeRegister = true;
             scheduleBranch = true; branchTarget = a; break;
+        case 0x20: { // ADD (signed 32-bit, traps on overflow)
+            const auto sum = static_cast<std::int64_t>(static_cast<std::int32_t>(a)) +
+                             static_cast<std::int64_t>(static_cast<std::int32_t>(b));
+            if (sum < INT32_MIN || sum > INT32_MAX)
+                return takeException(ExceptionCode::Overflow);
+            result = signExtend32(static_cast<std::uint32_t>(sum));
+            break;
+        }
         case 0x21: result = signExtend32(static_cast<std::uint32_t>(a) + static_cast<std::uint32_t>(b)); break;
+        case 0x22: { // SUB (signed 32-bit, traps on overflow)
+            const auto difference = static_cast<std::int64_t>(static_cast<std::int32_t>(a)) -
+                                    static_cast<std::int64_t>(static_cast<std::int32_t>(b));
+            if (difference < INT32_MIN || difference > INT32_MAX)
+                return takeException(ExceptionCode::Overflow);
+            result = signExtend32(static_cast<std::uint32_t>(difference));
+            break;
+        }
         case 0x23: result = signExtend32(static_cast<std::uint32_t>(a) - static_cast<std::uint32_t>(b)); break;
         case 0x24: result = a & b; break;
         case 0x25: result = a | b; break;
@@ -210,8 +234,20 @@ bool MipsCpu::stepMemory(Memory& memory) {
         case 0x27: result = ~(a | b); break;
         case 0x2A: result = static_cast<std::int64_t>(a) < static_cast<std::int64_t>(b); break;
         case 0x2B: result = a < b; break;
-        case 0x2D: result = a + b; break;
-        case 0x2F: result = a - b; break;
+        case 0x2C: { // DADD (signed 64-bit, traps on overflow)
+            const std::uint64_t sum = a + b;
+            if (addOverflow64(a, b, sum)) return takeException(ExceptionCode::Overflow);
+            result = sum;
+            break;
+        }
+        case 0x2D: result = a + b; break; // DADDU
+        case 0x2E: { // DSUB (signed 64-bit, traps on overflow)
+            const std::uint64_t difference = a - b;
+            if (subOverflow64(a, b, difference)) return takeException(ExceptionCode::Overflow);
+            result = difference;
+            break;
+        }
+        case 0x2F: result = a - b; break; // DSUBU
         default: return takeException(ExceptionCode::ReservedInstruction);
         }
         writeRegister = writeRegister || (function != 0x08 && function != 0x09);
@@ -300,14 +336,44 @@ bool MipsCpu::stepMemory(Memory& memory) {
             } else return takeException(ExceptionCode::ReservedInstruction);
         } else return takeException(ExceptionCode::ReservedInstruction);
         break;
+    case 0x08: { // ADDI (signed 32-bit, traps on overflow)
+        const auto sum = static_cast<std::int64_t>(static_cast<std::int32_t>(a)) +
+                         static_cast<std::int64_t>(static_cast<std::int16_t>(immediate));
+        if (sum < INT32_MIN || sum > INT32_MAX)
+            return takeException(ExceptionCode::Overflow);
+        destination = rt;
+        result = signExtend32(static_cast<std::uint32_t>(sum));
+        writeRegister = true;
+        break;
+    }
     case 0x09:
         destination = rt;
         result = signExtend32(static_cast<std::uint32_t>(a) + static_cast<std::uint32_t>(signExtend16(immediate)));
         writeRegister = true;
         break;
+    case 0x18: { // DADDI (signed 64-bit, traps on overflow)
+        const std::uint64_t operand = signExtend16(immediate);
+        const std::uint64_t sum = a + operand;
+        if (addOverflow64(a, operand, sum)) return takeException(ExceptionCode::Overflow);
+        destination = rt;
+        result = sum;
+        writeRegister = true;
+        break;
+    }
     case 0x19:
         destination = rt;
         result = a + signExtend16(immediate);
+        writeRegister = true;
+        break;
+    case 0x0A: // SLTI
+        destination = rt;
+        result = static_cast<std::int64_t>(a) <
+                 static_cast<std::int64_t>(static_cast<std::int16_t>(immediate));
+        writeRegister = true;
+        break;
+    case 0x0B: // SLTIU compares against the sign-extended immediate as unsigned
+        destination = rt;
+        result = a < signExtend16(immediate);
         writeRegister = true;
         break;
     case 0x0C: destination = rt; result = a & immediate; writeRegister = true; break;
