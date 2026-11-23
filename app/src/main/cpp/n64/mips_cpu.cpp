@@ -382,7 +382,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
     case 0x0F: destination = rt; result = signExtend32(static_cast<std::uint32_t>(immediate) << 16U); writeRegister = true; break;
     // Integer loads use the selected physical memory interface; optional TLB
     // translation is applied before the bus or RDRAM access.
-    case 0x20: case 0x21: case 0x23: case 0x24: case 0x25: case 0x27: case 0x37: {
+    case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27: case 0x37: {
         const std::uint64_t effective = a + signExtend16(immediate);
         std::uint32_t address = static_cast<std::uint32_t>(effective);
         if (effective > 0xFFFFFFFFULL &&
@@ -415,6 +415,24 @@ bool MipsCpu::stepMemory(Memory& memory) {
             std::uint16_t value = 0;
             if (!memory.read16(address, value)) return takeException(ExceptionCode::BusData, effective);
             result = opcode == 0x21 ? signExtend16(value) : value;
+        } else if (opcode == 0x22 || opcode == 0x26) { // LWL / LWR (big-endian)
+            std::uint32_t value = 0;
+            if (!memory.read32(address & ~3U, value))
+                return takeException(ExceptionCode::BusData, effective);
+            const unsigned byteOffset = address & 3U;
+            const std::uint32_t previous = static_cast<std::uint32_t>(b);
+            std::uint32_t merged = 0;
+            if (opcode == 0x22) {
+                const unsigned shift = byteOffset * 8U;
+                const std::uint32_t preserve = shift == 0U ? 0U :
+                    ((1U << shift) - 1U);
+                merged = (previous & preserve) | (value << shift);
+            } else {
+                const unsigned shift = (3U - byteOffset) * 8U;
+                const std::uint32_t preserve = 0xFFFFFF00U << (byteOffset * 8U);
+                merged = (previous & preserve) | (value >> shift);
+            }
+            result = signExtend32(merged);
         } else if (opcode == 0x23 || opcode == 0x27) {
             std::uint32_t value = 0;
             if (!memory.read32(address, value)) return takeException(ExceptionCode::BusData, effective);
@@ -427,7 +445,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
         break;
     }
     // Integer stores.
-    case 0x28: case 0x29: case 0x2B: case 0x3F: {
+    case 0x28: case 0x29: case 0x2A: case 0x2B: case 0x2E: case 0x3F: {
         const std::uint64_t effective = a + signExtend16(immediate);
         std::uint32_t address = static_cast<std::uint32_t>(effective);
         if (effective > 0xFFFFFFFFULL &&
@@ -453,6 +471,27 @@ bool MipsCpu::stepMemory(Memory& memory) {
         bool stored = false;
         if (opcode == 0x28) stored = memory.write8(address, static_cast<std::uint8_t>(b));
         else if (opcode == 0x29) stored = memory.write16(address, static_cast<std::uint16_t>(b));
+        else if (opcode == 0x2A || opcode == 0x2E) { // SWL / SWR (big-endian)
+            const std::uint32_t aligned = address & ~3U;
+            std::uint32_t previous = 0;
+            if (!memory.read32(aligned, previous))
+                return takeException(ExceptionCode::BusData, effective);
+            const unsigned byteOffset = address & 3U;
+            std::uint32_t merged = 0;
+            if (opcode == 0x2A) {
+                const unsigned shift = byteOffset * 8U;
+                const std::uint32_t preserve = byteOffset == 0U ? 0U :
+                    (0xFFFFFFFFU << ((4U - byteOffset) * 8U));
+                merged = (previous & preserve) |
+                         (static_cast<std::uint32_t>(b) >> shift);
+            } else {
+                const unsigned shift = (3U - byteOffset) * 8U;
+                const std::uint32_t preserve = 0x00FFFFFFU >> (byteOffset * 8U);
+                merged = (previous & preserve) |
+                         (static_cast<std::uint32_t>(b) << shift);
+            }
+            stored = memory.write32(aligned, merged);
+        }
         else if (opcode == 0x2B) stored = memory.write32(address, static_cast<std::uint32_t>(b));
         else stored = memory.write64(address, b);
         if (!stored) return takeException(ExceptionCode::BusData, effective);
