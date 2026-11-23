@@ -1247,6 +1247,39 @@ void testCpuCop0RequiresKernelPrivilege() {
             "ERL forces kernel privilege for MFC0");
 }
 
+void testCpuCop0PrivilegedOperationsRequireKernelPrivilege() {
+    const std::uint32_t instructions[] = {
+        0x42000008U, // TLBP
+        0x42000001U, // TLBR
+        0x42000002U, // TLBWI
+        0x42000006U, // TLBWR
+        0x42000018U  // ERET
+    };
+    const std::uint64_t userAndSupervisorModes[] = {
+        2ULL << 3U,
+        1ULL << 3U
+    };
+    for (const std::uint32_t instruction : instructions) {
+        for (const std::uint64_t status : userAndSupervisorModes) {
+            N64Machine machine;
+            require(machine.bus().write32(0U, instruction),
+                    "write privileged COP0 operation");
+            auto& cpu = machine.cpu();
+            cpu.reset(0xFFFFFFFF80000000ULL);
+            require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, status),
+                    "set non-kernel mode for privileged COP0 operation");
+            require(machine.runCpuInstructions(1U) == 0U,
+                    "non-kernel COP0 operation is not executed");
+            require(cpu.hasLastException() && cpu.lastExceptionCode() == 11U,
+                    "non-kernel COP0 operation raises Coprocessor Unusable");
+            require(cpu.pc() == 0xFFFFFFFF80000180ULL,
+                    "non-kernel COP0 operation enters general exception vector");
+            require(((cpu.cp0().read(m64plus::n64::Cp0::kCause) >> 2U) & 0x1FULL) == 11U,
+                    "non-kernel COP0 operation records exception code 11");
+        }
+    }
+}
+
 void testCpuCop0TlbInstructionsWriteProbeAndReadEntry() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -2318,6 +2351,7 @@ int main() {
     testCpuEretReturnsToBranchAfterDelaySlotException();
     testCpuRejectsInvalidCop0ReservedFields();
     testCpuCop0RequiresKernelPrivilege();
+    testCpuCop0PrivilegedOperationsRequireKernelPrivilege();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
     testMachineOwnsAndProcessesRdpState();
