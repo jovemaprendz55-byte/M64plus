@@ -957,10 +957,10 @@ void testFillRectangleRejectsOutOfRangeWithoutPartialWrites() {
             "seed final two RDRAM words before invalid fill");
 
     const std::uint64_t commands[] = {
-        (0x3FULL << 56U) | (3ULL << 51U) | (1ULL << 32U) | base,
+        (0x3FULL << 56U) | (3ULL << 51U) | (2ULL << 32U) | base,
         (0x37ULL << 56U) | 0x11223344ULL,
         (0x2FULL << 56U) | (3ULL << 52U),
-        (0x36ULL << 56U) | (4ULL << 44U) | (4ULL << 12U)
+        (0x36ULL << 56U) | (8ULL << 44U) | (8ULL << 12U)
     };
     for (std::size_t i = 0; i < 4U; ++i)
         require(bus.write64(0xD00U + static_cast<std::uint32_t>(i * 8U), commands[i]),
