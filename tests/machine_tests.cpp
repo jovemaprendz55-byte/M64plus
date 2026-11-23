@@ -223,14 +223,14 @@ void testCpuUnalignedWordMemoryOperations() {
     const std::uint64_t initialRegister = 0xFFFFFFFFAABBCCDDULL;
 
     require(bus.write32(0U, initialMemory), "initialize LWL/LWR memory word");
-    require(bus.write32(4U, 0x89290001U), "write LWL instruction");
+    require(bus.write32(4U, 0x88090001U), "write LWL instruction");
     machine.cpu().reset(0xFFFFFFFF80000004ULL);
     machine.cpu().setRegister(9U, initialRegister);
     require(machine.stepCpu(), "execute LWL at byte offset one");
     require(machine.cpu().reg(9U) == 0x00000000223344DDULL,
             "LWL merges addressed bytes into most significant register bytes");
 
-    require(bus.write32(4U, 0x99290001U), "write LWR instruction");
+    require(bus.write32(4U, 0x98090001U), "write LWR instruction");
     machine.cpu().reset(0xFFFFFFFF80000004ULL);
     machine.cpu().setRegister(9U, initialRegister);
     require(machine.stepCpu(), "execute LWR at byte offset one");
@@ -238,7 +238,7 @@ void testCpuUnalignedWordMemoryOperations() {
             "LWR merges addressed bytes into least significant register bytes");
 
     require(bus.write32(0U, initialMemory), "reset SWL memory word");
-    require(bus.write32(4U, 0xA9290001U), "write SWL instruction");
+    require(bus.write32(4U, 0xA8090001U), "write SWL instruction");
     machine.cpu().reset(0xFFFFFFFF80000004ULL);
     machine.cpu().setRegister(9U, initialRegister);
     require(machine.stepCpu(), "execute SWL at byte offset one");
@@ -247,7 +247,7 @@ void testCpuUnalignedWordMemoryOperations() {
             "SWL stores most significant register bytes and preserves preceding memory");
 
     require(bus.write32(0U, initialMemory), "reset SWR memory word");
-    require(bus.write32(4U, 0xB9290001U), "write SWR instruction");
+    require(bus.write32(4U, 0xB8090001U), "write SWR instruction");
     machine.cpu().reset(0xFFFFFFFF80000004ULL);
     machine.cpu().setRegister(9U, initialRegister);
     require(machine.stepCpu(), "execute SWR at byte offset one");
