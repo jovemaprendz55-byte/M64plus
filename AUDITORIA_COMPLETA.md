@@ -1063,3 +1063,10 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Verifica o número de pixels e a conversão dos canais/alpha do pixel desenhado e do sentinela de fundo.
 - Isso valida a ligação em memória entre escrita do RDP e conversor de framebuffer em teste host. **Ainda não é a ligação JNI/OpenGL da tela Android**: não foi adicionado loop de emulação, chamada JNI para obter pixels nem upload de textura GLES; o triângulo de diagnóstico continua na tela.
 - CI a executar para esta integração.
+
+
+### Correção de linkage do teste RDP/framebuffer
+
+- O primeiro CI da integração RDP → conversor falhou no link de `m64plus_rdp_tests`: o alvo não compilava `framebuffer.cpp`, embora o teste passasse a chamar `RdpFramebuffer::copyToArgb8888`.
+- Adicionado `app/src/main/cpp/n64/framebuffer.cpp` às fontes do alvo `m64plus_rdp_tests` no CMake raiz.
+- A falha era de configuração do alvo de teste, não do código do conversor. A nova execução CI deve validar build, teste e APK.
