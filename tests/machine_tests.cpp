@@ -101,12 +101,12 @@ void testCpuSupervisorSsegUsesTlbForFetchLoadAndStore() {
 
     require(machine.stepCpu(), "install SSEG mapping through TLBWI");
     cpu.setTlbEnabled(true);
-    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
-            "switch to supervisor mode before entering SSEG");
-    require(machine.stepCpu(), "execute JR to supervisor SSEG");
-    require(machine.stepCpu(), "execute JR delay slot");
+    require(machine.stepCpu(), "execute JR to supervisor SSEG in kernel mode");
+    require(machine.stepCpu(), "execute JR delay slot in kernel mode");
     require(cpu.pc() == 0xFFFFFFFFC0001000ULL,
             "JR transfers execution into supervisor SSEG");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
+            "switch to supervisor mode after entering SSEG");
     cpu.setRegister(1U, 0xFFFFFFFFC0000000ULL);
     require(machine.stepCpu(), "supervisor fetches LW through SSEG TLB mapping");
     require(cpu.reg(2U) == 0x12345678U,
