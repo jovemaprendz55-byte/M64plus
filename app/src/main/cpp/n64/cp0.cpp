@@ -52,6 +52,7 @@ bool Cp0::write(unsigned index, std::uint64_t value) noexcept {
         return true;
     case kBadVAddr:
     case kEpc:
+    case kErrorEpc:
         registers_[index] = value;
         return true;
     case kCount:
@@ -140,6 +141,11 @@ std::uint64_t Cp0::raiseException(ExceptionCode code, std::uint64_t instructionP
 }
 
 std::uint64_t Cp0::exceptionReturn() noexcept {
+    if ((registers_[kStatus] & kStatusErl) != 0) {
+        const std::uint64_t target = registers_[kErrorEpc];
+        registers_[kStatus] &= ~kStatusErl;
+        return target;
+    }
     const std::uint64_t target = registers_[kEpc];
     registers_[kStatus] &= ~kStatusExl;
     return target;
