@@ -283,6 +283,40 @@ void testCpuDoublewordMultiplyDivideEdgeCases() {
         "DDIVU returns all-one quotient and original dividend remainder on divide by zero");
 }
 
+void testCpuLoadLinkedStoreConditional() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x200U;
+    constexpr std::uint32_t initial = 0x11223344U;
+    const std::uint32_t program[] = {
+        0xC1090000U, // LL t1,0(t0)
+        0x25290001U, // ADDIU t1,t1,1
+        0xE1090000U, // SC t1,0(t0)
+        0xC10A0000U, // LL t2,0(t0)
+        0x240B0055U, // ADDIU t3,zero,0x55
+        0xAD0B0000U, // SW t3,0(t0), invalidates reservation
+        0xE10A0000U  // SC t2,0(t0), must fail
+    };
+    for (std::uint32_t i = 0; i < sizeof(program) / sizeof(program[0]); ++i)
+        require(bus.write32(i * 4U, program[i]), "write LL/SC test program");
+    require(bus.write32(dataAddress, initial), "initialize LL/SC target word");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    require(machine.stepCpu(), "LL loads linked word");
+    require(machine.cpu().reg(9U) == initial, "LL sign-extends loaded 32-bit word");
+    require(machine.stepCpu(), "modify loaded value before SC");
+    require(machine.stepCpu(), "SC succeeds with matching reservation");
+    std::uint32_t value = 0;
+    require(bus.read32(dataAddress, value) && value == initial + 1U, "successful SC writes modified value");
+    require(machine.cpu().reg(9U) == 1U, "successful SC writes one to rt");
+    require(machine.stepCpu(), "second LL establishes a new reservation");
+    require(machine.stepCpu(), "prepare value before intervening store");
+    require(machine.stepCpu(), "ordinary SW invalidates reservation");
+    require(machine.stepCpu(), "SC fails after intervening store");
+    require(bus.read32(dataAddress, value) && value == 0x55U, "failed SC leaves intervening store intact");
+    require(machine.cpu().reg(10U) == 0U, "failed SC writes zero to rt");
+}
+
 void testCpuSignedArithmeticAndImmediateComparisons() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -754,6 +788,7 @@ int main() {
     testCpuHiLoMultiplyDivideAndTransfers();
     testCpuDoublewordMultiplyDivide();
     testCpuDoublewordMultiplyDivideEdgeCases();
+    testCpuLoadLinkedStoreConditional();
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
     testCpuUnalignedDoublewordMemoryOperations();
