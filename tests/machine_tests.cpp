@@ -216,6 +216,45 @@ void testCpuSignedArithmeticAndImmediateComparisons() {
             "DADDI overflow raises Integer Overflow exception");
 }
 
+void testCpuUnalignedWordMemoryOperations() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    const std::uint32_t initialMemory = 0x11223344U;
+    const std::uint64_t initialRegister = 0xFFFFFFFFAABBCCDDULL;
+
+    require(bus.write32(0U, initialMemory), "initialize LWL/LWR memory word");
+    require(bus.write32(4U, 0x89290001U), "write LWL instruction");
+    machine.cpu().reset(0xFFFFFFFF80000004ULL);
+    machine.cpu().setRegister(9U, initialRegister);
+    require(machine.stepCpu(), "execute LWL at byte offset one");
+    require(machine.cpu().reg(9U) == 0x00000000223344DDULL,
+            "LWL merges addressed bytes into most significant register bytes");
+
+    require(bus.write32(4U, 0x99290001U), "write LWR instruction");
+    machine.cpu().reset(0xFFFFFFFF80000004ULL);
+    machine.cpu().setRegister(9U, initialRegister);
+    require(machine.stepCpu(), "execute LWR at byte offset one");
+    require(machine.cpu().reg(9U) == 0xFFFFFFFFAABB1122ULL,
+            "LWR merges addressed bytes into least significant register bytes");
+
+    require(bus.write32(0U, initialMemory), "reset SWL memory word");
+    require(bus.write32(4U, 0xA9290001U), "write SWL instruction");
+    machine.cpu().reset(0xFFFFFFFF80000004ULL);
+    machine.cpu().setRegister(9U, initialRegister);
+    require(machine.stepCpu(), "execute SWL at byte offset one");
+    std::uint32_t stored = 0;
+    require(bus.read32(0U, stored) && stored == 0x11AABBCCU,
+            "SWL stores most significant register bytes and preserves preceding memory");
+
+    require(bus.write32(0U, initialMemory), "reset SWR memory word");
+    require(bus.write32(4U, 0xB9290001U), "write SWR instruction");
+    machine.cpu().reset(0xFFFFFFFF80000004ULL);
+    machine.cpu().setRegister(9U, initialRegister);
+    require(machine.stepCpu(), "execute SWR at byte offset one");
+    require(bus.read32(0U, stored) && stored == 0xCCDD3344U,
+            "SWR stores least significant register bytes and preserves following memory");
+}
+
 void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -492,6 +531,7 @@ int main() {
     testCpuProgramsPiDmaAndExecutesCartridgePayload();
     testCpuHiLoMultiplyDivideAndTransfers();
     testCpuSignedArithmeticAndImmediateComparisons();
+    testCpuUnalignedWordMemoryOperations();
     testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget();
     testCpuRunnerStopsWhenInstructionRaisesException();
     testCartridgeHleBootInitializesRdramDmemAndCpuState();
