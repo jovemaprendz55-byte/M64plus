@@ -1533,12 +1533,15 @@ void testCp0RandomCyclesWithinWiredBoundary() {
     require(cp0.read(m64plus::n64::Cp0::kRandom) == 30U,
             "Random decrements from 31 to 30");
     cp0.tick();
+    require(cp0.read(m64plus::n64::Cp0::kRandom) == 29U,
+            "Random reaches the Wired boundary before wrapping");
+    cp0.tick();
     require(cp0.read(m64plus::n64::Cp0::kRandom) == 31U,
-            "Random wraps to 31 when it reaches Wired boundary");
+            "Random wraps to 31 on the tick after reaching Wired");
 
     require(cp0.write(m64plus::n64::Cp0::kWired, 0U),
             "set Wired to zero");
-    for (unsigned i = 0; i < 31U; ++i) cp0.tick();
+    for (unsigned i = 0; i < 32U; ++i) cp0.tick();
     require(cp0.read(m64plus::n64::Cp0::kRandom) == 31U,
             "Random cycles through entries 31 to 1 when Wired is zero");
 
