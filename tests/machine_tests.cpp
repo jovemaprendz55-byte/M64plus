@@ -1596,12 +1596,39 @@ void testCp0CountCompareTimerInterrupt() {
             "masked timer pending bit does not request an interrupt");
 }
 
+
+void testCpuEretRestoresExceptionReturnAddress() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint64_t initialPc = 0xFFFFFFFF80001000ULL;
+    require(bus.write32(0x1000U, 0xFFFFFFFFU),
+            "place reserved instruction at exception return address");
+    require(bus.write32(0x0180U, 0x42000018U),
+            "place ERET at general exception vector");
+
+    machine.cpu().reset(initialPc);
+    require(machine.stepCpu(), "CPU takes reserved-instruction exception");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+            "reserved instruction enters general exception vector");
+    require(machine.cpu().cp0().read(m64plus::n64::Cp0::kEpc) == initialPc,
+            "exception handler receives original instruction address in EPC");
+    require(machine.cpu().cp0().exceptionLevel(),
+            "exception entry sets CP0 EXL");
+
+    require(machine.stepCpu(), "exception handler executes ERET");
+    require(machine.cpu().pc() == initialPc,
+            "ERET restores execution to EPC");
+    require(!machine.cpu().cp0().exceptionLevel(),
+            "ERET clears CP0 EXL");
+}
+
 } // namespace
 
 int main() {
     testTlbPairedPagesAsidGlobalAndPermissions();
     testCp0RandomCyclesWithinWiredBoundary();
     testCp0CountCompareTimerInterrupt();
+    testCpuEretRestoresExceptionReturnAddress();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
     testMachineOwnsAndProcessesRdpState();
