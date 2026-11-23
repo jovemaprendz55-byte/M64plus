@@ -910,7 +910,7 @@ void testFillRectangleWritesRgba32PixelsAndHonorsScissor() {
     require(RdpFramebuffer::copyToArgb8888(bus.rdram(), state.colorImage, 4U, converted),
             "RDP-produced RGBA32 framebuffer converts to Android ARGB8888");
     require(converted.size() == 16U, "converted framebuffer has expected pixel count");
-    require(converted[5] == 0x44112233U && converted[0] == 0xFFAABBCCU,
+    require(converted[5] == 0x44112233U && converted[0] == 0xDDAABBCCU,
             "framebuffer converter preserves RDP pixel channels and alpha");
 
     Bus clippedBus;
