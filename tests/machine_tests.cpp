@@ -317,6 +317,41 @@ void testCpuLoadLinkedStoreConditional() {
     require(machine.cpu().reg(10U) == 0U, "failed SC writes zero to rt");
 }
 
+
+void testCpuDoublewordLoadLinkedStoreConditional() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x280U;
+    constexpr std::uint64_t initial = 0x1122334455667788ULL;
+    const std::uint32_t program[] = {
+        0xD1090000U, // LLD t1,0(t0)
+        0xF1090000U, // SCD t1,0(t0)
+        0xD10A0000U, // LLD t2,0(t0)
+        0x240B0055U, // ADDIU t3,zero,0x55
+        0xAD0B0000U, // SW t3,0(t0), invalidates reservation
+        0xF10A0000U  // SCD t2,0(t0), must fail
+    };
+    for (std::uint32_t i = 0; i < sizeof(program) / sizeof(program[0]); ++i)
+        require(bus.write32(i * 4U, program[i]), "write LLD/SCD test program");
+    require(bus.write64(dataAddress, initial), "initialize LLD/SCD target doubleword");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    require(machine.stepCpu(), "LLD loads linked doubleword");
+    require(machine.cpu().reg(9U) == initial, "LLD loads full 64-bit value");
+    require(machine.stepCpu(), "SCD succeeds with matching 64-bit reservation");
+    std::uint64_t value = 0;
+    require(bus.read64(dataAddress, value) && value == initial,
+            "successful SCD writes the reserved doubleword");
+    require(machine.cpu().reg(9U) == 1U, "successful SCD writes one to rt");
+    require(machine.stepCpu(), "second LLD establishes a reservation");
+    require(machine.stepCpu(), "prepare value before intervening store");
+    require(machine.stepCpu(), "ordinary SW invalidates 64-bit reservation");
+    require(machine.stepCpu(), "SCD fails after intervening store");
+    require(bus.read64(dataAddress, value) && value == 0x55U,
+            "failed SCD leaves intervening store intact");
+    require(machine.cpu().reg(10U) == 0U, "failed SCD writes zero to rt");
+}
+
 void testCpuSignedArithmeticAndImmediateComparisons() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -789,6 +824,7 @@ int main() {
     testCpuDoublewordMultiplyDivide();
     testCpuDoublewordMultiplyDivideEdgeCases();
     testCpuLoadLinkedStoreConditional();
+    testCpuDoublewordLoadLinkedStoreConditional();
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
     testCpuUnalignedDoublewordMemoryOperations();
