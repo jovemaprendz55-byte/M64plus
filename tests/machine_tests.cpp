@@ -753,6 +753,7 @@ int main() {
     testCpuProgramsPiDmaAndExecutesCartridgePayload();
     testCpuHiLoMultiplyDivideAndTransfers();
     testCpuDoublewordMultiplyDivide();
+    testCpuDoublewordMultiplyDivideEdgeCases();
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
     testCpuUnalignedDoublewordMemoryOperations();
