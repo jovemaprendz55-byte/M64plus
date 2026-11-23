@@ -119,15 +119,16 @@ bool MipsCpu::stepMemory(Memory& memory) {
         switch (function) {
         case 0x00: result = signExtend32(static_cast<std::uint32_t>(b) << shift); break;
         case 0x10: result = hi_; break; // MFHI
-        case 0x11: hi_ = a; writeRegister = false; break; // MTHI
+        case 0x11: hi_ = a; destination = 0; writeRegister = false; break; // MTHI
         case 0x12: result = lo_; break; // MFLO
-        case 0x13: lo_ = a; writeRegister = false; break; // MTLO
+        case 0x13: lo_ = a; destination = 0; writeRegister = false; break; // MTLO
         case 0x18: { // MULT (signed 32-bit operands)
             const auto product = static_cast<std::int64_t>(static_cast<std::int32_t>(a)) *
                                  static_cast<std::int64_t>(static_cast<std::int32_t>(b));
             const auto bits = static_cast<std::uint64_t>(product);
             hi_ = signExtend32(static_cast<std::uint32_t>(bits >> 32U));
             lo_ = signExtend32(static_cast<std::uint32_t>(bits));
+            destination = 0;
             writeRegister = false;
             break;
         }
@@ -156,6 +157,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
             }
             lo_ = signExtend32(static_cast<std::uint32_t>(quotient));
             hi_ = signExtend32(static_cast<std::uint32_t>(remainder));
+            destination = 0;
             writeRegister = false;
             break;
         }
@@ -166,6 +168,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
             const std::uint32_t remainder = divisor == 0U ? dividend : dividend % divisor;
             lo_ = signExtend32(quotient);
             hi_ = signExtend32(remainder);
+            destination = 0;
             writeRegister = false;
             break;
         }
