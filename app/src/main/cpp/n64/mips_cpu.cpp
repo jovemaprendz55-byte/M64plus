@@ -152,6 +152,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
               function == 0x23 || function == 0x24 || function == 0x25 ||
               function == 0x26 || function == 0x27 || function == 0x2A ||
               function == 0x2B || function == 0x2C || function == 0x2D ||
+              function == 0x0A || function == 0x0B ||
               function == 0x2E || function == 0x2F) && shift != 0U))
             return takeException(ExceptionCode::ReservedInstruction);
         destination = rd;
@@ -175,6 +176,16 @@ bool MipsCpu::stepMemory(Memory& memory) {
         case 0x12: result = lo_; break; // MFLO
         case 0x0C: return takeException(ExceptionCode::Syscall); // SYSCALL
         case 0x0D: return takeException(ExceptionCode::Breakpoint); // BREAK
+        case 0x0A: // MOVZ: move when rt is zero.
+            result = a;
+            if (b == 0U) writeRegister = true;
+            else destination = 0;
+            break;
+        case 0x0B: // MOVN: move when rt is nonzero.
+            result = a;
+            if (b != 0U) writeRegister = true;
+            else destination = 0;
+            break;
         case 0x13: lo_ = a; destination = 0; writeRegister = false; break; // MTLO
         case 0x18: { // MULT (signed 32-bit operands)
             const auto product = static_cast<std::int64_t>(static_cast<std::int32_t>(a)) *
