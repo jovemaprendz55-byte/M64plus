@@ -47,7 +47,7 @@ Ainda não é um emulador capaz de executar jogos comerciais de ponta a ponta. F
 ### 3.2 Ausente ou incompleto
 - Gerenciamento completo de HI/LO ainda exige validação arquitetural mais ampla; DMULT/DMULTU/DDIV/DDIVU foram implementadas, mas não completam todo o conjunto MIPS III.
 - Acessos desalinhados LWL/LWR/SWL/SWR e LDL/LDR/SDL/SDR implementados; testes cobrem todos os deslocamentos possíveis e acessos fora dos limites da RDRAM (BusData), incluindo preservação do registrador de destino e da última palavra válida.
-- LL/SC e mecanismo de reservation/LLbit.
+- LL/SC de 32 bits implementados com reserva local; ainda faltam LLD/SCD e invalidação da reserva por escritas externas (RSP/DMA/outros agentes).
 - Instruções branch-likely: BEQL, BNEL, BLEZL, BGTZL, BLTZL, BGEZL, BLTZALL e BGEZALL.
 - SYSCALL e BREAK da CPU, além de outras instruções do conjunto.
 - COP1/FPU e suas instruções de memória/transferência/operações.
@@ -1359,4 +1359,17 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - A execução anterior [45139431074](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45139431074) falhou porque a suíte de limites havia sido adicionada em um commit separado e ainda não estava registrada no executável de testes; a chamada foi adicionada no commit seguinte, e a suíte passou na execução 45139444462.
 
 **Limitações:** ainda faltam suites independentes de conformidade MIPS III/VR4300, instruções restantes do conjunto, COP1/FPU, LL/SC, branch-likely e validação em software real. A aprovação dos testes não comprova compatibilidade com ROMs comerciais.
+
+### 17.24 — LL/SC de 32 bits e reserva local (23/11/2026)
+
+- Adicionada reserva local na CPU, com endereço físico da palavra carregada.
+- `LL` (opcode `0x30`) lê uma palavra alinhada, faz sign-extension para 64 bits e registra a reserva.
+- `SC` (opcode `0x38`) grava a palavra somente se existir reserva para o mesmo endereço físico; escreve 1 em `rt` quando tem sucesso e 0 quando falha. A reserva é consumida pela tentativa de SC.
+- Stores comuns executados pela CPU invalidam a reserva; reset e exceções também a limpam.
+- Teste `testCpuLoadLinkedStoreConditional` cobre SC bem-sucedido, resultado em rt, e falha após um SW interveniente, garantindo que o SC falho não sobrescreve a memória.
+- Arquivos: `app/src/main/cpp/n64/mips_cpu.h`, `mips_cpu.cpp` e `tests/machine_tests.cpp`.
+- Commits: estado de reserva `41964de2e3ccbefd7b44a07633eb081d90e44c13`; execução `31a76d7116d00c9444d656a339c6fe2e7e34be0e`; testes `b3b9dc046eacd185cc4f0e8182752722b4753635`.
+- **Validação nativa:** workflow [45139950332](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45139950332), `native-host-tests` concluiu com sucesso; `assemble-debug` estava em andamento no momento do registro.
+
+**Limitações importantes:** implementação inicial cobre apenas LL/SC de 32 bits. Ainda não há LLD/SCD de 64 bits. A reserva só é invalidada por stores executados pela própria CPU; escritas de DMA, RSP ou outros agentes do barramento ainda não notificam a CPU. O endereço reservado é comparado exatamente, sem modelar a granularidade interna de reserva do VR4300. Portanto, é um primeiro suporte funcional para testes sintéticos, não conformidade completa com a arquitetura.
 
