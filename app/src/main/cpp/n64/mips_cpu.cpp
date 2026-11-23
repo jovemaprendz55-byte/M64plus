@@ -452,7 +452,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
     case 0x0F: destination = rt; result = signExtend32(static_cast<std::uint32_t>(immediate) << 16U); writeRegister = true; break;
     // Integer loads use the selected physical memory interface; optional TLB
     // translation is applied before the bus or RDRAM access.
-    case 0x1A: case 0x1B: case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27: case 0x30: case 0x37: {
+    case 0x1A: case 0x1B: case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27: case 0x30: case 0x34: case 0x37: {
         const std::uint64_t effective = a + signExtend16(immediate);
         std::uint32_t address = static_cast<std::uint32_t>(effective);
         if (effective > 0xFFFFFFFFULL &&
@@ -474,7 +474,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
         }
         if ((opcode == 0x21 || opcode == 0x25) && (address & 1U)) return takeException(ExceptionCode::AddressLoad, effective);
         if ((opcode == 0x23 || opcode == 0x27 || opcode == 0x30) && (address & 3U)) return takeException(ExceptionCode::AddressLoad, effective);
-        if (opcode == 0x37 && (address & 7U)) return takeException(ExceptionCode::AddressLoad, effective);
+        if ((opcode == 0x34 || opcode == 0x37) && (address & 7U)) return takeException(ExceptionCode::AddressLoad, effective);
         if (opcode == 0x20 || opcode == 0x24) {
             std::uint8_t value = 0;
             if (!memory.read8(address, value)) return takeException(ExceptionCode::BusData, effective);
@@ -529,13 +529,17 @@ bool MipsCpu::stepMemory(Memory& memory) {
             }
         } else {
             if (!memory.read64(address, result)) return takeException(ExceptionCode::BusData, effective);
+            if (opcode == 0x34) {
+                reservationValid_ = true;
+                reservationAddress_ = address;
+            }
         }
         destination = rt;
         writeRegister = true;
         break;
     }
     // Integer stores.
-    case 0x28: case 0x29: case 0x2A: case 0x2B: case 0x2C: case 0x2D: case 0x2E: case 0x38: case 0x3F: {
+    case 0x28: case 0x29: case 0x2A: case 0x2B: case 0x2C: case 0x2D: case 0x2E: case 0x38: case 0x3C: case 0x3F: {
         const std::uint64_t effective = a + signExtend16(immediate);
         std::uint32_t address = static_cast<std::uint32_t>(effective);
         if (effective > 0xFFFFFFFFULL &&
@@ -557,12 +561,16 @@ bool MipsCpu::stepMemory(Memory& memory) {
         }
         if (opcode == 0x29 && (address & 1U)) return takeException(ExceptionCode::AddressStore, effective);
         if ((opcode == 0x2B || opcode == 0x38) && (address & 3U)) return takeException(ExceptionCode::AddressStore, effective);
-        if (opcode == 0x3F && (address & 7U)) return takeException(ExceptionCode::AddressStore, effective);
+        if ((opcode == 0x3F || opcode == 0x3C) && (address & 7U)) return takeException(ExceptionCode::AddressStore, effective);
         bool stored = false;
-        if (opcode == 0x38) { // SC (32-bit store conditional)
+        if (opcode == 0x38 || opcode == 0x3C) { // SC / SCD
             const bool reservationMatches = reservationValid_ && reservationAddress_ == address;
             reservationValid_ = false;
-            if (reservationMatches) stored = memory.write32(address, static_cast<std::uint32_t>(b));
+            if (reservationMatches) {
+                stored = opcode == 0x38
+                    ? memory.write32(address, static_cast<std::uint32_t>(b))
+                    : memory.write64(address, b);
+            }
             if (reservationMatches && !stored) return takeException(ExceptionCode::BusData, effective);
             destination = rt;
             result = reservationMatches ? 1U : 0U;
@@ -612,8 +620,8 @@ bool MipsCpu::stepMemory(Memory& memory) {
             stored = memory.write64(aligned, merged);
         }
         else stored = memory.write64(address, b);
-        if (opcode != 0x38 && !stored) return takeException(ExceptionCode::BusData, effective);
-        if (opcode != 0x38) reservationValid_ = false;
+        if (opcode != 0x38 && opcode != 0x3C && !stored) return takeException(ExceptionCode::BusData, effective);
+        if (opcode != 0x38 && opcode != 0x3C) reservationValid_ = false;
         break;
     }
     default: return takeException(ExceptionCode::ReservedInstruction);
