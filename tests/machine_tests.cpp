@@ -1246,6 +1246,43 @@ void testCpuCop0TlbInstructionsWriteProbeAndReadEntry() {
             "TLBR restores both EntryLo PFNs and permission bits");
 }
 
+
+void testCpuCop0TlbWriteRandomHonorsWiredBoundary() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    const std::uint32_t program[] = {
+        0x42000006U, // TLBWR
+        0x42000008U  // TLBP
+    };
+    for (std::uint32_t i = 0; i < 2U; ++i)
+        require(bus.write32(i * 4U, program[i]), "write TLBWR program");
+
+    auto& cpu = machine.cpu();
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kWired, 30U),
+            "set Wired boundary to reserve entries 0 through 30");
+    require(cpu.cp0().read(m64plus::n64::Cp0::kRandom) == 31U,
+            "writing Wired resets Random to the first non-wired entry");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryHi, 0x0123402AU),
+            "configure EntryHi for TLBWR");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryLo0,
+                               (0x155ULL << 6U) | 6ULL),
+            "configure even EntryLo for TLBWR");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryLo1,
+                               (0x156ULL << 6U) | 6ULL),
+            "configure odd EntryLo for TLBWR");
+
+    require(machine.stepCpu(), "CPU executes TLBWR");
+    require(cpu.cp0().read(m64plus::n64::Cp0::kRandom) == 30U,
+            "Random advances but never enters the Wired range");
+
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryHi, 0x0123402AU),
+            "restore matching EntryHi before probing TLBWR result");
+    require(machine.stepCpu(), "CPU probes the entry installed by TLBWR");
+    require(cpu.cp0().read(m64plus::n64::Cp0::kIndex) == 31U,
+            "TLBWR installs its entry at Random index 31 above Wired");
+}
+
 void testMachineDoesNotRetryUnsupportedRspInstruction() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -1486,6 +1523,7 @@ void testHleBootDetectsCicAndPalRegionFromRom() {
 int main() {
     testTlbPairedPagesAsidGlobalAndPermissions();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
+    testCpuCop0TlbWriteRandomHonorsWiredBoundary();
     testMachineOwnsAndProcessesRdpState();
     testCpuKsegDirectMappingWithoutTlb();
     testCpuFetchesAndExecutesFromCartridgeKseg1();
