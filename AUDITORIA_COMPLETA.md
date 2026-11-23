@@ -46,8 +46,7 @@ Ainda não é um emulador capaz de executar jogos comerciais de ponta a ponta. F
 
 ### 3.2 Ausente ou incompleto
 - Operações de 64 bits DMULT/DDIV e gerenciamento completo de HI/LO.
-- LWL/LWR/SWL/SWR.
-- LWL/LWR/SWL/SWR.
+- LDL/LDR/SDL/SDR.
 - LDL/LDR/SDL/SDR.
 - LL/SC e mecanismo de reservation/LLbit.
 - Instruções branch-likely: BEQL, BNEL, BLEZL, BGTZL, BLTZL, BGEZL, BLTZALL e BGEZALL.
@@ -61,7 +60,7 @@ Ainda não é um emulador capaz de executar jogos comerciais de ponta a ponta. F
 - Adicionadas SLTI e SLTIU, preservando a extensão de sinal do imediato antes da comparação unsigned.
 - Teste de integração cobre resultados básicos de ADDI, DADDI, DADD, DSUB, SLTI/SLTIU e casos de overflow de ADDI/DADDI.
 - Commit de implementação: `d06bbe36444097e756e68a9bfeb610688819cc51`; commit de testes: `295a9e97ec2b35c371c968ba23c1c6caecd0c621`.
-- CI dessas alterações ainda precisa concluir antes de declarar build/testes aprovados.
+- CI da etapa aritmética: workflow [45133838344](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45133838344), commit `7c66249b4d73e6d6baa5b28f6e5bc978812247f4`; `native-host-tests` e `assemble-debug` concluíram com sucesso.
 
 ### 3.3 Defeitos e lacunas confirmados
 1. **Mapeamento KSEG0/KSEG1 — CORRIGIDO em 2026-11-21:** a CPU agora aplica a tradução direta desses segmentos mesmo quando `tlbEnabled_` está desativado, tanto na busca de instruções quanto em loads/stores. Foi adicionado teste de regressão que executa código via KSEG0 e grava em memória via KSEG1. Commits: `b71d413` (correção) e `f83f4a0` (teste). O workflow Android foi iniciado; resultado ainda pendente no momento desta atualização.
@@ -1310,4 +1309,17 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Arquivos: `app/src/main/cpp/n64/mips_cpu.cpp` e `tests/machine_tests.cpp`.
 - **CI:** a primeira execução do teste estendido falhou porque o loop executava 22 das 23 instruções do programa de teste, deixando `DSLLV` sem executar. O limite foi corrigido no commit `77a1b9d5005a8303a4b2e818dcf83f08928d41e9`. A nova validação está no workflow [45133498923](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45133498923), ainda pendente na última consulta. Não considerar esta etapa aprovada até `native-host-tests` e `assemble-debug` terminarem com sucesso.
 
-**Limitação:** esta etapa implementa deslocamentos aritméticos/lógicos, mas ainda não cobre o conjunto MIPS III completo. Em particular, COP1/FPU, acessos desalinhados, overflow e outras instruções de 64 bits ainda exigem trabalho e validação.
+**Limitação:** esta etapa implementa deslocamentos aritméticos/lógicos, mas ainda não cobre o conjunto MIPS III completo. Em particular, COP1/FPU, acessos desalinhados e outras instruções de 64 bits ainda exigem trabalho e validação.
+
+
+### 17.21 — Acessos desalinhados de palavra em big-endian (23/11/2026)
+
+- Implementadas as instruções MIPS `LWL`, `LWR`, `SWL` e `SWR` no núcleo CPU.
+- As operações alinham a leitura/escrita física para a palavra de 32 bits e combinam os bytes com o registrador ou com a palavra já existente na memória, respeitando o sentido big-endian do Nintendo 64.
+- O caminho usa o endereço já traduzido pelo TLB/KSEG e preserva a exceção de barramento quando a leitura ou escrita da palavra alinhada falha.
+- Criado teste de integração `testCpuUnalignedWordMemoryOperations` com valores conhecidos, verificando as quatro operações em offset 1 e a preservação dos bytes que não devem ser alterados.
+- Arquivos alterados: `app/src/main/cpp/n64/mips_cpu.cpp` e `tests/machine_tests.cpp`.
+- Commits: implementação `bc46d83bf1917fcf5103b5c356118725c25dd22f`; testes `fd81dc4116cc0a98e42ce1489a6e451970d3cf6a`.
+- CI desta etapa ainda precisa concluir. Não declarar os testes/build aprovados até os jobs `native-host-tests` e `assemble-debug` terminarem com sucesso.
+
+**Limitação:** os acessos de palavra desalinhados foram implementados e têm testes direcionados; as variantes de 64 bits `LDL/LDR/SDL/SDR` continuam ausentes. A cobertura dos quatro opcodes ainda deve ser ampliada para todos os offsets e casos de fronteira de memória.
