@@ -92,7 +92,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
         return takeException(ExceptionCode::AddressLoad, pc_);
     // KSEG0/KSEG1 are unmapped segments: their direct mapping applies even
     // while the software-managed TLB is disabled.
-    if (tlbEnabled_ || pcInDirectSegment) {
+    if (tlbEnabled_ || pcInDirectSegment || pcInSupervisorSegment || pcInKernelSegment3) {
         std::uint32_t translated = 0;
         const auto result = tlb_.translate(pc_, static_cast<std::uint8_t>(
             cp0_.read(Cp0::kEntryHi) & 0xFFU), false, translated);
@@ -596,7 +596,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
             return takeException(ExceptionCode::AddressLoad, effective);
         if (inSupervisorSegment && !cp0_.supervisorMode())
             return takeException(ExceptionCode::AddressLoad, effective);
-        if (tlbEnabled_ || inDirectSegment) {
+        if (tlbEnabled_ || inDirectSegment || inSupervisorSegment || inKernelSegment3) {
             std::uint32_t translated = 0;
             const auto translation = tlb_.translate(effective, static_cast<std::uint8_t>(
                 cp0_.read(Cp0::kEntryHi) & 0xFFU), false, translated);
@@ -691,7 +691,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
             return takeException(ExceptionCode::AddressStore, effective);
         if (inSupervisorSegment && !cp0_.supervisorMode())
             return takeException(ExceptionCode::AddressStore, effective);
-        if (tlbEnabled_ || inDirectSegment) {
+        if (tlbEnabled_ || inDirectSegment || inSupervisorSegment || inKernelSegment3) {
             std::uint32_t translated = 0;
             const auto translation = tlb_.translate(effective, static_cast<std::uint8_t>(
                 cp0_.read(Cp0::kEntryHi) & 0xFFU), true, translated);
