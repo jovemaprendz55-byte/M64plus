@@ -371,6 +371,10 @@ bool MipsCpu::stepMemory(Memory& memory) {
     case 0x04: case 0x05: case 0x06: case 0x07:
     case 0x14: case 0x15: case 0x16: case 0x17:
         if (inDelaySlot) return takeException(ExceptionCode::ReservedInstruction);
+        // BLEZ/BGTZ and their likely variants require rt == 0 in the encoding.
+        if ((opcode == 0x06 || opcode == 0x07 || opcode == 0x16 || opcode == 0x17) &&
+            rt != 0U)
+            return takeException(ExceptionCode::ReservedInstruction);
         if (opcode == 0x04 || opcode == 0x05 || opcode == 0x14 || opcode == 0x15) {
             const bool equal = a == b;
             const bool equalBranch = opcode == 0x04 || opcode == 0x14;
