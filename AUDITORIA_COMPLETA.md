@@ -1195,3 +1195,16 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Workflow [#45117535128](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45117535128): testes nativos passaram; assemble-debug ainda estava em andamento no momento do registro.
 - Referências técnicas para validar o contrato: Nintendo 64 Programming Manual, Boot Procedure: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro06/06-10.html ; mapa e boot sequence: https://reverseengineering.wiki/index.php/Platform%3ANintendo_64 ; formato do cabeçalho e offsets: https://reverseengineering.wiki/index.php/Format%3ANintendo_64_ROM_image
 - **Limitações explícitas:** não executa PIF ROM nem autenticação CIC; não calcula CRC1/CRC2; perfil fixo NTSC/CIC-6102, não detecta PAL/MPAL ou variantes CIC; IPL2 version e alguns registradores ainda são provisórios; não há inicialização completa de cache/RDRAM/RI, nem compatibilidade comprovada com jogos comerciais. Este é um HLE inicial para testes, não boot geral garantido.
+
+
+## 17.15 Identificação de CIC e região no boot HLE (2026-11-23)
+
+- Criado módulo n64/cic.h e n64/cic.cpp para somar os 1008 words (0xFC0 bytes) da IPL3 iniciando em ROM offset 0x40 e identificar os IDs conhecidos: 5101, X101, X102, X103, X105, X106, 5167, 8303, 8401 e 8501. A soma usa interpretação little-endian explícita, correspondente ao comportamento de referência em hosts x86; desconhecidos usam fallback de seed 0x3F (CIC-6102), com recognized=false.
+- Mapeamento de seeds: 5101 AC; X101/X102 3F; X103 78; X105 91; X106 85; 5167/8303/8401 DD; 8501 DE. IDs publicados em osCicId apenas para X103=6103, X105=6105 e X106=6104.
+- Região é lida do byte 0x3E do cabeçalho: PAL=0, NTSC=1, MPAL=2. Países não reconhecidos caem em NTSC provisório.
+- bootCartridgeHle agora detecta CIC e TV type antes de reset, inicializa s4/s6 e publica o osCicId quando aplicável.
+- Teste sintético CIC-X103 + região PAL verifica seed 0x78, osCicId 6103 e tvType 0.
+- Referências: https://github.com/mupen64plus/mupen64plus-core/blob/902bc60f561570bb3480d76910258b9afa10bafd/src/device/pif/cic.c ; https://reverseengineering.wiki/index.php/Format:Nintendo_64_ROM_image ; https://reverseengineering.wiki/index.php/Platform:Nintendo_64
+- O primeiro fixture sintético de teste falhou porque somou incorretamente dois words em vez de representar o valor de 64 bits como soma de words de 32 bits. A fixture foi corrigida distribuindo a soma alvo em words de 32 bits; não houve alteração no algoritmo de detecção.
+- Workflow [#45117880253](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45117880253): build e execução dos testes nativos passaram após a correção do fixture; assemble-debug ainda estava em andamento no momento do registro.
+- Limitações: soma little-endian precisa ser confrontada com ROMs reais de várias famílias CIC; identificação não executa a autenticação PIF/CIC nem verifica o hash de boot do IPL3; não calcula CRC1/CRC2; região por country code é uma aproximação e ainda precisa de matriz completa validada.
