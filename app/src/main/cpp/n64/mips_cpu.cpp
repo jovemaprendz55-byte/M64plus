@@ -6,7 +6,9 @@
 #include <cstdint>
 namespace m64plus::n64 {
 namespace {
-std::uint64_t memoryWriteEpoch(const Rdram&) noexcept { return 0; }
+std::uint64_t memoryWriteEpoch(const Rdram& memory) noexcept {
+    return memory.writeEpoch();
+}
 std::uint64_t memoryWriteEpoch(const Bus& memory) noexcept {
     return memory.rdramWriteEpoch();
 }
