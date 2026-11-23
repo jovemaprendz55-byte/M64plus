@@ -93,6 +93,39 @@ void testCpuFetchesAndExecutesFromCartridgeKseg1() {
             "CPU PC advances inside KSEG1 cartridge window");
 }
 
+
+void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    const std::uint32_t program[] = {
+        0x24080001U, // ADDIU t0,zero,1
+        0x25080001U, // ADDIU t0,t0,1
+        0x25080001U, // ADDIU t0,t0,1
+        0x25080001U  // ADDIU t0,t0,1
+    };
+    for (std::uint32_t i = 0; i < 4U; ++i)
+        require(bus.write32(i * 4U, program[i]), "load bounded CPU runner program");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    require(machine.runCpuInstructions(0U) == 0U,
+            "zero CPU instruction budget executes nothing");
+    require(machine.cpu().instructionsExecuted() == 0U,
+            "zero budget leaves CPU instruction counter unchanged");
+    require(machine.runCpuInstructions(2U) == 2U,
+            "CPU runner executes exactly the requested first slice");
+    require(machine.cpu().reg(8U) == 2U &&
+            machine.cpu().pc() == 0xFFFFFFFF80000008ULL,
+            "first CPU slice advances state by two instructions");
+    require(machine.runCpuInstructions(1U) == 1U,
+            "CPU runner executes the next bounded slice");
+    require(machine.cpu().reg(8U) == 3U &&
+            machine.cpu().pc() == 0xFFFFFFFF8000000CULL,
+            "second CPU slice continues from prior PC");
+    require(machine.runCpuInstructions(1U) == 1U,
+            "CPU runner can execute final instruction in a slice");
+    require(machine.cpu().reg(8U) == 4U,
+            "CPU runner executes final instruction without exceeding budget");
+}
+
 void testMachineDoesNotRetryUnsupportedRspInstruction() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -335,6 +368,7 @@ int main() {
     testCpuKsegDirectMappingWithoutTlb();
     testCpuFetchesAndExecutesFromCartridgeKseg1();
     testCpuProgramsPiDmaAndExecutesCartridgePayload();
+    testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget();
     testCartridgeHleBootInitializesRdramDmemAndCpuState();
     testHleBootDetectsCicAndPalRegionFromRom();
     testMachineDoesNotRetryUnsupportedRspInstruction();
