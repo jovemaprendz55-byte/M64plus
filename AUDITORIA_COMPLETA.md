@@ -1122,3 +1122,6 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - O primeiro CI do commit do cabeçalho detectou que os novos valores `BusRegion::Cartridge` não estavam tratados nos dois switches de acesso por byte; `-Werror=switch` corretamente interrompeu a compilação.
 - Correção aplicada em `bus.cpp` no commit `96a13c4`: leitura de bytes consulta a ROM carregada e escrita retorna `false` (ROM somente leitura).
 - A execução que revelou o erro: [#45115475958](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45115475958). O CI dos commits posteriores deve confirmar a correção.
+
+
+- **Segunda correção do CI:** a primeira aplicação da correção duplicou os dois `case BusRegion::Cartridge`; o compilador apontou `duplicate case value` no workflow [#45115527953](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45115527953). Duplicatas removidas no commit `ea7de8a`. A validação final segue pendente.
