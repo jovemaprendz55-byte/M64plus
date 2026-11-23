@@ -29,6 +29,8 @@ public:
     static constexpr unsigned kEpc = 14;
     static constexpr unsigned kXContext = 20;
     static constexpr std::uint64_t kStatusExl = 1ULL << 1U;
+    static constexpr std::uint64_t kStatusErl = 1ULL << 2U;
+    static constexpr std::uint64_t kStatusKsuMask = 3ULL << 3U;
     static constexpr std::uint64_t kStatusBev = 1ULL << 22U;
     static constexpr std::uint64_t kStatusIe = 1ULL;
 
@@ -39,6 +41,7 @@ public:
     void tick() noexcept;
     void setExternalInterrupt(bool asserted) noexcept;
     bool interruptRequested() const noexcept;
+    bool kernelMode() const noexcept;
     std::uint64_t raiseException(ExceptionCode code, std::uint64_t instructionPc,
                                  bool inDelaySlot = false,
                                  std::uint64_t badAddress = 0,
