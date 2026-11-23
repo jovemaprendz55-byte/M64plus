@@ -463,7 +463,7 @@ void testCpuBusDataFaultInvalidatesLoadLinkedReservation() {
     N64Machine machine;
     Bus& bus = machine.bus();
     constexpr std::uint32_t dataAddress = 0x300U;
-    constexpr std::uint32_t unmappedAddress = 0x04000000U;
+    constexpr std::uint32_t unmappedAddress = 0x05000000U;
     constexpr std::uint32_t initial = 0x13579BDFU;
     require(bus.write32(0x000U, 0xC10A0000U), "write LL before bus data fault");
     require(bus.write32(0x004U, 0x8D2B0000U), "write LW from unmapped address");
