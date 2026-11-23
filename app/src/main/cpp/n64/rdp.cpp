@@ -12,13 +12,15 @@ std::int16_t signExtend9(std::uint64_t value) noexcept {
         : signedValue;
 }
 
-bool fillRectangle32(Bus& bus, const RdpSyncState& state,
-                      std::uint64_t command) noexcept {
+bool fillRectangle(Bus& bus, const RdpSyncState& state,
+                    std::uint64_t command) noexcept {
     if (!state.hasColorImage || !state.hasFillColor ||
         !state.hasOtherModes || state.otherModes.cycleType != 3U) return false;
     const RdpImageState& image = state.colorImage;
-    // First rendering milestone: only the documented RGBA32 FILL-mode path.
-    if (image.format != 0U || image.size != 3U || image.width == 0U) return false;
+    // FILL-cycle support currently covers RGBA16 and RGBA32 color images.
+    if (image.format != 0U || (image.size != 2U && image.size != 3U) ||
+        image.width == 0U) return false;
+    const std::uint32_t bytesPerPixel = image.size == 2U ? 2U : 4U;
 
     std::uint32_t left = static_cast<std::uint32_t>((command >> 12U) & 0x0FFFU) >> 2U;
     std::uint32_t top = static_cast<std::uint32_t>(command & 0x0FFFU) >> 2U;
@@ -47,8 +49,8 @@ bool fillRectangle32(Bus& bus, const RdpSyncState& state,
             const std::uint64_t pixel =
                 static_cast<std::uint64_t>(y) * image.width + x;
             const std::uint64_t address =
-                static_cast<std::uint64_t>(image.address) + pixel * 4U;
-            if (address + 4U > memorySize) return false;
+                static_cast<std::uint64_t>(image.address) + pixel * bytesPerPixel;
+            if (address + bytesPerPixel > memorySize) return false;
         }
     }
     for (std::uint32_t y = top; y <= bottom; ++y) {
@@ -56,12 +58,20 @@ bool fillRectangle32(Bus& bus, const RdpSyncState& state,
             const std::uint64_t pixel =
                 static_cast<std::uint64_t>(y) * image.width + x;
             const std::uint32_t address = static_cast<std::uint32_t>(
-                static_cast<std::uint64_t>(image.address) + pixel * 4U);
-            if (!bus.write8(address, static_cast<std::uint8_t>(state.fillColor >> 24U)) ||
-                !bus.write8(address + 1U, static_cast<std::uint8_t>(state.fillColor >> 16U)) ||
-                !bus.write8(address + 2U, static_cast<std::uint8_t>(state.fillColor >> 8U)) ||
-                !bus.write8(address + 3U, static_cast<std::uint8_t>(state.fillColor)))
+                static_cast<std::uint64_t>(image.address) + pixel * bytesPerPixel);
+            if (bytesPerPixel == 2U) {
+                // In 16-bit fill mode the 32-bit fill color repeats its
+                // upper and lower halfwords across successive pixels.
+                const std::uint16_t value = (pixel & 1U) == 0U
+                    ? static_cast<std::uint16_t>(state.fillColor >> 16U)
+                    : static_cast<std::uint16_t>(state.fillColor);
+                if (!bus.write16(address, value)) return false;
+            } else if (!bus.write8(address, static_cast<std::uint8_t>(state.fillColor >> 24U)) ||
+                       !bus.write8(address + 1U, static_cast<std::uint8_t>(state.fillColor >> 16U)) ||
+                       !bus.write8(address + 2U, static_cast<std::uint8_t>(state.fillColor >> 8U)) ||
+                       !bus.write8(address + 3U, static_cast<std::uint8_t>(state.fillColor))) {
                 return false;
+            }
         }
     }
     return true;
@@ -635,7 +645,7 @@ RdpProcessResult RdpCommandProcessor::processNext(
         return RdpProcessResult::Processed;
     }
     case 0x36U: // FILL_RECTANGLE
-        return fillRectangle32(bus, state, packet.words[0])
+        return fillRectangle(bus, state, packet.words[0])
             ? RdpProcessResult::Processed : RdpProcessResult::Unsupported;
     case 0x37U: // SET_FILL_COLOR
     case 0x38U: // SET_FOG_COLOR
