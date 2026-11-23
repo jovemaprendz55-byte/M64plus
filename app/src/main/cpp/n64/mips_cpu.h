@@ -30,6 +30,7 @@ private:
     std::uint64_t lo_ = 0;
     bool reservationValid_ = false;
     std::uint32_t reservationAddress_ = 0;
+    std::uint64_t reservationWriteEpoch_ = 0;
     std::uint64_t pc_ = 0;
     std::uint64_t executed_ = 0;
     bool pendingBranch_ = false;
