@@ -1280,6 +1280,31 @@ void testCpuCop0PrivilegedOperationsRequireKernelPrivilege() {
     }
 }
 
+void testCpuMtc0StatusChangesPrivilegeForNextInstruction() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    // MTC0 r8, Status; followed by MFC0 r9, Status.
+    require(bus.write32(0U, 0x40886000U),
+            "write MTC0 Status instruction");
+    require(bus.write32(4U, 0x40096000U),
+            "write MFC0 Status instruction after privilege change");
+    auto& cpu = machine.cpu();
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    cpu.setRegister(8U, 2ULL << 3U); // User mode.
+    require(machine.stepCpu(), "kernel MTC0 changes Status to user mode");
+    require(!cpu.hasLastException(),
+            "kernel MTC0 Status completes without exception");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kStatus) &
+             (3ULL << 3U)) == (2ULL << 3U),
+            "MTC0 Status changes KSU to user mode");
+    require(machine.runCpuInstructions(1U) == 0U,
+            "following MFC0 is blocked after entering user mode");
+    require(cpu.hasLastException() && cpu.lastExceptionCode() == 11U,
+            "following MFC0 raises Coprocessor Unusable");
+    require(cpu.pc() == 0xFFFFFFFF80000180ULL,
+            "following MFC0 enters general exception vector");
+}
+
 void testCpuMtc0WorksInKernelMode() {
     // MTC0 r8, Wired: kernel code may update CP0 state.
     N64Machine machine;
@@ -2399,6 +2424,7 @@ int main() {
     testCpuRejectsInvalidCop0ReservedFields();
     testCpuCop0RequiresKernelPrivilege();
     testCpuCop0PrivilegedOperationsRequireKernelPrivilege();
+    testCpuMtc0StatusChangesPrivilegeForNextInstruction();
     testCpuMtc0WorksInKernelMode();
     testCpuMtc0RequiresKernelPrivilege();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
