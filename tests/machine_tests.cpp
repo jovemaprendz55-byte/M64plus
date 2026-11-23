@@ -2687,7 +2687,7 @@ void testCpuEretRestoresExceptionReturnAddress() {
                   << static_cast<unsigned>(machine.cpu().lastExceptionCode())
                   << " faultPc=0x" << machine.cpu().lastExceptionPc()
                   << " instruction=0x" << machine.cpu().lastExceptionInstruction()
-                  << std::dec << '\\n';
+                  << std::dec << '\n';
     }
     require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
             "reserved instruction enters general exception vector");
