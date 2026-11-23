@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <vector>
 
 using m64plus::n64::Bus;
 using m64plus::n64::N64Machine;
