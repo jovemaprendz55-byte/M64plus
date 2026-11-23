@@ -4,7 +4,7 @@
 **Branch de registro:** `main`  
 **Escopo:** auditoria estática e revisão das implementações já examinadas.  
 **Modo:** auditoria contínua com correções registradas diretamente na `main`.  
-**Status:** auditoria em andamento — este documento consolida os resultados conhecidos até 2026-11-22.
+**Status:** auditoria em andamento — este documento consolida os resultados conhecidos até 2026-11-23.
 
 > Importante: “ausente” significa que não foi encontrada implementação nos arquivos examinados; não equivale a teste em hardware. “Defeito confirmado” refere-se a comportamento identificado no código e confrontado com a arquitetura/documentação. Pontos não resolvidos ficam marcados como investigação pendente.
 
@@ -37,12 +37,16 @@ Ainda não é um emulador capaz de executar jogos comerciais de ponta a ponta. F
 - Exceções com EPC e Cause.BD para instruções em delay slot.
 - Desvios comuns BEQ/BNE/BLEZ/BGTZ e BLTZAL/BGEZAL.
 - Tradução TLB com mapeamento direto KSEG0/KSEG1 implementada na classe TLB.
+- ADDIU/DADDIU e operações lógicas imediatas ANDI/ORI/XORI/LUI.
+- ADD/ADDI/SUB com detecção de overflow de 32 bits; DADD/DADDI/DSUB com detecção de overflow de 64 bits; ADDU/SUBU/DADDU/DSUBU sem trap de overflow.
+- SLT/SLTU e SLTI/SLTIU (comparações imediatas com extensão de sinal correta).
+- HI/LO: MFHI/MTHI/MFLO/MTLO, MULT/MULTU/DIV/DIVU; operações de 64 bits DMULT/DDIV ainda ausentes.
+- Deslocamentos SLL/SRL/SRA, SLLV/SRLV/SRAV e deslocamentos de 64 bits DSLL/DSRL/DSRA, DSLL32/DSRL32/DSRA32 e variantes variáveis.
 - ADDIU revisado: a implementação atual soma em 32 bits e faz sign-extension; o achado anterior de erro foi corrigido na análise e **não deve ser tratado como defeito**.
 
 ### 3.2 Ausente ou incompleto
-- SRA, SLLV, SRLV, SRAV e várias operações de deslocamento de 64 bits.
-- MULT/MULTU/DIV/DIVU, operações de 64 bits DMULT/DDIV e gerenciamento completo de HI/LO.
-- ADD/ADDI/SUB/DADD/DSUB com exceções de overflow.
+- Operações de 64 bits DMULT/DDIV e gerenciamento completo de HI/LO.
+- LWL/LWR/SWL/SWR.
 - LWL/LWR/SWL/SWR.
 - LDL/LDR/SDL/SDR.
 - LL/SC e mecanismo de reservation/LLbit.
@@ -50,6 +54,14 @@ Ainda não é um emulador capaz de executar jogos comerciais de ponta a ponta. F
 - SYSCALL e BREAK da CPU, além de outras instruções do conjunto.
 - COP1/FPU e suas instruções de memória/transferência/operações.
 - Verificações completas de modos de privilégio e extensões de 64 bits.
+
+### 3.2.1 Atualização de implementação — 2026-11-23
+- Adicionadas instruções de deslocamento MIPS de 32 e 64 bits e seus testes direcionados.
+- Adicionadas operações ADD/ADDI/SUB e DADD/DADDI/DSUB com geração de exceção Overflow (ExcCode 12) em overflow assinado.
+- Adicionadas SLTI e SLTIU, preservando a extensão de sinal do imediato antes da comparação unsigned.
+- Teste de integração cobre resultados básicos de ADDI, DADDI, DADD, DSUB, SLTI/SLTIU e casos de overflow de ADDI/DADDI.
+- Commit de implementação: `d06bbe36444097e756e68a9bfeb610688819cc51`; commit de testes: `295a9e97ec2b35c371c968ba23c1c6caecd0c621`.
+- CI dessas alterações ainda precisa concluir antes de declarar build/testes aprovados.
 
 ### 3.3 Defeitos e lacunas confirmados
 1. **Mapeamento KSEG0/KSEG1 — CORRIGIDO em 2026-11-21:** a CPU agora aplica a tradução direta desses segmentos mesmo quando `tlbEnabled_` está desativado, tanto na busca de instruções quanto em loads/stores. Foi adicionado teste de regressão que executa código via KSEG0 e grava em memória via KSEG1. Commits: `b71d413` (correção) e `f83f4a0` (teste). O workflow Android foi iniciado; resultado ainda pendente no momento desta atualização.
