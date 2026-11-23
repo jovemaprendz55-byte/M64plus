@@ -129,12 +129,18 @@ void testCpuHiLoMultiplyDivideAndTransfers() {
         0x01C00011U, // MTHI t6
         0x00007810U, // MFHI t7
         0x01C00013U, // MTLO t6
-        0x00008012U  // MFLO s0
+        0x00008012U, // MFLO s0
+        0x01090019U, // MULTU t0,t1 -> unsigned product 0x00000002FFFFFFEB
+        0x00008812U, // MFLO s1
+        0x00009010U, // MFHI s2
+        0x0109001BU, // DIVU t0,t1 -> quotient 0x55555553, remainder 0
+        0x00009812U, // MFLO s3
+        0x0000A010U  // MFHI s4
     };
-    for (std::uint32_t i = 0; i < 13U; ++i)
+    for (std::uint32_t i = 0; i < 18U; ++i)
         require(bus.write32(i * 4U, program[i]), "load HI/LO arithmetic program");
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
-    for (unsigned i = 0; i < 13U; ++i)
+    for (unsigned i = 0; i < 18U; ++i)
         require(machine.stepCpu(), "execute HI/LO arithmetic instruction");
     require(machine.cpu().reg(10U) == 0xFFFFFFFFFFFFFFEBULL,
             "MULT writes sign-extended product to LO and MFLO reads it");
@@ -148,6 +154,14 @@ void testCpuHiLoMultiplyDivideAndTransfers() {
             "MTHI writes HI and MFHI transfers it to a GPR");
     require(machine.cpu().reg(16U) == 0x1234U,
             "MTLO writes LO and MFLO transfers it to a GPR");
+    require(machine.cpu().reg(17U) == 0xFFFFFFFFFFFFFFEBULL,
+            "MULTU writes the low unsigned product word to LO");
+    require(machine.cpu().reg(18U) == 2U,
+            "MULTU writes the high unsigned product word to HI");
+    require(machine.cpu().reg(19U) == 0x55555553U,
+            "DIVU writes the unsigned quotient to LO");
+    require(machine.cpu().reg(20U) == 0U,
+            "DIVU writes the unsigned remainder to HI");
 }
 
 void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
