@@ -487,6 +487,35 @@ void testCpuBusDataFaultInvalidatesLoadLinkedReservation() {
             "SC reports failure because bus data fault invalidated reservation");
 }
 
+void testCpuBusInstructionFaultInvalidatesLoadLinkedReservation() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x320U;
+    constexpr std::uint32_t initial = 0x2468ACE0U;
+    require(bus.write32(0x000U, 0xC1080000U), "write LL before bus instruction fault");
+    require(bus.write32(0x004U, 0x01200008U), "write JR to unmapped instruction address");
+    require(bus.write32(0x008U, 0x00000000U), "write JR delay-slot NOP");
+    require(bus.write32(0x180U, 0xE1080000U), "write SC at bus instruction exception vector");
+    require(bus.write32(dataAddress, initial), "initialize bus-instruction LL/SC target");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    machine.cpu().setRegister(9U, 0xFFFFFFFF85000000ULL);
+    require(machine.stepCpu(), "LL establishes reservation before bus instruction fault");
+    require(machine.stepCpu(), "JR schedules unmapped instruction address");
+    require(machine.stepCpu(), "JR delay slot executes before instruction fetch fault");
+    require(machine.cpu().hasLastException(), "CPU records bus instruction exception after LL");
+    require(machine.cpu().lastExceptionCode() == 6U,
+            "CPU records Bus Instruction exception code");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000180ULL,
+            "CPU transfers control to bus instruction exception vector");
+    require(machine.stepCpu(), "SC executes at bus instruction vector without reservation");
+    std::uint32_t value = 0;
+    require(bus.read32(dataAddress, value) && value == initial,
+            "SC after bus instruction fault does not modify reserved memory");
+    require(machine.cpu().reg(10U) == 0U,
+            "SC reports failure because bus instruction fault invalidated reservation");
+}
+
 void testCpuSignedArithmeticAndImmediateComparisons() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -964,6 +993,7 @@ int main() {
     testCpuInterruptInvalidatesLoadLinkedReservation();
     testCpuMemoryFaultInvalidatesLoadLinkedReservation();
     testCpuBusDataFaultInvalidatesLoadLinkedReservation();
+    testCpuBusInstructionFaultInvalidatesLoadLinkedReservation();
     testCpuDoublewordLoadLinkedStoreConditional();
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
