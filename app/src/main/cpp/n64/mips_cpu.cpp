@@ -19,6 +19,8 @@ void MipsCpu::reset(std::uint64_t pc) {
     gpr_.fill(0);
     pc_ = pc;
     executed_ = 0;
+    hi_ = 0;
+    lo_ = 0;
     pendingBranch_ = false;
     pendingBranchTarget_ = 0;
     cp0_.reset();
@@ -116,6 +118,57 @@ bool MipsCpu::stepMemory(Memory& memory) {
         destination = rd;
         switch (function) {
         case 0x00: result = signExtend32(static_cast<std::uint32_t>(b) << shift); break;
+        case 0x10: result = hi_; break; // MFHI
+        case 0x11: hi_ = a; writeRegister = false; break; // MTHI
+        case 0x12: result = lo_; break; // MFLO
+        case 0x13: lo_ = a; writeRegister = false; break; // MTLO
+        case 0x18: { // MULT (signed 32-bit operands)
+            const auto product = static_cast<std::int64_t>(static_cast<std::int32_t>(a)) *
+                                 static_cast<std::int64_t>(static_cast<std::int32_t>(b));
+            const auto bits = static_cast<std::uint64_t>(product);
+            hi_ = signExtend32(static_cast<std::uint32_t>(bits >> 32U));
+            lo_ = signExtend32(static_cast<std::uint32_t>(bits));
+            writeRegister = false;
+            break;
+        }
+        case 0x19: { // MULTU (unsigned 32-bit operands)
+            const std::uint64_t product =
+                static_cast<std::uint64_t>(static_cast<std::uint32_t>(a)) *
+                static_cast<std::uint64_t>(static_cast<std::uint32_t>(b));
+            hi_ = signExtend32(static_cast<std::uint32_t>(product >> 32U));
+            lo_ = signExtend32(static_cast<std::uint32_t>(product));
+            writeRegister = false;
+            break;
+        }
+        case 0x1A: { // DIV (signed 32-bit operands)
+            const auto dividend = static_cast<std::int32_t>(a);
+            const auto divisor = static_cast<std::int32_t>(b);
+            std::int32_t quotient = 0;
+            std::int32_t remainder = dividend;
+            if (divisor == 0) {
+                quotient = dividend < 0 ? 1 : -1;
+            } else if (dividend == INT32_MIN && divisor == -1) {
+                quotient = INT32_MIN;
+                remainder = 0;
+            } else {
+                quotient = dividend / divisor;
+                remainder = dividend % divisor;
+            }
+            lo_ = signExtend32(static_cast<std::uint32_t>(quotient));
+            hi_ = signExtend32(static_cast<std::uint32_t>(remainder));
+            writeRegister = false;
+            break;
+        }
+        case 0x1B: { // DIVU (unsigned 32-bit operands)
+            const auto dividend = static_cast<std::uint32_t>(a);
+            const auto divisor = static_cast<std::uint32_t>(b);
+            const std::uint32_t quotient = divisor == 0U ? 0xFFFFFFFFU : dividend / divisor;
+            const std::uint32_t remainder = divisor == 0U ? dividend : dividend % divisor;
+            lo_ = signExtend32(quotient);
+            hi_ = signExtend32(remainder);
+            writeRegister = false;
+            break;
+        }
         case 0x02: result = signExtend32(static_cast<std::uint32_t>(b) >> shift); break;
         case 0x08:
             if (inDelaySlot) return takeException(ExceptionCode::ReservedInstruction);
