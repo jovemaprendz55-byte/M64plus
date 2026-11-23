@@ -112,6 +112,35 @@ void testCpuRunnerStopsWhenInstructionRaisesException() {
             "CPU records Reserved Instruction exception code");
 }
 
+
+void testCpuHiLoMultiplyDivideAndTransfers() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    const std::uint32_t program[] = {
+        0x2408FFF9U, // ADDIU t0,zero,-7
+        0x24090003U, // ADDIU t1,zero,3
+        0x01090018U, // MULT t0,t1 -> -21
+        0x00005012U, // MFLO t2
+        0x00005810U, // MFHI t3
+        0x0109001AU, // DIV t0,t1 -> quotient -2, remainder -1
+        0x00006012U, // MFLO t4
+        0x00006810U  // MFHI t5
+    };
+    for (std::uint32_t i = 0; i < 8U; ++i)
+        require(bus.write32(i * 4U, program[i]), "load HI/LO arithmetic program");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    for (unsigned i = 0; i < 8U; ++i)
+        require(machine.stepCpu(), "execute HI/LO arithmetic instruction");
+    require(machine.cpu().reg(10U) == 0xFFFFFFFFFFFFFFEBULL,
+            "MULT writes sign-extended product to LO and MFLO reads it");
+    require(machine.cpu().reg(11U) == 0xFFFFFFFFFFFFFFFFULL,
+            "MULT writes sign-extended high word and MFHI reads it");
+    require(machine.cpu().reg(12U) == 0xFFFFFFFFFFFFFFFEULL,
+            "DIV writes signed quotient to LO");
+    require(machine.cpu().reg(13U) == 0xFFFFFFFFFFFFFFFFULL,
+            "DIV writes signed remainder to HI");
+}
+
 void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -386,6 +415,7 @@ int main() {
     testCpuKsegDirectMappingWithoutTlb();
     testCpuFetchesAndExecutesFromCartridgeKseg1();
     testCpuProgramsPiDmaAndExecutesCartridgePayload();
+    testCpuHiLoMultiplyDivideAndTransfers();
     testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget();
     testCpuRunnerStopsWhenInstructionRaisesException();
     testCartridgeHleBootInitializesRdramDmemAndCpuState();
