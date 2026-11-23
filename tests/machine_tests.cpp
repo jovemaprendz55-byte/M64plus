@@ -352,6 +352,32 @@ void testCpuDoublewordLoadLinkedStoreConditional() {
     require(machine.cpu().reg(10U) == 0U, "failed SCD writes zero to rt");
 }
 
+
+void testCpuLoadLinkedStoreConditionalDetectsBusWrites() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x2C0U;
+    constexpr std::uint32_t initial = 0xAABBCCDDU;
+    const std::uint32_t program[] = {
+        0xC1090000U, // LL t1,0(t0)
+        0xE1090000U  // SC t1,0(t0)
+    };
+    for (std::uint32_t i = 0; i < 2U; ++i)
+        require(bus.write32(i * 4U, program[i]), "write external bus LL/SC program");
+    require(bus.write32(dataAddress, initial), "initialize external bus LL/SC word");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    require(machine.stepCpu(), "LL establishes reservation before external bus write");
+    require(bus.write32(dataAddress, 0x55667788U),
+            "external bus agent changes reserved RDRAM word");
+    require(machine.stepCpu(), "SC executes after external bus write");
+    std::uint32_t value = 0;
+    require(bus.read32(dataAddress, value) && value == 0x55667788U,
+            "SC does not overwrite data changed by external bus agent");
+    require(machine.cpu().reg(9U) == 0U,
+            "SC reports failure after external RDRAM write epoch changes");
+}
+
 void testCpuSignedArithmeticAndImmediateComparisons() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -824,6 +850,7 @@ int main() {
     testCpuDoublewordMultiplyDivide();
     testCpuDoublewordMultiplyDivideEdgeCases();
     testCpuLoadLinkedStoreConditional();
+    testCpuLoadLinkedStoreConditionalDetectsBusWrites();
     testCpuDoublewordLoadLinkedStoreConditional();
     testCpuSignedArithmeticAndImmediateComparisons();
     testCpuUnalignedWordMemoryOperations();
