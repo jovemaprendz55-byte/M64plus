@@ -70,6 +70,40 @@ void testTlbPairedPagesAsidGlobalAndPermissions() {
             "KSEG3 uses TLB translation to physical memory");
 }
 
+
+void testCpuKseg3LoadStoreUsesTlbTranslation() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    require(bus.write32(0U, 0x42000002U), "write TLBWI for KSEG3 mapping");
+    require(bus.write32(4U, 0x8C220000U), "write LW from KSEG3");
+    require(bus.write32(8U, 0xAC230004U), "write SW to KSEG3");
+    require(bus.write32(0x2000U, 0x12345678U), "initialize KSEG3 mapped physical word");
+
+    auto& cpu = machine.cpu();
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kIndex, 0U),
+            "select TLB entry for KSEG3 mapping");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryHi, 0xE0000000U),
+            "set KSEG3 virtual pair");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryLo0,
+                               (2ULL << 6U) | 6ULL),
+            "set valid dirty even KSEG3 page");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEntryLo1,
+                               (3ULL << 6U) | 6ULL),
+            "set valid dirty odd KSEG3 page");
+    cpu.setRegister(1U, 0xFFFFFFFFE0000000ULL);
+    cpu.setRegister(3U, 0xAABBCCDDU);
+    require(machine.stepCpu(), "install KSEG3 mapping through TLBWI");
+    cpu.setTlbEnabled(true);
+    require(machine.stepCpu(), "load from KSEG3 translated physical page");
+    require(cpu.reg(2U) == 0x12345678U,
+            "KSEG3 load reads data from translated physical address");
+    require(machine.stepCpu(), "store to KSEG3 translated physical page");
+    std::uint32_t stored = 0;
+    require(bus.read32(0x2004U, stored) && stored == 0xAABBCCDDU,
+            "KSEG3 store writes data to translated physical address");
+}
+
 void testMachineOwnsAndProcessesRdpState() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -2754,6 +2788,7 @@ int main() {
     testCpuUserModeCannotLoadOrStoreKseg0OrKseg1();
     testCpuSupervisorModeCannotAccessKseg0OrKseg1();
     testCpuPrivilegeChecksForSsegAndKseg3();
+    testCpuKseg3LoadStoreUsesTlbTranslation();
     testCpuEretPrioritizesErrorEpcWhenErlAndExlAreSet();
     testCpuEretUsesErrorEpcWhenErlIsSet();
     testCpuEretRestoresUserPrivilegeFromStatus();
