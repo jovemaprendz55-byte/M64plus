@@ -135,13 +135,17 @@ void testCpuHiLoMultiplyDivideAndTransfers() {
         0x00009010U, // MFHI s2
         0x0109001BU, // DIVU t0,t1 -> quotient 0x55555553, remainder 0
         0x00009812U, // MFLO s3
-        0x0000A010U  // MFHI s4
+        0x0000A010U, // MFHI s4
+        0x0008A938U, // DSLL s5,t0,4
+        0x0015B13AU, // DSRL s6,s5,4
+        0x0015B93BU, // DSRA s7,s5,4
+        0x0128C014U  // DSLLV t8,t0,t1
     };
-    for (std::uint32_t i = 0; i < 18U; ++i)
-        require(bus.write32(i * 4U, program[i]), "load HI/LO arithmetic program");
+    for (std::uint32_t i = 0; i < 22U; ++i)
+        require(bus.write32(i * 4U, program[i]), "load HI/LO and shift program");
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
-    for (unsigned i = 0; i < 18U; ++i)
-        require(machine.stepCpu(), "execute HI/LO arithmetic instruction");
+    for (unsigned i = 0; i < 22U; ++i)
+        require(machine.stepCpu(), "execute HI/LO and shift instruction");
     require(machine.cpu().reg(10U) == 0xFFFFFFFFFFFFFFEBULL,
             "MULT writes sign-extended product to LO and MFLO reads it");
     require(machine.cpu().reg(11U) == 0xFFFFFFFFFFFFFFFFULL,
@@ -162,6 +166,14 @@ void testCpuHiLoMultiplyDivideAndTransfers() {
             "DIVU writes the unsigned quotient to LO");
     require(machine.cpu().reg(20U) == 0U,
             "DIVU writes the unsigned remainder to HI");
+    require(machine.cpu().reg(21U) == 0xFFFFFFFFFFFFFF90ULL,
+            "DSLL shifts a full 64-bit register");
+    require(machine.cpu().reg(22U) == 0x0FFFFFFFFFFFFFF9ULL,
+            "DSRL performs a logical 64-bit right shift");
+    require(machine.cpu().reg(23U) == 0xFFFFFFFFFFFFFFF9ULL,
+            "DSRA performs an arithmetic 64-bit right shift");
+    require(machine.cpu().reg(24U) == 0xFFFFFFFFFFFFFFC8ULL,
+            "DSLLV uses the variable 64-bit shift amount");
 }
 
 void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
