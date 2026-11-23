@@ -225,6 +225,59 @@ void testOutOfRangeIsRejectedBeforeCopy() {
     require(spAddress == 0x80U, "failed DMA does not advance SP address");
 }
 
+void testPiCartridgeToRdramDmaAndInterrupt() {
+    Bus bus;
+    std::uint8_t rom[64]{};
+    rom[0] = 0x80U; rom[1] = 0x37U; rom[2] = 0x12U; rom[3] = 0x40U;
+    const std::uint8_t payload[8] = {0x11U, 0x22U, 0x33U, 0x44U,
+                                     0x55U, 0x66U, 0x77U, 0x88U};
+    for (unsigned i = 0; i < 8U; ++i) rom[0x40U + i] = payload[i];
+    require(bus.loadCartridge(rom, sizeof(rom)), "load ROM for PI DMA test");
+    require(bus.region(Bus::kPiBase) == m64plus::n64::BusRegion::PiRegisters,
+            "PI register window has a dedicated bus region");
+    require(bus.write32(Bus::kPiDramAddr, 0x200U), "set PI DRAM destination");
+    require(bus.write32(Bus::kPiCartAddr, Bus::kCartridgeBase + 0x40U),
+            "set PI cartridge source");
+    require(bus.write32(Bus::kPiWriteLength, 7U),
+            "PI_WR_LEN starts eight-byte cartridge-to-RDRAM DMA");
+    std::uint32_t copied = 0;
+    require(bus.read32(0x200U, copied) && copied == 0x11223344U,
+            "PI DMA copies first big-endian word into RDRAM");
+    require(bus.read32(0x204U, copied) && copied == 0x55667788U,
+            "PI DMA copies second big-endian word into RDRAM");
+    require(bus.read32(Bus::kPiDramAddr, copied) && copied == 0x208U,
+            "PI DRAM address advances by transferred byte count");
+    require(bus.read32(Bus::kPiCartAddr, copied) &&
+            copied == Bus::kCartridgeBase + 0x48U,
+            "PI cartridge address advances by transferred byte count");
+    require(bus.read32(Bus::kPiStatus, copied) &&
+            (copied & Bus::kPiStatusInterrupt) != 0U,
+            "PI DMA completion sets PI interrupt status");
+    require(bus.write32(Bus::kMiInterruptMask, 1U << (4U * 2U + 1U)),
+            "enable MI PI interrupt");
+    require(bus.miInterruptPending(), "PI DMA completion asserts MI PI interrupt");
+    require(bus.write32(Bus::kPiStatus, 2U), "acknowledge PI interrupt");
+    require(!bus.miInterruptPending(), "PI status acknowledgement clears MI PI interrupt");
+    require(bus.read32(Bus::kPiStatus, copied) &&
+            (copied & Bus::kPiStatusInterrupt) == 0U,
+            "PI interrupt status bit clears on acknowledgement");
+
+    require(bus.rdram().write32(0x300U, 0xAABBCCDDU), "seed destination before invalid DMA");
+    require(bus.write32(Bus::kPiDramAddr, 0x300U), "set invalid DMA destination");
+    require(bus.write32(Bus::kPiCartAddr, Bus::kCartridgeBase + 60U),
+            "set cartridge address near ROM end");
+    require(!bus.write32(Bus::kPiWriteLength, 7U),
+            "reject PI DMA that exceeds cartridge image");
+    require(bus.rdram().read32(0x300U, copied) && copied == 0xAABBCCDDU,
+            "failed PI DMA leaves destination unchanged");
+    require(bus.read32(Bus::kPiStatus, copied) &&
+            (copied & Bus::kPiStatusError) != 0U,
+            "failed PI DMA sets PI error status");
+    require(bus.write32(Bus::kPiStatus, 1U), "clear PI DMA error");
+    require(!bus.write32(Bus::kPiReadLength, 3U),
+            "reject RDRAM-to-read-only-ROM DMA direction");
+}
+
 void testCartridgeRomMappingAndValidation() {
     Bus bus;
     const std::uint8_t rom[] = {
@@ -264,6 +317,7 @@ void testCartridgeRomMappingAndValidation() {
 int main() {
     testDpRegisterWindow();
     testCartridgeRomMappingAndValidation();
+    testPiCartridgeToRdramDmaAndInterrupt();
     testDpCommandStreamFromRdramAndDmem();
     testDpMultiwordCommandIsAtomic();
     testDramToSpAndSpToDram();
