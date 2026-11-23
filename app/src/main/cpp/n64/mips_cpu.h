@@ -33,5 +33,9 @@ private:
     Cp0 cp0_{};
     Tlb tlb_{};
     bool tlbEnabled_ = false;
+    bool hasLastException_ = false;
+    std::uint64_t lastExceptionPc_ = 0;
+    std::uint32_t lastExceptionInstruction_ = 0;
+    std::uint8_t lastExceptionCode_ = 0;
 };
 }
