@@ -436,9 +436,9 @@ void testCpuMemoryFaultInvalidatesLoadLinkedReservation() {
     Bus& bus = machine.bus();
     constexpr std::uint32_t dataAddress = 0x2F8U;
     constexpr std::uint32_t initial = 0xCAFEBABEU;
-    require(bus.write32(0x000U, 0xC1080000U), "write LL before memory fault");
+    require(bus.write32(0x000U, 0xC10A0000U), "write LL before memory fault");
     require(bus.write32(0x004U, 0x8D2A0000U), "write misaligned LW to raise address exception");
-    require(bus.write32(0x180U, 0xE1080000U), "write SC at memory-fault exception vector");
+    require(bus.write32(0x180U, 0xE10A0000U), "write SC at memory-fault exception vector");
     require(bus.write32(dataAddress, initial), "initialize memory-fault LL/SC target");
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
     machine.cpu().setRegister(8U, dataAddress);
@@ -454,7 +454,7 @@ void testCpuMemoryFaultInvalidatesLoadLinkedReservation() {
     std::uint32_t value = 0;
     require(bus.read32(dataAddress, value) && value == initial,
             "SC after memory fault does not modify reserved memory");
-    require(machine.cpu().reg(8U) == 0U,
+    require(machine.cpu().reg(10U) == 0U,
             "SC reports failure because memory fault invalidated reservation");
 }
 
