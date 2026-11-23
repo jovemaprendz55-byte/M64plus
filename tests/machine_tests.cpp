@@ -61,6 +61,37 @@ void testCpuKsegDirectMappingWithoutTlb() {
             "CPU PC remains in canonical KSEG0 after instruction fetches");
 }
 
+void testCpuFetchesAndExecutesFromCartridgeKseg1() {
+    N64Machine machine;
+    std::uint8_t rom[0x40U + 8U]{};
+    rom[0] = 0x80U;
+    rom[1] = 0x37U;
+    rom[2] = 0x12U;
+    rom[3] = 0x40U;
+    // IPL3 entry point in a cartridge image: two simple MIPS instructions.
+    const std::uint32_t program[] = {0x24081234U, 0x25090001U};
+    for (unsigned i = 0; i < 2U; ++i) {
+        const std::uint32_t instruction = program[i];
+        const std::size_t offset = 0x40U + i * 4U;
+        rom[offset] = static_cast<std::uint8_t>(instruction >> 24U);
+        rom[offset + 1U] = static_cast<std::uint8_t>(instruction >> 16U);
+        rom[offset + 2U] = static_cast<std::uint8_t>(instruction >> 8U);
+        rom[offset + 3U] = static_cast<std::uint8_t>(instruction);
+    }
+    require(machine.bus().loadCartridge(rom, sizeof(rom)),
+            "load test cartridge for CPU execution");
+
+    machine.cpu().reset(0xFFFFFFFFB0000040ULL);
+    require(machine.stepCpu(), "CPU fetches first instruction through KSEG1 cartridge mapping");
+    require(machine.stepCpu(), "CPU fetches second instruction through KSEG1 cartridge mapping");
+    require(machine.cpu().reg(8) == 0x1234U,
+            "CPU executes instruction fetched from cartridge IPL3 offset");
+    require(machine.cpu().reg(9) == 0x1235U,
+            "CPU continues executing sequential cartridge instruction");
+    require(machine.cpu().pc() == 0xFFFFFFFFB0000048ULL,
+            "CPU PC advances inside KSEG1 cartridge window");
+}
+
 void testMachineDoesNotRetryUnsupportedRspInstruction() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -158,6 +189,7 @@ void testSharedCpuRspBusAndSpBreak() {
 int main() {
     testMachineOwnsAndProcessesRdpState();
     testCpuKsegDirectMappingWithoutTlb();
+    testCpuFetchesAndExecutesFromCartridgeKseg1();
     testMachineDoesNotRetryUnsupportedRspInstruction();
     testSharedCpuRspBusAndSpBreak();
     std::cout << "N64 machine CPU/RSP integration tests passed.\n";
