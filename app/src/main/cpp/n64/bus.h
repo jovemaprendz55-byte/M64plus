@@ -14,6 +14,7 @@ enum class BusRegion : std::uint8_t {
     MiRegisters,
     SpRegisters,
     DpRegisters,
+    PiRegisters,
     Cartridge,
     Unmapped
 };
@@ -36,6 +37,24 @@ public:
     static constexpr std::uint32_t kSpRegBase = 0x04040000U;
     static constexpr std::uint32_t kSpPc = 0x04080000U;
     static constexpr std::uint32_t kDpRegBase = 0x04100000U;
+    static constexpr std::uint32_t kPiBase = 0x04600000U;
+    static constexpr std::uint32_t kPiDramAddr = kPiBase + 0x00U;
+    static constexpr std::uint32_t kPiCartAddr = kPiBase + 0x04U;
+    static constexpr std::uint32_t kPiReadLength = kPiBase + 0x08U;
+    static constexpr std::uint32_t kPiWriteLength = kPiBase + 0x0CU;
+    static constexpr std::uint32_t kPiStatus = kPiBase + 0x10U;
+    static constexpr std::uint32_t kPiDomain1Latency = kPiBase + 0x14U;
+    static constexpr std::uint32_t kPiDomain1Pulse = kPiBase + 0x18U;
+    static constexpr std::uint32_t kPiDomain1Page = kPiBase + 0x1CU;
+    static constexpr std::uint32_t kPiDomain1Release = kPiBase + 0x20U;
+    static constexpr std::uint32_t kPiDomain2Latency = kPiBase + 0x24U;
+    static constexpr std::uint32_t kPiDomain2Pulse = kPiBase + 0x28U;
+    static constexpr std::uint32_t kPiDomain2Page = kPiBase + 0x2CU;
+    static constexpr std::uint32_t kPiDomain2Release = kPiBase + 0x30U;
+    static constexpr std::uint32_t kPiStatusDmaBusy = 1U << 0U;
+    static constexpr std::uint32_t kPiStatusIoBusy = 1U << 1U;
+    static constexpr std::uint32_t kPiStatusError = 1U << 2U;
+    static constexpr std::uint32_t kPiStatusInterrupt = 1U << 3U;
     static constexpr std::uint32_t kDpStart = kDpRegBase + 0x00U;
     static constexpr std::uint32_t kDpEnd = kDpRegBase + 0x04U;
     static constexpr std::uint32_t kDpCurrent = kDpRegBase + 0x08U;
@@ -117,6 +136,9 @@ private:
     bool writeSpRegister(std::uint32_t address, std::uint32_t value) noexcept;
     bool readDpRegister(std::uint32_t address, std::uint32_t& value) const noexcept;
     bool writeDpRegister(std::uint32_t address, std::uint32_t value) noexcept;
+    bool readPiRegister(std::uint32_t address, std::uint32_t& value) const noexcept;
+    bool writePiRegister(std::uint32_t address, std::uint32_t value) noexcept;
+    bool performPiCartridgeToRdramDma(std::uint32_t lengthRegister) noexcept;
     bool performSpDma(std::uint32_t lengthRegister, bool dramToSp) noexcept;
     bool writeByte(std::uint32_t address, std::uint8_t value) noexcept;
 
@@ -144,6 +166,12 @@ private:
     std::uint32_t dpPipeBusy_ = 0;
     std::uint32_t dpTmem_ = 0;
     bool dpXbusDmemDma_ = false;
+    std::uint32_t piDramAddr_ = 0;
+    std::uint32_t piCartAddr_ = kCartridgeBase;
+    std::uint32_t piReadLength_ = 0;
+    std::uint32_t piWriteLength_ = 0;
+    std::uint32_t piStatus_ = 0;
+    std::array<std::uint32_t, 8> piDomainTiming_{};
 };
 
 } // namespace m64plus::n64
