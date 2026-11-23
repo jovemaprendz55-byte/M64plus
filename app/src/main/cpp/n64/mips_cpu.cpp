@@ -491,7 +491,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
                 return takeException(ExceptionCode::ReservedInstruction);
         } else if (rs == 0x10) { // COP0 privileged operations
             // ERET/TLB operations use only the CO function field; bits 25:6 are reserved.
-            if ((instruction & 0x03FFFFC0U) != 0U)
+            if ((instruction & 0x001FFFC0U) != 0U)
                 return takeException(ExceptionCode::ReservedInstruction);
             if (function == 0x18) { // ERET
                 doExceptionReturn = true;
