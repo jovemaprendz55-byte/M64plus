@@ -1275,3 +1275,16 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Portanto, as indicações de validação pendente nas subseções 17.18.1 e 17.18.2 foram superadas por esta execução aprovada.
 - **Correção do teste:** a fixture efetiva para Reserved Instruction é `0x7000003F` (SPECIAL2 não implementado), e não `0xFFFFFFFF`, que era interpretada como SD no subconjunto atual.
 - O sucesso confirma compilação e testes automatizados, não compatibilidade com ROMs comerciais. O APK é de depuração e não representa uma versão pronta do emulador.
+
+
+### 17.19 — Operações aritméticas MIPS HI/LO (23/11/2026)
+
+- Adicionados os registradores especiais de 64 bits `HI` e `LO` ao estado da CPU; ambos são inicializados/resetados junto com a CPU.
+- Implementadas as instruções SPECIAL `MFHI`, `MTHI`, `MFLO`, `MTLO`, `MULT`, `MULTU`, `DIV` e `DIVU`. Multiplicação e divisão usam operandos de 32 bits; os resultados de 32 bits são estendidos para o estado de 64 bits conforme o modelo atual do núcleo.
+- Para divisão por zero, o código aplica os resultados convencionais do núcleo atual (quociente -1/1 para DIV conforme sinal, ou 0xFFFFFFFF para DIVU; resto mantém o dividendo). Isso é uma política de implementação, não uma validação de todos os detalhes de comportamento indefinido do hardware real.
+- Adicionado teste de integração `testCpuHiLoMultiplyDivideAndTransfers`, que executa multiplicação e divisão com sinal, lê HI/LO e verifica MTHI/MTLO. As variantes sem sinal foram implementadas, mas ainda precisam de casos de teste dedicados.
+- Arquivos principais: `app/src/main/cpp/n64/mips_cpu.h`, `app/src/main/cpp/n64/mips_cpu.cpp` e `tests/machine_tests.cpp`.
+
+**Validação CI desta etapa:** workflow [45119393427](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45119393427), commit `22da28e913f7f2b5bd540122447fc93f6fab14a3`, branch `main`. Os jobs `native-host-tests` e `assemble-debug` terminaram com **success**. Foi publicado o artefato de depuração `m64plus-debug-apk`, ID `14792434605`, tamanho 641.366 bytes (não expirado na consulta de 23/11/2026).
+
+**Limites:** essa etapa amplia o conjunto de instruções, mas não torna o núcleo MIPS III completo nem garante compatibilidade com jogos comerciais. Permanecem ausentes ou incompletos, entre outros, COP1/FPU, várias operações de 64 bits, instruções de acesso desalinhado, exceções e sincronização de hardware N64. O APK é de depuração; ainda é necessário instalá-lo e validar o comportamento no dispositivo.
