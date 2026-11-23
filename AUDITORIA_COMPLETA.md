@@ -1036,3 +1036,14 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Workflow [#45113502543](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45113502543), commit `d22c49858035c17c929e80201b6c55556cb890ba`: `native-host-tests` e `assemble-debug` concluíram com sucesso; o upload do APK também passou. Artefato `m64plus-debug-apk`, ID `14790960275`, tamanho 605.696 bytes, expira em 2027-02-21.
 - Os workflows anteriores #45048493316 e #45048552767 falharam na compilação Android por esse erro; seus resultados não validam a integração Java. O workflow #45048490439 passou antes da integração Java no `MainActivity`, portanto não valida essa etapa.
 - **Limitação funcional permanece:** a máquina persistente é criada e destruída com a atividade, mas ainda não há loop de emulação, carregamento de ROM, execução coordenada CPU/RSP, framebuffer produzido por rasterização RDP ou upload de textura no renderer. O triângulo continua sendo apenas diagnóstico.
+
+
+## 17.6 Primeiro desenho de pixels RDP: FILL_RECTANGLE RGBA32 (2026-11-23)
+
+- Implementado o primeiro caminho de escrita de pixels pelo RDP: comando `FILL_RECTANGLE` (0x36), limitado deliberadamente ao modo FILL (cycle type 3), color image RGBA32 e SET_FILL_COLOR previamente configurados.
+- As coordenadas 10.2 são convertidas para pixels; em modo FILL, os limites do retângulo são inclusivos. Quando SET_SCISSOR está presente, o retângulo é recortado antes da escrita. O caminho grava o valor de 32 bits em ordem big-endian na RDRAM, usando a largura de SET_COLOR_IMAGE como stride.
+- A implementação valida toda a região de destino antes da primeira escrita para evitar framebuffer parcialmente alterado por endereço fora da RDRAM.
+- Adicionado teste de integração que configura color image 4x4, fill color, modo FILL e retângulo 1..2 por 1..2; verifica os quatro pixels e os sentinelas externos. Um segundo caso verifica recorte por scissor.
+- **Limitações:** somente RGBA32; sem RGBA16/8/4; sem ciclos 1/2, blender, antialiasing, coverage, Z, dithering ou rasterização de triângulos; altura continua implícita e limitada pela RDRAM; a interpretação de scissor é uma primeira implementação e precisa de vetores independentes de referência. O framebuffer ainda não foi ligado ao JNI/renderer GLES, portanto o triângulo de diagnóstico Android permanece.
+- Referências técnicas: manual N64 para coordenadas e semântica inclusiva em FILL mode (<https://ultra64.ca/files/documentation/online-manuals/man/n64man/gdp/gDPFillRectangle.html>); descrição de FILL pipeline, repetição do registrador de 32 bits e scissor (<https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md>); layout do comando (<https://hcs64.com/files/RDP_COMMANDS.pdf>).
+- **Status:** código e testes enviados à `main`; aguardar CI antes de considerar esta etapa validada.
