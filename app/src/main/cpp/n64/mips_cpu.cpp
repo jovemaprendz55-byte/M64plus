@@ -373,8 +373,40 @@ bool MipsCpu::stepMemory(Memory& memory) {
         writeRegister = writeRegister || (function != 0x08 && function != 0x09);
         break;
     case 0x01: {
-        if (inDelaySlot) return takeException(ExceptionCode::ReservedInstruction);
         const auto signedA = static_cast<std::int64_t>(a);
+        const auto signedImmediate = static_cast<std::int64_t>(
+            static_cast<std::int16_t>(immediate));
+        const auto unsignedImmediate = static_cast<std::uint64_t>(signedImmediate);
+        // Trap-immediate instructions are ordinary ALU operations and are
+        // legal in a branch delay slot; only REGIMM branch forms are rejected there.
+        switch (rt) {
+        case 0x08: // TGEI
+            if (signedA >= signedImmediate) return takeException(ExceptionCode::Trap);
+            break;
+        case 0x09: // TGEIU
+            if (a >= unsignedImmediate) return takeException(ExceptionCode::Trap);
+            break;
+        case 0x0A: // TLTI
+            if (signedA < signedImmediate) return takeException(ExceptionCode::Trap);
+            break;
+        case 0x0B: // TLTIU
+            if (a < unsignedImmediate) return takeException(ExceptionCode::Trap);
+            break;
+        case 0x0C: // TEQI
+            if (a == unsignedImmediate) return takeException(ExceptionCode::Trap);
+            break;
+        case 0x0E: // TNEI
+            if (a != unsignedImmediate) return takeException(ExceptionCode::Trap);
+            break;
+        default: break;
+        }
+        if (rt == 0x08U || rt == 0x09U || rt == 0x0AU ||
+            rt == 0x0BU || rt == 0x0CU || rt == 0x0EU) {
+            destination = 0;
+            writeRegister = false;
+            break;
+        }
+        if (inDelaySlot) return takeException(ExceptionCode::ReservedInstruction);
         bool take = false;
         switch (rt) {
         case 0x00: take = signedA < 0; break;
