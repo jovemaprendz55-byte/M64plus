@@ -1264,3 +1264,14 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Validação CI pendente; aguardar jobs nativos e Android.
 
 - **Ajuste do teste:** o primeiro valor de fixture `0xFFFFFFFF` decodifica como opcode SD no subconjunto MIPS implementado, portanto não era uma instrução reservada. A falha foi do teste, não da coleta da exceção. Fixture substituída por `0x7000003F`, opcode SPECIAL2 não suportado neste núcleo, para exercitar de fato Reserved Instruction. CI de confirmação pendente.
+
+
+### 17.18.3 — Validação final da integração e diagnóstico (23/11/2026)
+
+- **CI aprovado:** workflow [45119063108](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45119063108), commit `28678fd97f97754ce172c489c048738c30e3b8a9`, branch `main`.
+- Job Android `assemble-debug`: **success**; configuração Android, compilação do APK e upload do artefato concluídos.
+- Job `native-host-tests`: **success**; configuração, compilação e execução dos testes nativos concluídas.
+- Artefato gerado: `m64plus-debug-apk`, ID `14793340364`, tamanho 639.618 bytes, SHA-256 `0efb1dddda51227df1c1312ce7c35e7817edce0091d6913fc5be73d78161f8d9`. Expira em 21/02/2027.
+- Portanto, as indicações de validação pendente nas subseções 17.18.1 e 17.18.2 foram superadas por esta execução aprovada.
+- **Correção do teste:** a fixture efetiva para Reserved Instruction é `0x7000003F` (SPECIAL2 não implementado), e não `0xFFFFFFFF`, que era interpretada como SD no subconjunto atual.
+- O sucesso confirma compilação e testes automatizados, não compatibilidade com ROMs comerciais. O APK é de depuração e não representa uma versão pronta do emulador.
