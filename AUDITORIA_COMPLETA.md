@@ -1078,3 +1078,12 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - O sucesso valida o teste host que exercita a escrita de pixels RGBA32 por `FILL_RECTANGLE` e a conversão subsequente para ARGB8888, além da compilação do APK de depuração. Não valida exibição na tela, carregamento/execução de ROMs ou compatibilidade com jogos.
 - Artefato gerado pelo workflow: `m64plus-debug-apk`, ID `14791530537`, tamanho 607.872 bytes, ainda não expirado na data desta auditoria. Download oficial: <https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45114354917> (seção Artifacts).
 - **Próxima etapa técnica:** inspecionar JNI, ciclo de vida da máquina e renderer antes de projetar a transferência do framebuffer para textura GLES. Preservar o triângulo de diagnóstico como fallback até existir um frame real válido.
+
+
+## 17.8 Ponte JNI e apresentação GLES do framebuffer (2026-11-23)
+
+- Adicionada a JNI `nativeGetFramebufferSnapshot(handle)`: valida o handle, exige SET_COLOR_IMAGE válido, limita a largura a 1024 e solicita ao conversor CPU um snapshot RGBA16/32 para uma altura provisória fixa de 240 linhas. Retorna um array Java com largura, altura e pixels ARGB8888; retorna null quando ainda não há imagem válida.
+- O renderer GLES 2.0 agora mantém o triângulo colorido como fallback e cria um segundo programa de shaders para exibir uma textura RGBA em tela cheia quando a JNI entregar um snapshot válido. Os canais ARGB são explicitamente reorganizados em RGBA antes do upload; a primeira apresentação é registrada no Logcat como `NATIVE_FRAMEBUFFER_DISPLAYED`.
+- `MainActivity` passa o handle persistente e um lock ao renderer. O acesso ao snapshot e a destruição da máquina compartilham esse lock; a superfície GL é pausada antes da liberação no ciclo de destruição para evitar uso do ponteiro após delete.
+- **Ainda não é uma imagem de jogo:** não há loop CPU/RSP, carregamento de ROM, boot de cartucho nem comandos RDP gerados por execução de jogo. Sem SET_COLOR_IMAGE e bytes de framebuffer válidos, a aplicação continua mostrando o triângulo. A altura de 240 é provisória e precisa ser derivada do modo VI/estado real; a cópia de um array e o buffer de upload a cada frame também são temporários e precisam de otimização.
+- **Validação pendente:** os três arquivos foram enviados à `main`; aguardar os jobs Android e host antes de considerar a ponte validada.
