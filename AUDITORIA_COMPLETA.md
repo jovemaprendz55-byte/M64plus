@@ -1047,3 +1047,11 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - **Limitações:** somente RGBA32; sem RGBA16/8/4; sem ciclos 1/2, blender, antialiasing, coverage, Z, dithering ou rasterização de triângulos; altura continua implícita e limitada pela RDRAM; a interpretação de scissor é uma primeira implementação e precisa de vetores independentes de referência. O framebuffer ainda não foi ligado ao JNI/renderer GLES, portanto o triângulo de diagnóstico Android permanece.
 - Referências técnicas: manual N64 para coordenadas e semântica inclusiva em FILL mode (<https://ultra64.ca/files/documentation/online-manuals/man/n64man/gdp/gDPFillRectangle.html>); descrição de FILL pipeline, repetição do registrador de 32 bits e scissor (<https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md>); layout do comando (<https://hcs64.com/files/RDP_COMMANDS.pdf>).
 - **Status:** código e testes enviados à `main`; aguardar CI antes de considerar esta etapa validada.
+
+
+### Correção do vetor 10.2 do FILL_RECTANGLE
+
+- O primeiro CI do novo teste RDP detectou falha em `m64plus_rdp_tests`: o retângulo de teste usava valores de coordenadas 1 e 2 diretamente, mas o comando codifica coordenadas em formato 10.2 (quatro unidades por pixel).
+- Corrigido o vetor para XH/YH = 4 e XL/YL = 8, que representam os pixels 1 e 2. A falha era do vetor de teste; a execução não foi considerada validação da implementação.
+- Também foi reforçada a escrita RGBA32 para emitir bytes big-endian por `write8`, sem depender do alinhamento de 32 bits do endereço-base da color image.
+- Commit de correção do vetor e resultado do CI correspondente ainda pendentes.
