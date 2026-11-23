@@ -176,6 +176,46 @@ void testCpuHiLoMultiplyDivideAndTransfers() {
             "DSLLV uses the variable 64-bit shift amount");
 }
 
+void testCpuSignedArithmeticAndImmediateComparisons() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    const std::uint32_t program[] = {
+        0x20080007U, // ADDI t0,zero,7
+        0x29090008U, // SLTI t1,t0,8
+        0x2D0A0008U, // SLTIU t2,t0,8
+        0x610BFFFEU, // DADDI t3,t0,-2
+        0x010B602CU, // DADD t4,t0,t3
+        0x010B682EU  // DSUB t5,t0,t3
+    };
+    for (std::uint32_t i = 0; i < 6U; ++i)
+        require(bus.write32(i * 4U, program[i]), "load signed arithmetic program");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    for (unsigned i = 0; i < 6U; ++i)
+        require(machine.stepCpu(), "execute signed arithmetic instruction");
+    require(machine.cpu().reg(8U) == 7U, "ADDI writes a signed 32-bit result");
+    require(machine.cpu().reg(9U) == 1U, "SLTI compares signed operands");
+    require(machine.cpu().reg(10U) == 1U, "SLTIU compares unsigned operands");
+    require(machine.cpu().reg(11U) == 5U, "DADDI sign-extends its immediate");
+    require(machine.cpu().reg(12U) == 12U, "DADD computes a 64-bit signed sum");
+    require(machine.cpu().reg(13U) == 2U, "DSUB computes a 64-bit signed difference");
+
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, 0x7FFFFFFFULL);
+    require(bus.write32(0U, 0x21090001U), "write overflowing ADDI instruction");
+    require(!machine.stepCpu(), "ADDI overflow enters exception path");
+    require(machine.cpu().hasLastException() &&
+            machine.cpu().lastExceptionCode() == 12U,
+            "ADDI overflow raises Integer Overflow exception");
+
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, 0x7FFFFFFFFFFFFFFFULL);
+    require(bus.write32(0U, 0x61090001U), "write overflowing DADDI instruction");
+    require(!machine.stepCpu(), "DADDI overflow enters exception path");
+    require(machine.cpu().hasLastException() &&
+            machine.cpu().lastExceptionCode() == 12U,
+            "DADDI overflow raises Integer Overflow exception");
+}
+
 void testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -451,6 +491,7 @@ int main() {
     testCpuFetchesAndExecutesFromCartridgeKseg1();
     testCpuProgramsPiDmaAndExecutesCartridgePayload();
     testCpuHiLoMultiplyDivideAndTransfers();
+    testCpuSignedArithmeticAndImmediateComparisons();
     testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget();
     testCpuRunnerStopsWhenInstructionRaisesException();
     testCartridgeHleBootInitializesRdramDmemAndCpuState();
