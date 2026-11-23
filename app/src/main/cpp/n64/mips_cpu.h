@@ -26,6 +26,8 @@ public:
 private:
     template <typename Memory> bool stepMemory(Memory& memory);
     std::array<std::uint64_t, 32> gpr_{};
+    std::uint64_t hi_ = 0;
+    std::uint64_t lo_ = 0;
     std::uint64_t pc_ = 0;
     std::uint64_t executed_ = 0;
     bool pendingBranch_ = false;
