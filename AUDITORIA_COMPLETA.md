@@ -1104,3 +1104,14 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - O renderer agora mantém um `ByteBuffer` direto como campo e reutiliza sua capacidade quando suficiente; só realoca se uma resolução maior exigir mais bytes. O buffer é limpo, preenchido com os canais RGBA e reposicionado antes de `glTexSubImage2D`.
 - Commit na `main`: `56d0363402372dd22653a505a2f0f78d7cee4823`.
 - **Escopo:** reduz alocações diretas repetidas no lado Java quando houver framebuffer válido. Não remove a alocação do snapshot JNI nem a conversão ARGB→RGBA, e não muda a ausência de ROM/boot/loop de emulação. Ainda precisa ser validado por CI e medido em dispositivo real.
+
+
+## 17.10 Base de mapeamento de cartucho N64 (2026-11-23)
+
+- `Bus` agora aceita carregar uma imagem ROM big-endian no formato `.z64` por `loadCartridge(data, size)`.
+- Validação: ponteiro não nulo, tamanho mínimo de cabeçalho (0x40), máximo de 64 MiB, múltiplo de quatro bytes e magic `0x80371240`. Falha não substitui cartucho anteriormente carregado.
+- ROM é mapeada como região somente leitura no início da janela física PI/cartucho `0x10000000`; acessos fora do tamanho real carregado são rejeitados. `reset()` preserva o cartucho inserido; `unloadCartridge()` remove o mapeamento.
+- Teste host cobre cabeçalho e palavras big-endian, escrita rejeitada, leitura além do tamanho, rejeição de magic inválido, preservação após falha, reset e unload.
+- Commits na `main`: header `a6d0faa`, implementação `ed8b45d`, testes `47d2716`.
+- **Limitação importante:** isso ainda não é um seletor de ROM Android nem boot de cartucho. Formatos `.v64` e `.n64` não são convertidos; PI DMA não está implementado; não há configuração de CIC/boot code/seed, checksum ou execução do IPL3. A API recebe bytes já carregados e somente mapeia a ROM.
+- CI para os commits e a auditoria ainda pendente.
