@@ -117,6 +117,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
     unsigned destination = 0;
     bool writeRegister = false;
     bool scheduleBranch = false;
+    bool annulDelaySlot = false;
     bool doExceptionReturn = false;
     std::uint64_t branchTarget = sequentialPc + 4U;
     const auto branchRelative = [&]() {
@@ -336,6 +337,8 @@ bool MipsCpu::stepMemory(Memory& memory) {
         switch (rt) {
         case 0x00: take = signedA < 0; break;
         case 0x01: take = signedA >= 0; break;
+        case 0x02: take = signedA < 0; annulDelaySlot = !take; break; // BLTZL
+        case 0x03: take = signedA >= 0; annulDelaySlot = !take; break; // BGEZL
         case 0x10: take = signedA < 0; destination = 31; result = sequentialPc + 4U; writeRegister = true; break;
         case 0x11: take = signedA >= 0; destination = 31; result = sequentialPc + 4U; writeRegister = true; break;
         default: return takeException(ExceptionCode::ReservedInstruction);
@@ -352,17 +355,20 @@ bool MipsCpu::stepMemory(Memory& memory) {
                        (static_cast<std::uint64_t>(instruction & 0x03FFFFFFU) << 2U);
         break;
     case 0x04: case 0x05: case 0x06: case 0x07:
+    case 0x14: case 0x15: case 0x16: case 0x17:
         if (inDelaySlot) return takeException(ExceptionCode::ReservedInstruction);
-        if (opcode == 0x04 || opcode == 0x05) {
+        if (opcode == 0x04 || opcode == 0x05 || opcode == 0x14 || opcode == 0x15) {
             const bool equal = a == b;
-            scheduleBranch = (opcode == 0x04) ? equal : !equal;
-        } else if (opcode == 0x06) {
+            const bool equalBranch = opcode == 0x04 || opcode == 0x14;
+            scheduleBranch = equalBranch ? equal : !equal;
+        } else if (opcode == 0x06 || opcode == 0x16) {
             scheduleBranch = static_cast<std::int64_t>(a) <= 0;
         } else {
             scheduleBranch = static_cast<std::int64_t>(a) > 0;
         }
+        annulDelaySlot = opcode >= 0x14 && !scheduleBranch;
         branchTarget = scheduleBranch ? branchRelative() : sequentialPc + 4U;
-        scheduleBranch = true; // even a not-taken branch has a delay slot
+        scheduleBranch = !annulDelaySlot; // ordinary branches retain their delay slot
         break;
     // COP0: MFC0, MTC0 and ERET (register select 0 only).
     case 0x10:
@@ -643,6 +649,10 @@ bool MipsCpu::stepMemory(Memory& memory) {
         pc_ = cp0_.exceptionReturn();
         pendingBranch_ = false;
         pendingBranchTarget_ = 0;
+    } else if (annulDelaySlot) {
+        pendingBranch_ = false;
+        pendingBranchTarget_ = 0;
+        pc_ = sequentialPc + 4U;
     } else if (inDelaySlot) {
         pendingBranch_ = false;
         pendingBranchTarget_ = 0;
