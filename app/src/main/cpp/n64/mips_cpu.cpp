@@ -134,6 +134,15 @@ bool MipsCpu::stepMemory(Memory& memory) {
     };
     switch (opcode) {
     case 0x00:
+        // Reserved fields must be zero for fixed/variable shifts and jumps.
+        if (((function == 0x00 || function == 0x02 || function == 0x03 ||
+              function == 0x38 || function == 0x3A || function == 0x3B ||
+              function == 0x3C || function == 0x3E || function == 0x3F) && rs != 0U) ||
+            ((function == 0x04 || function == 0x06 || function == 0x07 ||
+              function == 0x14 || function == 0x16 || function == 0x17) && shift != 0U) ||
+            (function == 0x08 && (rt != 0U || rd != 0U || shift != 0U)) ||
+            (function == 0x09 && (rt != 0U || shift != 0U)))
+            return takeException(ExceptionCode::ReservedInstruction);
         destination = rd;
         switch (function) {
         case 0x00: result = signExtend32(static_cast<std::uint32_t>(b) << shift); break; // SLL
