@@ -1027,3 +1027,12 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - Workflows acionados: [#45048490439](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45048490439) e [#45048493316](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45048493316). Nos dois, `native-host-tests` concluiu com sucesso; `assemble-debug` ainda estava em execução no momento desta atualização. O resultado Android deve ser confirmado antes de declarar a ponte validada.
 - **Escopo:** a atividade agora mantém a instância nativa durante sua vida útil, mas ainda não executa CPU/RSP em loop, não carrega ROM, não conecta framebuffer ao renderer e não rasteriza comandos RDP. O triângulo GLES continua sendo apenas diagnóstico.
 - **Próximas etapas:** validar o build Android; definir sincronização e orçamento de execução entre thread de emulação e thread GL; depois implementar carregamento de ROM/boot e produzir pixels reais antes de substituir o triângulo.
+
+## 17.5 Correção de sintaxe Java no ciclo de vida JNI (2026-11-23)
+
+- A inspeção dos logs dos workflows revelou a causa das falhas Android: `MainActivity.java` continha sequências literais `\\n` inseridas no código-fonte em vez de quebras de linha reais. O compilador Java reportou `illegal character: '\\'` e erros de sintaxe nas linhas 54 e 67.
+- Corrigido o arquivo substituindo as 18 sequências literais por quebras de linha reais, sem alterar as chamadas JNI nem a lógica do ciclo de vida.
+- Commit de correção na `main`: `d22c49858035c17c929e80201b6c55556cb890ba`.
+- Workflow disparado: [#45113502543](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45113502543). No momento do registro, ainda estava em andamento; validar os resultados de `native-host-tests` e `assemble-debug` antes de declarar a correção aprovada.
+- Os workflows anteriores #45048493316 e #45048552767 falharam na compilação Android por esse erro; seus resultados não validam a integração Java. O workflow #45048490439 passou antes da integração Java no `MainActivity`, portanto não valida essa etapa.
+- **Limitação funcional permanece:** a máquina persistente é criada e destruída com a atividade, mas ainda não há loop de emulação, carregamento de ROM, execução coordenada CPU/RSP, framebuffer produzido por rasterização RDP ou upload de textura no renderer. O triângulo continua sendo apenas diagnóstico.
