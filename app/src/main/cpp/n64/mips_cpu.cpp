@@ -49,7 +49,12 @@ const Cp0& MipsCpu::cp0() const noexcept { return cp0_; }
 template <typename Memory>
 bool MipsCpu::stepMemory(Memory& memory) {
     const bool inDelaySlot = pendingBranch_;
+    std::uint32_t currentInstruction = 0;
     const auto takeException = [&](ExceptionCode code, std::uint64_t badAddress = 0, bool tlbRefill = false) {
+        hasLastException_ = true;
+        lastExceptionPc_ = pc_;
+        lastExceptionInstruction_ = currentInstruction;
+        lastExceptionCode_ = static_cast<std::uint8_t>(code);
         pc_ = cp0_.raiseException(code, pc_, inDelaySlot, badAddress, tlbRefill);
         pendingBranch_ = false;
         pendingBranchTarget_ = 0;
