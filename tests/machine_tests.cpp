@@ -1597,6 +1597,45 @@ void testCp0CountCompareTimerInterrupt() {
 }
 
 
+void testCpuAcceptsCp0TimerInterruptBetweenInstructions() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    require(bus.write32(0x000U, 0x25080001U), "write first ADDIU before timer interrupt");
+    require(bus.write32(0x004U, 0x25080001U), "write second ADDIU before timer interrupt");
+    require(bus.write32(0x008U, 0x25080001U), "write instruction interrupted by timer");
+    require(bus.write32(0x180U, 0x42000018U), "write ERET at timer interrupt vector");
+
+    auto& cpu = machine.cpu();
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    constexpr std::uint64_t timerMask = 1ULL << 15U;
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kCount, 0U),
+            "initialize Count before CPU timer interrupt");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kCompare, 2U),
+            "schedule timer interrupt after two CPU instructions");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                               m64plus::n64::Cp0::kStatusIe | timerMask),
+            "enable global and timer interrupt in CPU Status");
+
+    require(machine.stepCpu(), "CPU executes first instruction before timer match");
+    require(machine.stepCpu(), "CPU executes second instruction and timer becomes pending");
+    require(cpu.pc() == 0xFFFFFFFF80000008ULL,
+            "CPU reaches next instruction after timer match");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kCause) & timerMask) != 0U,
+            "timer match sets Cause.IP7");
+
+    require(machine.stepCpu(), "CPU accepts timer interrupt before next instruction");
+    require(cpu.pc() == 0xFFFFFFFF80000180ULL,
+            "timer interrupt transfers control to general exception vector");
+    require(cpu.cp0().read(m64plus::n64::Cp0::kEpc) == 0xFFFFFFFF80000008ULL,
+            "timer interrupt saves the next instruction address in EPC");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kCause) & 0x7CU) == 0U,
+            "timer interrupt records Interrupt exception code");
+    require(cpu.cp0().exceptionLevel(),
+            "timer interrupt sets CP0 EXL before entering handler");
+    require(cpu.reg(8U) == 2U,
+            "interrupted instruction does not execute before handler entry");
+}
+
 void testCpuEretRestoresExceptionReturnAddress() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -1661,6 +1700,7 @@ int main() {
     testTlbPairedPagesAsidGlobalAndPermissions();
     testCp0RandomCyclesWithinWiredBoundary();
     testCp0CountCompareTimerInterrupt();
+    testCpuAcceptsCp0TimerInterruptBetweenInstructions();
     testCpuEretRestoresExceptionReturnAddress();
     testCpuEretReturnsToBranchAfterDelaySlotException();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
