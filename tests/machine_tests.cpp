@@ -1724,6 +1724,14 @@ void testCpuBranchLikelyDelaySlotSemantics() {
             "execute untaken BLTZL branch-likely");
     runCase(0x05030002U, 7U, 0U, true,
             "execute taken BGEZL branch-likely");
+    runCase(0x59000002U, 0U, 0U, true,
+            "execute taken BLEZL branch-likely");
+    runCase(0x5D000002U, 1U, 0U, true,
+            "execute taken BGTZL branch-likely");
+    runCase(0x59000002U, 1U, 0U, false,
+            "execute untaken BLEZL branch-likely");
+    runCase(0x5D000002U, 0U, 0U, false,
+            "execute untaken BGTZL branch-likely");
 }
 
 void testCpuEretRestoresExceptionReturnAddress() {
