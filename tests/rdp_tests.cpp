@@ -947,6 +947,40 @@ void testFillRectangleWritesRgba32PixelsAndHonorsScissor() {
     }
 }
 
+void testFillRectangleWritesRgba16AlternatingHalfwords() {
+    using namespace m64plus::n64;
+    const std::uint32_t base = 0x3400U;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (2ULL << 51U) | (3ULL << 32U) | base,
+        (0x37ULL << 56U) | 0xF80107C1ULL,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x36ULL << 56U) | (8ULL << 44U) | (8ULL << 32U)
+    };
+    for (std::size_t i = 0; i < 4U; ++i)
+        require(bus.write64(0xD80U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed RGBA16 FILL_RECTANGLE command stream");
+    require(bus.write32(Bus::kDpStart, 0xD80U) &&
+            bus.write32(Bus::kDpEnd, 0xDA0U),
+            "publish RGBA16 fill stream");
+    for (unsigned i = 0; i < 4U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "RGBA16 FILL_RECTANGLE setup and draw are processed");
+
+    for (std::uint32_t y = 0; y < 3U; ++y) {
+        for (std::uint32_t x = 0; x < 3U; ++x) {
+            std::uint16_t pixel = 0U;
+            const std::uint32_t index = y * 4U + x;
+            require(bus.read16(base + index * 2U, pixel),
+                    "read rendered RGBA16 framebuffer pixel");
+            const std::uint16_t expected = (index & 1U) == 0U ? 0xF801U : 0x07C1U;
+            require(pixel == expected,
+                    "RGBA16 fill repeats upper/lower fill-color halfwords");
+        }
+    }
+}
+
 void testFillRectangleRejectsOutOfRangeWithoutPartialWrites() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1031,6 +1065,7 @@ int main() {
     testLoadBlockRejectsUnsupportedTexelSizes();
     testLoadTlutReplicatesEntriesIntoHighTmem();
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
+    testFillRectangleWritesRgba16AlternatingHalfwords();
     testFillRectangleRejectsOutOfRangeWithoutPartialWrites();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
