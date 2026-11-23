@@ -260,6 +260,7 @@ void testPiCartridgeToRdramDmaAndInterrupt() {
     require(bus.write32(Bus::kPiDramAddr, 0x200U), "set PI DRAM destination");
     require(bus.write32(Bus::kPiCartAddr, Bus::kCartridgeBase + 0x40U),
             "set PI cartridge source");
+    const std::uint64_t epochBeforePiDma = bus.rdram().writeEpoch();
     require(bus.write32(Bus::kPiWriteLength, 7U),
             "PI_WR_LEN starts eight-byte cartridge-to-RDRAM DMA");
     std::uint32_t copied = 0;
@@ -267,6 +268,8 @@ void testPiCartridgeToRdramDmaAndInterrupt() {
             "PI DMA copies first big-endian word into RDRAM");
     require(bus.read32(0x204U, copied) && copied == 0x55667788U,
             "PI DMA copies second big-endian word into RDRAM");
+    require(bus.rdram().writeEpoch() > epochBeforePiDma,
+            "PI cartridge DMA advances RDRAM reservation generation");
     require(bus.read32(Bus::kPiDramAddr, copied) && copied == 0x208U,
             "PI DRAM address advances by transferred byte count");
     require(bus.read32(Bus::kPiCartAddr, copied) &&
