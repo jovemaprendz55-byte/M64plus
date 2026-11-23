@@ -1807,6 +1807,22 @@ void testCpuSyncInstructionAndReservedFields() {
                 "valid SYNC completes without exception");
     }
 
+    {
+        N64Machine machine;
+        Bus& bus = machine.bus();
+        require(bus.write32(0x000U, 0x10000001U), "write branch before SYNC delay slot");
+        require(bus.write32(0x004U, 0x0000000FU), "write SYNC in branch delay slot");
+        require(bus.write32(0x008U, 0x240A0001U), "write branch target after SYNC");
+        machine.cpu().reset(0xFFFFFFFF80000000ULL);
+        require(machine.stepCpu(), "execute branch before SYNC delay slot");
+        require(machine.stepCpu(), "execute SYNC in branch delay slot");
+        require(!machine.cpu().hasLastException() &&
+                machine.cpu().pc() == 0xFFFFFFFF80000008ULL,
+                "SYNC is legal in a branch delay slot and preserves branch target");
+        require(machine.stepCpu() && machine.cpu().reg(10U) == 1U,
+                "execution continues at branch target after delay-slot SYNC");
+    }
+
     const std::uint32_t invalidSync[] = {
         0x0020000FU, // rs != 0
         0x0001000FU, // rt != 0
