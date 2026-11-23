@@ -1,4 +1,5 @@
 #include "n64/machine.h"
+#include "n64/cp0.h"
 #include "n64/tlb.h"
 
 #include <cstdint>
@@ -1518,10 +1519,41 @@ void testHleBootDetectsCicAndPalRegionFromRom() {
             "HLE publishes CIC-6103 identifier for X103");
 }
 
+
+void testCp0RandomCyclesWithinWiredBoundary() {
+    m64plus::n64::Cp0 cp0;
+    require(cp0.read(m64plus::n64::Cp0::kRandom) == 31U,
+            "CP0 reset initializes Random to entry 31");
+
+    require(cp0.write(m64plus::n64::Cp0::kWired, 29U),
+            "set Wired to reserve entries 0 through 29");
+    require(cp0.read(m64plus::n64::Cp0::kRandom) == 31U,
+            "Wired write restarts Random at entry 31");
+    cp0.tick();
+    require(cp0.read(m64plus::n64::Cp0::kRandom) == 30U,
+            "Random decrements from 31 to 30");
+    cp0.tick();
+    require(cp0.read(m64plus::n64::Cp0::kRandom) == 31U,
+            "Random wraps to 31 when it reaches Wired boundary");
+
+    require(cp0.write(m64plus::n64::Cp0::kWired, 0U),
+            "set Wired to zero");
+    for (unsigned i = 0; i < 31U; ++i) cp0.tick();
+    require(cp0.read(m64plus::n64::Cp0::kRandom) == 31U,
+            "Random cycles through entries 31 to 1 when Wired is zero");
+
+    require(cp0.write(m64plus::n64::Cp0::kWired, 31U),
+            "set Wired to the final TLB entry");
+    cp0.tick();
+    require(cp0.read(m64plus::n64::Cp0::kRandom) == 31U,
+            "Random remains at 31 when all lower entries are wired");
+}
+
 } // namespace
 
 int main() {
     testTlbPairedPagesAsidGlobalAndPermissions();
+    testCp0RandomCyclesWithinWiredBoundary();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
     testMachineOwnsAndProcessesRdpState();
