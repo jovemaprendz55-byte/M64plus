@@ -1373,3 +1373,12 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 
 **Limitações importantes:** implementação inicial cobre apenas LL/SC de 32 bits. Ainda não há LLD/SCD de 64 bits. A reserva só é invalidada por stores executados pela própria CPU; escritas de DMA, RSP ou outros agentes do barramento ainda não notificam a CPU. O endereço reservado é comparado exatamente, sem modelar a granularidade interna de reserva do VR4300. Portanto, é um primeiro suporte funcional para testes sintéticos, não conformidade completa com a arquitetura.
 
+
+
+### 17.26 — Invalidação de reserva por escritas no barramento (23/11/2026)
+
+- O barramento agora mantém uma geração de escrita de RDRAM, incrementada em escritas concluídas pela interface normal e ao final de transferências SP DMA para RDRAM e PI DMA de cartucho para RDRAM.
+- LL e LLD guardam a geração no momento da leitura. SC e SCD só aceitam a reserva se endereço físico e geração ainda coincidirem; uma escrita externa pode causar falha espúria conservadora, evitando sobrescrever dados alterados por DMA ou outro agente do barramento.
+- A geração é global para RDRAM: uma escrita em endereço diferente também invalida a reserva. Isso é conservador e ainda não modela granularidade de reserva específica do VR4300.
+- Teste adicional executa LL, modifica a palavra via interface do barramento e confirma que SC falha sem sobrescrever o valor externo.
+- A cobertura não substitui testes específicos de SP DMA e PI DMA, nem implementa LLD/SCD com todas as regras temporais/atômicas do hardware.
