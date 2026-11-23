@@ -1791,6 +1791,40 @@ void testCpuSpecialTrapInstructions() {
     }
 }
 
+void testCpuSyncInstructionAndReservedFields() {
+    const std::uint32_t validSync[] = {
+        0x0000000FU, // SYNC stype 0
+        0x0000004FU, // SYNC stype 1
+        0x000007CFU  // SYNC stype 31
+    };
+    for (const std::uint32_t instruction : validSync) {
+        N64Machine machine;
+        require(machine.bus().write32(0U, instruction), "write valid SYNC instruction");
+        machine.cpu().reset(0xFFFFFFFF80000000ULL);
+        require(machine.stepCpu(), "execute valid SYNC instruction");
+        require(!machine.cpu().hasLastException() &&
+                machine.cpu().pc() == 0xFFFFFFFF80000004ULL,
+                "valid SYNC completes without exception");
+    }
+
+    const std::uint32_t invalidSync[] = {
+        0x0020000FU, // rs != 0
+        0x0001000FU, // rt != 0
+        0x0000080FU  // rd != 0
+    };
+    for (const std::uint32_t instruction : invalidSync) {
+        N64Machine machine;
+        require(machine.bus().write32(0U, instruction), "write invalid SYNC encoding");
+        machine.cpu().reset(0xFFFFFFFF80000000ULL);
+        require(machine.runCpuInstructions(1U) == 0U,
+                "invalid SYNC encoding raises an exception");
+        require(machine.cpu().hasLastException() &&
+                machine.cpu().lastExceptionCode() == 10U &&
+                machine.cpu().lastExceptionInstruction() == instruction,
+                "invalid SYNC encoding raises Reserved Instruction");
+    }
+}
+
 void testCpuMoveConditionalInstructions() {
     const struct MoveCase {
         std::uint32_t instruction;
@@ -2160,6 +2194,7 @@ int main() {
     testCpuSyscallAndBreakpointInBranchDelaySlot();
     testCpuSpecialTrapInstructions();
     testCpuRegimmTrapImmediateInstructions();
+    testCpuSyncInstructionAndReservedFields();
     testCpuMoveConditionalInstructions();
     testCpuRejectsInvalidBlezBgtzEncodings();
     testCpuRejectsInvalidSpecialShiftAndJumpEncodings();
