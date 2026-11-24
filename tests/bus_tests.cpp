@@ -49,6 +49,45 @@ void testMiInterruptRegisterReflectsSourcesAndIsReadOnly() {
             "MI interrupt register remains clear after ignored write");
 }
 
+void testMiInterruptSourcesRemainIndependent() {
+    Bus bus;
+    constexpr std::uint32_t source0 = 1U << 0U;
+    constexpr std::uint32_t source2 = 1U << 2U;
+    constexpr std::uint32_t setMask0 = 1U << 1U;
+    constexpr std::uint32_t setMask2 = 1U << 5U;
+    constexpr std::uint32_t clearMask0 = 1U << 0U;
+
+    bus.setMiInterrupt(0U, true);
+    bus.setMiInterrupt(2U, true);
+    std::uint32_t pending = 0U;
+    require(bus.read32(Bus::kMiInterrupt, pending) &&
+            pending == (source0 | source2),
+            "multiple MI interrupt sources can remain asserted together");
+
+    require(bus.write32(Bus::kMiInterruptMask, setMask0),
+            "enable only first asserted MI source");
+    require(bus.miInterruptPending(),
+            "one enabled source makes combined MI interrupt pending");
+    require(bus.write32(Bus::kMiInterruptMask, clearMask0),
+            "disable first MI source without acknowledging it");
+    require(!bus.miInterruptPending(),
+            "masked second source does not trigger combined pending state");
+    require(bus.read32(Bus::kMiInterrupt, pending) &&
+            pending == (source0 | source2),
+            "mask changes do not clear asserted interrupt sources");
+
+    require(bus.write32(Bus::kMiInterruptMask, setMask2),
+            "enable second asserted MI source");
+    require(bus.miInterruptPending(),
+            "second source independently triggers pending state");
+    bus.setMiInterrupt(0U, false);
+    require(bus.miInterruptPending(),
+            "deasserting first source does not clear enabled second source");
+    bus.setMiInterrupt(2U, false);
+    require(!bus.miInterruptPending(),
+            "combined pending state clears after all enabled sources deassert");
+}
+
 void testMiInterruptMaskSetAndClearCommands() {
     Bus bus;
     std::uint32_t mask = 0U;
@@ -401,6 +440,7 @@ void testCartridgeRomMappingAndValidation() {
 
 int main() {
     testMiInterruptRegisterReflectsSourcesAndIsReadOnly();
+    testMiInterruptSourcesRemainIndependent();
     testMiInterruptMaskSetAndClearCommands();
     testMiVersionRegisterReportsRcpRevision();
     testDpRegisterWindow();
