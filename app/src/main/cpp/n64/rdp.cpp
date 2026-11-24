@@ -525,6 +525,40 @@ bool RdpCommandDecoder::decodeTriangleCommand(
     return true;
 }
 
+bool RdpCommandDecoder::decodeTextureRectangle(
+    const RdpCommandPacket& packet, RdpTextureRectangleCommand& command) noexcept {
+    if ((packet.info.opcode != 0x24U && packet.info.opcode != 0x25U) ||
+        packet.info.lengthWords != 2U ||
+        static_cast<std::uint8_t>((packet.words[0] >> 56U) & 0x3FU) != packet.info.opcode) {
+        return false;
+    }
+
+    const std::uint64_t first = packet.words[0];
+    const std::uint64_t second = packet.words[1];
+    const auto signed16 = [](std::uint64_t value) noexcept {
+        const std::uint16_t bits = static_cast<std::uint16_t>(value & 0xFFFFU);
+        const std::int32_t signedValue = (bits & 0x8000U) != 0U
+            ? static_cast<std::int32_t>(bits) - 0x10000
+            : static_cast<std::int32_t>(bits);
+        return static_cast<std::int16_t>(signedValue);
+    };
+
+    RdpTextureRectangleCommand candidate{};
+    candidate.xh = static_cast<std::uint16_t>((first >> 44U) & 0x0FFFU);
+    candidate.yh = static_cast<std::uint16_t>((first >> 32U) & 0x0FFFU);
+    candidate.tile = static_cast<std::uint8_t>((first >> 24U) & 0x07U);
+    candidate.xl = static_cast<std::uint16_t>((first >> 12U) & 0x0FFFU);
+    candidate.yl = static_cast<std::uint16_t>(first & 0x0FFFU);
+    candidate.s = signed16(second >> 48U);
+    candidate.t = signed16(second >> 32U);
+    candidate.dsdx = signed16(second >> 16U);
+    candidate.dtdy = signed16(second);
+    candidate.flip = packet.info.opcode == 0x25U;
+    candidate.rawWords = {{first, second}};
+    command = candidate;
+    return true;
+}
+
 bool RdpCommandDecoder::decodeTriangleLayout(
     std::uint8_t opcode, RdpTriangleLayout& layout) noexcept {
     if (opcode < 0x08U || opcode > 0x0FU) return false;
