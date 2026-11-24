@@ -94,30 +94,30 @@ void testTriangleCommandPacketDecoding() {
         if (command.layout.hasShade) {
             require(command.shadeWords[0] == packet.words[4],
                     "shade coefficients copied from declared offset");
-            require(command.shadeCoefficients[0] ==
-                        static_cast<std::int32_t>(0xA5000000U) &&
-                    command.shadeCoefficients[1] == 4,
-                    "shade payload decodes high and low signed halves in order");
+            require(command.shadeCoefficients[0] == -23296 &&
+                    command.shadeCoefficients[1] == 0 &&
+                    command.shadeCoefficients[2] == 0 &&
+                    command.shadeCoefficients[3] == 4,
+                    "shade payload decodes four signed 16-bit fields in order");
         }
         if (command.layout.hasTexture) {
             const std::size_t offset = command.layout.textureWordOffset;
             require(command.textureWords[0] == packet.words[offset],
                     "texture coefficients copied from declared offset");
-            require(command.textureCoefficients[0] ==
-                        static_cast<std::int32_t>(0xA5000000U) &&
-                    command.textureCoefficients[1] ==
-                        static_cast<std::int32_t>(offset),
-                    "texture payload decodes signed halves in order");
+            require(command.textureCoefficients[0] == -23296 &&
+                    command.textureCoefficients[1] == 0 &&
+                    command.textureCoefficients[2] == 0,
+                    "texture payload decodes three signed fields and skips unused low bits");
         }
         if (command.layout.hasZ) {
             const std::size_t offset = command.layout.zWordOffset;
             require(command.zWords[0] == packet.words[offset],
                     "Z coefficients copied from declared offset");
-            require(command.zCoefficients[0] ==
-                        static_cast<std::int32_t>(0xA5000000U) &&
-                    command.zCoefficients[1] ==
-                        static_cast<std::int32_t>(offset),
-                    "Z payload decodes signed halves in order");
+            require(command.zCoefficients[0] == -23296 &&
+                    command.zCoefficients[1] == 0 &&
+                    command.zCoefficients[2] == 0 &&
+                    command.zCoefficients[3] == static_cast<std::int16_t>(offset),
+                    "Z payload decodes four signed 16-bit fields in order");
         }
     }
 
