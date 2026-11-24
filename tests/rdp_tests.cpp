@@ -100,6 +100,7 @@ void testTriangleCommandPacketDecoding() {
         packet.info = RdpCommandDecoder::decode(
             static_cast<std::uint64_t>(opcode) << 56U);
         packet.words[0] = (static_cast<std::uint64_t>(opcode) << 56U) |
+                          (6ULL << 51U) | (2ULL << 48U) |
                           (0x0123ULL << 32U) | (0x0234ULL << 16U) | 0x0345ULL;
         packet.words[1] = 0xFFF0000080000001ULL;
         packet.words[2] = 0x000180007FFFFFFFULL;
@@ -142,8 +143,9 @@ void testTriangleCommandPacketDecoding() {
         require(RdpCommandDecoder::decodeTriangleCommand(packet, command),
                 "complete triangle packet decodes");
         require(command.layout.wordCount == packet.info.lengthWords &&
+                command.edge.level == 6U && command.edge.tile == 2U &&
                 command.edge.yLow == 0x0345U,
-                "triangle packet combines edge header and optional layout");
+                "triangle packet carries LOD level, tile, edge header and optional layout");
         if (layout.hasShade) {
             for (std::size_t i = 0; i < command.shadeCoefficients.size(); ++i) {
                 const std::int16_t expected = expectedFour[i % 4U] +
