@@ -3037,9 +3037,74 @@ void testMachineResetClearsRspAndSpExecutionState() {
             "machine reset clears SP IMEM");
 }
 
+
+void testMachineResetClearsPiAndSpDmaRegisters() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+
+    std::vector<std::uint8_t> rom(72U, 0U);
+    rom[0] = 0x80U;
+    rom[1] = 0x37U;
+    rom[2] = 0x12U;
+    rom[3] = 0x40U;
+    rom[0x40U] = 0x11U;
+    rom[0x41U] = 0x22U;
+    rom[0x42U] = 0x33U;
+    rom[0x43U] = 0x44U;
+    require(bus.loadCartridge(rom.data(), rom.size()),
+            "load cartridge for PI DMA reset test");
+
+    require(bus.write32(Bus::kPiDramAddr, 0x300U),
+            "set PI DMA destination before machine reset");
+    require(bus.write32(Bus::kPiCartAddr, Bus::kCartridgeBase + 0x40U),
+            "set PI DMA source before machine reset");
+    require(bus.write32(Bus::kPiWriteLength, 3U),
+            "complete PI DMA before machine reset");
+
+    require(bus.write8(Bus::kSpDmemBase + 0x80U, 0x5AU),
+            "seed SP DMEM for SP DMA reset test");
+    require(bus.write32(Bus::kSpMemAddr, 0x80U),
+            "set SP DMA source before machine reset");
+    require(bus.write32(Bus::kSpDramAddr, 0x400U),
+            "set SP DMA destination before machine reset");
+    require(bus.write32(Bus::kSpWriteLength, 0U),
+            "complete SP DMA before machine reset");
+
+    std::uint32_t value = 0U;
+    require(bus.read32(Bus::kPiStatus, value) &&
+                (value & Bus::kPiStatusInterrupt) != 0U,
+            "PI DMA completion interrupt is set before reset");
+    require(bus.read32(0x300U, value) && value == 0x11223344U,
+            "PI DMA wrote cartridge data before reset");
+    require(bus.read32(0x400U, value) && value == 0x5A000000U,
+            "SP DMA wrote DMEM data before reset");
+
+    machine.reset();
+
+    require(bus.read32(Bus::kPiStatus, value) && value == 0U,
+            "machine reset clears PI status and completion interrupt");
+    require(bus.read32(Bus::kPiDramAddr, value) && value == 0U,
+            "machine reset clears PI DRAM address register");
+    require(bus.read32(Bus::kPiCartAddr, value) && value == Bus::kCartridgeBase,
+            "machine reset restores PI cartridge address register");
+    require(bus.read32(Bus::kSpMemAddr, value) && value == 0U,
+            "machine reset clears SP memory address register");
+    require(bus.read32(Bus::kSpDramAddr, value) && value == 0U,
+            "machine reset clears SP DRAM address register");
+    require(bus.read32(Bus::kSpDmaBusy, value) && value == 0U,
+            "machine reset clears SP DMA busy register");
+    require(bus.read32(0x300U, value) && value == 0U,
+            "machine reset clears RDRAM data written by PI DMA");
+    require(bus.read32(Bus::kSpDmemBase + 0x80U, value) && value == 0U,
+            "machine reset clears SP DMEM data written before reset");
+    require(bus.read32(Bus::kCartridgeBase + 0x40U, value) && value == 0x11223344U,
+            "machine reset preserves cartridge contents after DMA reset");
+}
+
 } // namespace
 
 int main() {
+    testMachineResetClearsPiAndSpDmaRegisters();
     testMachineResetClearsRspAndSpExecutionState();
     testMachineResetPreservesInsertedCartridgeAndClearsRdram();
     testMachineResetClearsCpuAndMiInterruptState();
