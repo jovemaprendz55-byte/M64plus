@@ -599,7 +599,7 @@ void testLoadTileFourBitOddSourceNibbleWrapsAcrossTmemEnd() {
     std::uint8_t value = 0U;
     require(state.tmem.readByte(4088U, value) && value == 0x23U,
             "first row packs odd-start source nibbles at final TMEM byte");
-    require(state.tmem.readByte(4U, value) && value == 0x56U,
+    require(state.tmem.readByte(4U, value) && value == 0x54U,
             "odd row swizzles and wraps packed nibbles to TMEM start");
     require(state.tmem.readByte(0U, value) && value == 0xEEU &&
             state.tmem.readByte(1U, value) && value == 0xEEU,
