@@ -56,6 +56,8 @@ struct RdpTriangleLayout final {
     bool hasZ = false;
 };
 
+// Shade block order: RGBA, dRGBA/dX, RGBA fraction, dRGBA/dX fraction,
+// dRGBA/dE, dRGBA/dY, dRGBA/dE fraction, dRGBA/dY fraction.
 struct RdpTriangleShadeCoefficients final {
     std::array<std::int16_t, 4> rgba{};
     std::array<std::int16_t, 4> drgbaDx{};
@@ -67,6 +69,9 @@ struct RdpTriangleShadeCoefficients final {
     std::array<std::int16_t, 4> drgbaDyFraction{};
 };
 
+// Texture block order: STW, dSTW/dX, STW fraction, dSTW/dX fraction,
+// dSTW/dE, dSTW/dY, dSTW/dE fraction, dSTW/dY fraction.
+// Each source word's low 16 bits are not coefficient fields.
 struct RdpTriangleTextureCoefficients final {
     std::array<std::int16_t, 3> stw{};
     std::array<std::int16_t, 3> dstwDx{};
@@ -78,6 +83,8 @@ struct RdpTriangleTextureCoefficients final {
     std::array<std::int16_t, 3> dstwDyFraction{};
 };
 
+// Z block order: Z, Z fraction, dZ/dX, dZ/dX fraction,
+// dZ/dE, dZ/dE fraction, dZ/dY, dZ/dY fraction.
 struct RdpTriangleZCoefficients final {
     std::int16_t z = 0;
     std::int16_t zFraction = 0;
