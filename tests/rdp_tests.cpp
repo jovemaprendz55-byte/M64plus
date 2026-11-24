@@ -1098,6 +1098,44 @@ void testLoadBlockCopiesContiguousTexelsIntoTmem() {
             "16-bit LOAD_BLOCK preserves big-endian halfwords");
 }
 
+void testLoadBlockWrapsDestinationAcrossTmemEnd() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0; i < 16U; ++i)
+        require(bus.write8(0x1E00U + i, static_cast<std::uint8_t>(0x40U + i)),
+                "seed LOAD_BLOCK data for TMEM wrap");
+    for (std::uint32_t i = 0; i < 8U; ++i) {
+        require(state.tmem.writeByte(static_cast<std::uint16_t>(i), 0xEEU),
+                "seed TMEM bytes after wrap destination");
+    }
+
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (1ULL << 51U) | (15ULL << 32U) | 0x1E00ULL;
+    const std::uint64_t tile =
+        (0x35ULL << 56U) | (511ULL << 32U);
+    const std::uint64_t load =
+        (0x33ULL << 56U) | (60ULL << 12U);
+    require(bus.write64(0xB00U, image) &&
+            bus.write64(0xB08U, tile) &&
+            bus.write64(0xB10U, load), "seed wrapping LOAD_BLOCK sequence");
+    require(bus.write32(Bus::kDpStart, 0xB00U) &&
+            bus.write32(Bus::kDpEnd, 0xB18U), "publish wrapping LOAD_BLOCK sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "wrapping LOAD_BLOCK sequence executes");
+
+    std::uint8_t value = 0U;
+    for (std::uint32_t i = 0; i < 16U; ++i) {
+        const std::uint16_t address = static_cast<std::uint16_t>((4088U + i) & 0x0FFFU);
+        require(state.tmem.readByte(address, value) &&
+                value == static_cast<std::uint8_t>(0x40U + i),
+                "LOAD_BLOCK wraps destination bytes at TMEM boundary");
+    }
+    require(state.tmem.readByte(8U, value) && value == 0xEEU,
+            "LOAD_BLOCK wrap does not overwrite bytes beyond its destination span");
+}
+
 void testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines() {
     using namespace m64plus::n64;
     // DXT=0xFFF advances at least one line per 64-bit word. The line
@@ -1742,6 +1780,7 @@ int main() {
     testLoadTile32BitValidatesEverySourceRowBeforeWritingBanks();
     testLoadTileRejectsNonRgba32FormatsWithoutWritingTmem();
     testLoadBlockCopiesContiguousTexelsIntoTmem();
+    testLoadBlockWrapsDestinationAcrossTmemEnd();
     testLoadBlockDxtSwapsOddLineWords();
     testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines();
     testLoadBlockContinuesAcrossTextureImageRows();
