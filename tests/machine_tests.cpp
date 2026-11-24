@@ -166,9 +166,22 @@ void testMachineOwnsAndProcessesRdpState() {
             image.address == 0x2000U, "machine exposes decoded color image descriptor");
     require(machine.runRdp(4U) == 0U, "RDP runner stops when command stream is empty");
 
+    // Seed additional RDP-local state so reset covers TMEM and sync bookkeeping.
+    require(machine.rdp().tmem.writeByte(0x10U, 0xA5U),
+            "seed RDP TMEM before machine reset");
+    machine.rdp().hasTextureLoad = true;
+    machine.rdp().syncFullCount = 9U;
+
     // Reset must clear RDP state as well as CPU/RSP and bus state.
     machine.reset();
     require(!machine.rdp().hasColorImage, "machine reset clears RDP image state");
+    require(!machine.rdp().hasTextureLoad,
+            "machine reset clears pending texture-load state");
+    require(machine.rdp().syncFullCount == 0U,
+            "machine reset clears RDP synchronization counters");
+    std::uint8_t tmemByte = 0xFFU;
+    require(machine.rdp().tmem.readByte(0x10U, tmemByte) && tmemByte == 0U,
+            "machine reset clears RDP texture memory");
 }
 
 void testCpuKsegDirectMappingWithoutTlb() {
