@@ -114,6 +114,40 @@ void testMiInterruptMaskSetAndClearCommands() {
     }
 }
 
+
+void testMiResetClearsInterruptSourcesAndMasks() {
+    Bus bus;
+    constexpr std::uint32_t spSource = 1U << 0U;
+    constexpr std::uint32_t piSource = 1U << 4U;
+    constexpr std::uint32_t enableSp = 1U << 1U;
+    constexpr std::uint32_t enablePi = 1U << 9U;
+
+    bus.setMiInterrupt(0U, true);
+    bus.setMiInterrupt(4U, true);
+    require(bus.write32(Bus::kMiInterruptMask, enableSp | enablePi),
+            "enable SP and PI interrupts before reset");
+    require(bus.miInterruptPending(),
+            "enabled SP and PI sources assert combined interrupt before reset");
+
+    bus.reset();
+
+    std::uint32_t value = 0U;
+    require(bus.read32(Bus::kMiInterrupt, value) && value == 0U,
+            "MI reset clears all asserted interrupt sources");
+    require(bus.read32(Bus::kMiInterruptMask, value) && value == 0U,
+            "MI reset disables all interrupt masks");
+    require(!bus.miInterruptPending(),
+            "MI reset deasserts combined interrupt output");
+
+    bus.setMiInterrupt(0U, true);
+    require(!bus.miInterruptPending(),
+            "an asserted source remains masked after reset");
+    require(bus.read32(Bus::kMiInterrupt, value) && value == spSource,
+            "new SP source can assert after reset");
+    require((value & piSource) == 0U,
+            "stale PI source does not survive reset");
+}
+
 void testDpRegisterWindow() {
     Bus bus;
     std::uint32_t value = 0;
@@ -442,6 +476,7 @@ int main() {
     testMiInterruptRegisterReflectsSourcesAndIsReadOnly();
     testMiInterruptSourcesRemainIndependent();
     testMiInterruptMaskSetAndClearCommands();
+    testMiResetClearsInterruptSourcesAndMasks();
     testMiVersionRegisterReportsRcpRevision();
     testDpRegisterWindow();
     testCartridgeRomMappingAndValidation();
