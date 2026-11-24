@@ -1273,6 +1273,7 @@ int main() {
     testRdpTextureMemory();
     testRdpTextureLoadCommandFields();
     testLoadTileCopiesTextureImageIntoTmem();
+    testLoadTileRejectsOutOfRangeSourceWithoutPartialTmemWrites();
     testLoadTilePacksFourBitNibblesAndSwizzlesOddRows();
     testLoadTileSwizzlesOddRowsFor16BitTexels();
     testLoadTileSplits32BitRgbaAcrossTmemBanks();
