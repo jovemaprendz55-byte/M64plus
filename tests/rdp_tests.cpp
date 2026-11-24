@@ -1044,6 +1044,44 @@ void testLoadTlutRejectsOutOfRangeSourceWithoutPartialTmemWrites() {
             "invalid LOAD_TLUT leaves all destination TMEM entries unchanged");
 }
 
+void testLoadTlutRejectsRangePastImageWidthWithoutPartialWrites() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t image = 0x1500U;
+    require(bus.write16(image + 2U, 0xF801U),
+            "seed final in-row TLUT entry");
+    state.tmem.write64(0x800U, 0x123456789ABCDEF0ULL);
+    state.tmem.write64(0x808U, 0x0FEDCBA987654321ULL);
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (2ULL << 51U) | (1ULL << 32U) | image;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (256ULL << 32U);
+    const std::uint64_t loadTlut =
+        (0x30ULL << 56U) | (8ULL << 12U) | 4ULL;
+    require(bus.write64(0x920U, setImage) &&
+            bus.write64(0x928U, setTile) &&
+            bus.write64(0x930U, loadTlut),
+            "seed TLUT range extending past image width");
+    require(bus.write32(Bus::kDpStart, 0x920U) &&
+            bus.write32(Bus::kDpEnd, 0x938U),
+            "publish out-of-width TLUT sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
+            RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "configure image and tile before out-of-width LOAD_TLUT");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "LOAD_TLUT rejects an end coordinate outside texture image width");
+
+    std::uint64_t first = 0U;
+    std::uint64_t second = 0U;
+    require(state.tmem.read64(0x800U, first) &&
+            state.tmem.read64(0x808U, second) &&
+            first == 0x123456789ABCDEF0ULL &&
+            second == 0x0FEDCBA987654321ULL,
+            "out-of-width LOAD_TLUT leaves destination TMEM unchanged");
+}
+
 void testLoadTlutHonorsTextureImageCoordinatesAndRange() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1325,6 +1363,7 @@ int main() {
     testLoadBlockRejectsUnsupportedTexelSizes();
     testLoadTlutReplicatesEntriesIntoHighTmem();
     testLoadTlutRejectsOutOfRangeSourceWithoutPartialTmemWrites();
+    testLoadTlutRejectsRangePastImageWidthWithoutPartialWrites();
     testLoadTlutHonorsTextureImageCoordinatesAndRange();
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
     testFillRectangleWritesRgba16AlternatingHalfwords();
