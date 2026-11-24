@@ -153,6 +153,15 @@ void testTriangleCommandPacketDecoding() {
                 require(command.shadeCoefficients[i] == expected,
                         "all shade coefficient fields retain their signed order");
             }
+            require(command.shade.rgba[0] == command.shadeCoefficients[0] &&
+                    command.shade.drgbaDx[0] == command.shadeCoefficients[4] &&
+                    command.shade.rgbaFraction[0] == command.shadeCoefficients[8] &&
+                    command.shade.drgbaDxFraction[0] == command.shadeCoefficients[12] &&
+                    command.shade.drgbaDe[0] == command.shadeCoefficients[16] &&
+                    command.shade.drgbaDy[0] == command.shadeCoefficients[20] &&
+                    command.shade.drgbaDeFraction[0] == command.shadeCoefficients[24] &&
+                    command.shade.drgbaDyFraction[0] == command.shadeCoefficients[28],
+                    "named shade groups map to the documented eight-word order");
         }
         if (layout.hasTexture) {
             for (std::size_t i = 0; i < command.textureCoefficients.size(); ++i) {
@@ -165,6 +174,15 @@ void testTriangleCommandPacketDecoding() {
                 require((word & 0xFFFFU) == 0xBEEFULL,
                         "texture coefficient low 16 bits remain preserved as unused payload");
             }
+            require(command.texture.stw[0] == command.textureCoefficients[0] &&
+                    command.texture.dstwDx[0] == command.textureCoefficients[3] &&
+                    command.texture.stwFraction[0] == command.textureCoefficients[6] &&
+                    command.texture.dstwDxFraction[0] == command.textureCoefficients[9] &&
+                    command.texture.dstwDe[0] == command.textureCoefficients[12] &&
+                    command.texture.dstwDy[0] == command.textureCoefficients[15] &&
+                    command.texture.dstwDeFraction[0] == command.textureCoefficients[18] &&
+                    command.texture.dstwDyFraction[0] == command.textureCoefficients[21],
+                    "named texture groups map to the documented eight-word order");
         }
         if (layout.hasZ) {
             for (std::size_t i = 0; i < command.zCoefficients.size(); ++i) {
@@ -173,6 +191,15 @@ void testTriangleCommandPacketDecoding() {
                 require(command.zCoefficients[i] == expected,
                         "all Z coefficient fields retain their signed order");
             }
+            require(command.depth.z == command.zCoefficients[0] &&
+                    command.depth.zFraction == command.zCoefficients[1] &&
+                    command.depth.dzDx == command.zCoefficients[2] &&
+                    command.depth.dzDxFraction == command.zCoefficients[3] &&
+                    command.depth.dzDe == command.zCoefficients[4] &&
+                    command.depth.dzDeFraction == command.zCoefficients[5] &&
+                    command.depth.dzDy == command.zCoefficients[6] &&
+                    command.depth.dzDyFraction == command.zCoefficients[7],
+                    "named depth fields map to the documented two-word order");
         }
     }
 
