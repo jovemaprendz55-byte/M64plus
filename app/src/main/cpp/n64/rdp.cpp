@@ -539,6 +539,22 @@ RdpProcessResult RdpCommandProcessor::processNext(
         return RdpProcessResult::NoCommand;
 
     switch (packet.info.opcode) {
+    case 0x08U: // TRIANGLE
+    case 0x09U:
+    case 0x0AU:
+    case 0x0BU:
+    case 0x0CU:
+    case 0x0DU:
+    case 0x0EU:
+    case 0x0FU: {
+        RdpTriangleCommand triangle{};
+        if (!RdpCommandDecoder::decodeTriangleCommand(packet, triangle))
+            return RdpProcessResult::Unsupported;
+        state.lastTriangle = triangle;
+        state.hasTriangle = true;
+        // Parsing is integrated; rasterization is deliberately not claimed yet.
+        return RdpProcessResult::Unsupported;
+    }
     case 0x26U: // SYNC_LOAD
         ++state.syncLoadCount;
         return RdpProcessResult::Processed;
