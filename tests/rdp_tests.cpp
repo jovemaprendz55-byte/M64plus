@@ -41,6 +41,46 @@ void testTriangleCommandLengths() {
     }
 }
 
+void testTriangleOptionalBlockLayout() {
+    using namespace m64plus::n64;
+    for (std::uint8_t flags = 0U; flags < 8U; ++flags) {
+        const std::uint8_t opcode = static_cast<std::uint8_t>(0x08U + flags);
+        RdpTriangleLayout layout{};
+        require(RdpCommandDecoder::decodeTriangleLayout(opcode, layout),
+                "triangle opcode has a decodable block layout");
+        const bool shade = (flags & 0x04U) != 0U;
+        const bool texture = (flags & 0x02U) != 0U;
+        const bool z = (flags & 0x01U) != 0U;
+        std::uint8_t expectedOffset = 4U;
+        require(layout.hasShade == shade && layout.hasTexture == texture &&
+                layout.hasZ == z, "triangle optional block flags");
+        if (shade) {
+            require(layout.shadeWordOffset == expectedOffset,
+                    "shade block starts after four-word edge base");
+            expectedOffset = static_cast<std::uint8_t>(expectedOffset + 8U);
+        }
+        if (texture) {
+            require(layout.textureWordOffset == expectedOffset,
+                    "texture block follows optional shade block");
+            expectedOffset = static_cast<std::uint8_t>(expectedOffset + 8U);
+        }
+        if (z) {
+            require(layout.zWordOffset == expectedOffset,
+                    "Z block follows shade and texture blocks");
+            expectedOffset = static_cast<std::uint8_t>(expectedOffset + 2U);
+        }
+        require(layout.wordCount == expectedOffset &&
+                layout.wordCount == RdpCommandDecoder::decode(header(opcode)).lengthWords,
+                "triangle block layout agrees with packet framing");
+    }
+    RdpTriangleLayout unchanged{};
+    unchanged.wordCount = 77U;
+    require(!RdpCommandDecoder::decodeTriangleLayout(0x24U, unchanged),
+            "non-triangle opcode has no triangle layout");
+    require(unchanged.wordCount == 77U,
+            "failed triangle layout decode leaves output unchanged");
+}
+
 void testDpcCommandStreamIntegration() {
     m64plus::n64::Bus bus;
     m64plus::n64::RdpCommandPacket packet{};
@@ -2097,6 +2137,7 @@ void testTextureRectangleLengths() {
 int main() {
     testSingleWordCommands();
     testTriangleCommandLengths();
+    testTriangleOptionalBlockLayout();
     testMaximumTriangleCommandWaitsForAllWords();
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testTextureRectangleLengths();
