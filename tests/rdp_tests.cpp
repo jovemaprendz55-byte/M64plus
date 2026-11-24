@@ -581,7 +581,7 @@ void testLoadTileFourBitOddSourceNibbleAcrossSwizzledRows() {
                 "two-row odd-nibble LOAD_TILE commands execute");
 
     std::uint8_t value = 0U;
-    require(state.tmem.readByte(0U, value) && value == 0x34U,
+    require(state.tmem.readByte(0U, value) && value == 0x23U,
             "first row packs low source nibble before next high nibble");
     require(state.tmem.readByte(12U, value) && value == 0x67U,
             "odd row packs source nibbles after TMEM word swizzle");
