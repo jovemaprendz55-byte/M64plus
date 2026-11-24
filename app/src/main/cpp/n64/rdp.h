@@ -16,6 +16,7 @@ struct RdpCommandInfo final {
 
 // Decodes the command header only. It does not execute rendering operations.
 struct RdpTriangleLayout;
+struct RdpTriangleEdgeState;
 
 class RdpCommandDecoder final {
 public:
