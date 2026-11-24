@@ -2299,6 +2299,45 @@ void testFillRectangleRejectsOutOfRangeWithoutPartialWrites() {
             "rejected fill leaves every framebuffer word unchanged");
 }
 
+void testFillRectangleRejectsEmptyScissorIntersectionWithoutWrites() {
+    using namespace m64plus::n64;
+    constexpr std::uint32_t base = 0x3C00U;
+    constexpr std::uint32_t sentinel = 0xAABBCCDDU;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0; i < 16U; ++i)
+        require(bus.write32(base + i * 4U, sentinel),
+                "seed empty-scissor framebuffer sentinels");
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | base,
+        (0x37ULL << 56U) | 0x11223344ULL,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x2DULL << 56U) | (8ULL << 44U) | (8ULL << 32U) |
+            (8ULL << 12U) | 8ULL,
+        (0x36ULL << 56U) | (12ULL << 44U) | (12ULL << 32U)
+    };
+    constexpr std::uint32_t start = 0xE00U;
+    for (std::size_t i = 0; i < 5U; ++i)
+        require(bus.write64(start + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed empty-scissor fill command stream");
+    require(bus.write32(Bus::kDpStart, start) &&
+            bus.write32(Bus::kDpEnd, start + 40U),
+            "publish empty-scissor fill command stream");
+
+    for (unsigned i = 0; i < 4U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "empty-scissor setup commands are processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "empty scissor intersection does not render a fill rectangle");
+
+    for (std::uint32_t i = 0; i < 16U; ++i) {
+        std::uint32_t pixel = 0U;
+        require(bus.read32(base + i * 4U, pixel) && pixel == sentinel,
+                "empty scissor intersection leaves framebuffer unchanged");
+    }
+}
+
 void testUnsupportedRdpCommandIsReported() {
     using namespace m64plus::n64;
     Bus bus;
@@ -2484,6 +2523,7 @@ int main() {
     testFillRectangleWritesRgba16AlternatingHalfwords();
     testFillRectangleHonorsScissorFieldParity();
     testFillRectangleRejectsOutOfRangeWithoutPartialWrites();
+    testFillRectangleRejectsEmptyScissorIntersectionWithoutWrites();
     testUnsupportedRdpCommandIsReported();
     std::cout << "All RDP decoder host tests passed.\n";
     return 0;
