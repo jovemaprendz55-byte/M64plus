@@ -17,6 +17,8 @@ struct RdpCommandInfo final {
 // Decodes the command header only. It does not execute rendering operations.
 struct RdpTriangleLayout;
 struct RdpTriangleEdgeState;
+struct RdpCommandPacket;
+struct RdpTriangleCommand;
 
 class RdpCommandDecoder final {
 public:
@@ -24,6 +26,8 @@ public:
     static bool decodeTriangleLayout(std::uint8_t opcode, RdpTriangleLayout& layout) noexcept;
     static bool decodeTriangleEdge(const std::array<std::uint64_t, 4>& words,
                                    RdpTriangleEdgeState& edge) noexcept;
+    static bool decodeTriangleCommand(const RdpCommandPacket& packet,
+                                      RdpTriangleCommand& command) noexcept;
 };
 
 struct RdpTriangleEdgeState final {
@@ -47,6 +51,14 @@ struct RdpTriangleLayout final {
     bool hasShade = false;
     bool hasTexture = false;
     bool hasZ = false;
+};
+
+struct RdpTriangleCommand final {
+    RdpTriangleEdgeState edge{};
+    RdpTriangleLayout layout{};
+    std::array<std::uint64_t, 8> shadeWords{};
+    std::array<std::uint64_t, 8> textureWords{};
+    std::array<std::uint64_t, 2> zWords{};
 };
 
 struct RdpCommandPacket final {
