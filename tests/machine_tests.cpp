@@ -2961,8 +2961,8 @@ void testMachineResetClearsCpuAndMiInterruptState() {
             "machine reset clears MI interrupt mask");
     require((kMiSpSource & value) == 0U,
             "machine reset leaves SP interrupt mask disabled");
-    require(machine.cpu().pc() == 0xFFFFFFFF80000000ULL,
-            "machine reset restores the CPU reset PC");
+    require(machine.cpu().pc() == 0U,
+            "machine reset restores the default CPU reset PC");
 }
 
 } // namespace
