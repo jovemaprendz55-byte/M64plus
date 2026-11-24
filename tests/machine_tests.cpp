@@ -183,6 +183,48 @@ void testMachineRdpRunnerHonorsCommandBudget() {
             "RDP runner reports no work after the command stream is exhausted");
 }
 
+void testMachineRunsRdpTextureLoadIntoTmem() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    for (std::uint32_t i = 0; i < 12U; ++i) {
+        require(bus.write8(0x1000U + i, static_cast<std::uint8_t>(i + 1U)),
+                "seed machine RDP source texture");
+    }
+
+    const std::uint64_t commands[] = {
+        (0x3DULL << 56U) | (1ULL << 51U) | (3ULL << 32U) | 0x1000ULL,
+        (0x35ULL << 56U) | (1ULL << 51U) | (1ULL << 41U),
+        (0x34ULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
+            (8ULL << 12U) | 8ULL
+    };
+    for (std::size_t i = 0; i < 3U; ++i) {
+        require(bus.write64(0x900U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "write machine RDP texture-load command");
+    }
+    require(bus.write32(Bus::kDpStart, 0x900U) &&
+            bus.write32(Bus::kDpEnd, 0x918U),
+            "publish machine RDP texture-load stream");
+
+    require(machine.runRdp(3U) == 3U,
+            "machine RDP runner processes texture setup and LOAD_TILE");
+    require(machine.rdp().hasTextureLoad &&
+            machine.rdp().lastTextureLoad.kind ==
+                m64plus::n64::RdpTextureLoadKind::Tile,
+            "machine RDP state records the executed tile load");
+
+    std::uint8_t value = 0U;
+    require(machine.rdp().tmem.readByte(0U, value) && value == 6U,
+            "machine LOAD_TILE copies first selected texel into TMEM");
+    require(machine.rdp().tmem.readByte(1U, value) && value == 7U,
+            "machine LOAD_TILE copies adjacent texel into TMEM");
+    require(machine.rdp().tmem.readByte(12U, value) && value == 10U,
+            "machine LOAD_TILE applies odd-row TMEM swizzle");
+    require(machine.rdp().tmem.readByte(13U, value) && value == 11U,
+            "machine LOAD_TILE preserves odd-row texel after swizzle");
+    require(machine.runRdp(1U) == 0U,
+            "machine RDP runner stops after texture-load stream is exhausted");
+}
+
 void testMachineRunsRdpFillIntoFramebuffer() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -3236,6 +3278,7 @@ int main() {
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
     testMachineRdpRunnerHonorsCommandBudget();
     testMachineRunsRdpFillIntoFramebuffer();
+    testMachineRunsRdpTextureLoadIntoTmem();
     testMachineOwnsAndProcessesRdpState();
     testCpuKsegDirectMappingWithoutTlb();
     testCpuFetchesAndExecutesFromCartridgeKseg1();
