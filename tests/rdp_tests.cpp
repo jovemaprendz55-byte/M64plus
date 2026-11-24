@@ -2347,6 +2347,43 @@ void testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists() {
     }
 }
 
+void testTextureRectanglePacketDecoding() {
+    using namespace m64plus::n64;
+    for (std::uint8_t opcode : {0x24U, 0x25U}) {
+        RdpCommandPacket packet{};
+        packet.info = RdpCommandDecoder::decode(header(opcode));
+        packet.words[0] = (static_cast<std::uint64_t>(opcode) << 56U) |
+            (0x123ULL << 44U) | (0x456ULL << 32U) | (5ULL << 24U) |
+            (0x789ULL << 12U) | 0xABCU;
+        packet.words[1] = (0xFEDCULL << 48U) | (0x8123ULL << 32U) |
+            (0x7FFFULL << 16U) | 0x8001ULL;
+
+        RdpTextureRectangleCommand rectangle{};
+        require(RdpCommandDecoder::decodeTextureRectangle(packet, rectangle),
+                "two-word texture rectangle packet decodes");
+        require(rectangle.xh == 0x123U && rectangle.yh == 0x456U &&
+                rectangle.tile == 5U && rectangle.xl == 0x789U &&
+                rectangle.yl == 0xABCU,
+                "texture rectangle coordinates and tile decode from first word");
+        require(rectangle.s == -292 && rectangle.t == -32477 &&
+                rectangle.dsdx == 32767 && rectangle.dtdy == -32767,
+                "texture rectangle signed S/T and derivative fields decode");
+        require(rectangle.flip == (opcode == 0x25U) &&
+                rectangle.rawWords[0] == packet.words[0] &&
+                rectangle.rawWords[1] == packet.words[1],
+                "texture rectangle preserves flip mode and both raw words");
+    }
+
+    RdpCommandPacket invalid{};
+    invalid.info = RdpCommandDecoder::decode(header(0x24U));
+    invalid.words[0] = header(0x25U);
+    RdpTextureRectangleCommand unchanged{};
+    unchanged.xh = 0x55U;
+    require(!RdpCommandDecoder::decodeTextureRectangle(invalid, unchanged) &&
+            unchanged.xh == 0x55U,
+            "invalid texture rectangle packet leaves output unchanged");
+}
+
 void testTextureRectangleLengths() {
     require(m64plus::n64::RdpCommandDecoder::decode(header(0x24U)).lengthWords == 2U,
             "texture rectangle has two words");
@@ -2364,6 +2401,7 @@ int main() {
     testMaximumTriangleCommandWaitsForAllWords();
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testTextureRectangleLengths();
+    testTextureRectanglePacketDecoding();
     testDpcCommandStreamIntegration();
     testRdpSynchronizationCommands();
     testRdpBasicStateCommands();
