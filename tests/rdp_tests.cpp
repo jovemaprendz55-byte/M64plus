@@ -488,6 +488,41 @@ void testLoadTileCopiesTextureImageIntoTmem() {
 }
 
 
+void testLoadTileRejectsOutOfRangeSourceWithoutPartialTmemWrites() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    require(bus.write8(static_cast<std::uint32_t>(Rdram::kSize - 1U), 0xABU),
+            "seed final valid RDRAM byte");
+    state.tmem.writeByte(0U, 0x5AU);
+    state.tmem.writeByte(1U, 0xC3U);
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (1ULL << 32U) |
+        static_cast<std::uint64_t>(Rdram::kSize - 1U);
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (1ULL << 41U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 12U);
+    require(bus.write64(0xB00U, setImage) &&
+            bus.write64(0xB08U, setTile) &&
+            bus.write64(0xB10U, loadTile),
+            "seed out-of-range LOAD_TILE sequence");
+    require(bus.write32(Bus::kDpStart, 0xB00U) &&
+            bus.write32(Bus::kDpEnd, 0xB18U),
+            "publish out-of-range LOAD_TILE sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
+            RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "configure image and tile before invalid LOAD_TILE");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "LOAD_TILE rejects a source rectangle crossing RDRAM end");
+
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0x5AU &&
+            state.tmem.readByte(1U, value) && value == 0xC3U,
+            "invalid LOAD_TILE leaves all destination TMEM bytes unchanged");
+}
+
 void testLoadTilePacksFourBitNibblesAndSwizzlesOddRows() {
     using namespace m64plus::n64;
     Bus bus;
