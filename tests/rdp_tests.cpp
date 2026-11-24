@@ -44,7 +44,8 @@ void testTriangleCommandLengths() {
 void testTriangleEdgeHeaderDecoding() {
     using namespace m64plus::n64;
     const std::array<std::uint64_t, 4> words = {
-        (0x0123ULL << 32U) | (0x0234ULL << 16U) | 0x0345ULL,
+        (5ULL << 51U) | (3ULL << 48U) |
+            (0x0123ULL << 32U) | (0x0234ULL << 16U) | 0x0345ULL,
         (0xFFF00000ULL << 32U) | 0x80000001ULL,
         (0x00018000ULL << 32U) | 0x7FFFFFFFULL,
         (0xFFFF8000ULL << 32U) | 0x00020000ULL
@@ -52,9 +53,10 @@ void testTriangleEdgeHeaderDecoding() {
     RdpTriangleEdgeState edge{};
     require(RdpCommandDecoder::decodeTriangleEdge(words, edge),
             "four-word triangle edge header decodes");
-    require(edge.leftMajor && edge.yLow == 0x0345U &&
-            edge.yMiddle == 0x0234U && edge.yHigh == 0x0123U,
-            "triangle Y coordinates and major-edge direction decode");
+    require(edge.leftMajor && edge.level == 5U && edge.tile == 3U &&
+            edge.yLow == 0x0345U && edge.yMiddle == 0x0234U &&
+            edge.yHigh == 0x0123U,
+            "triangle LOD level, tile, Y coordinates and major-edge direction decode");
     require(edge.xLeft == -1048576 &&
             edge.dxLeftDy == static_cast<std::int32_t>(0x80000001U) &&
             edge.xHigh == 98304 &&
@@ -66,7 +68,8 @@ void testTriangleEdgeHeaderDecoding() {
     RdpTriangleEdgeState zero{};
     const std::array<std::uint64_t, 4> empty{};
     require(RdpCommandDecoder::decodeTriangleEdge(empty, zero) &&
-            zero.leftMajor && zero.yLow == 0U && zero.xLeft == 0,
+            zero.leftMajor && zero.level == 0U && zero.tile == 0U &&
+            zero.yLow == 0U && zero.xLeft == 0,
             "zeroed triangle edge header decodes deterministically");
 }
 
