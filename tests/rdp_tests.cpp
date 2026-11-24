@@ -568,6 +568,44 @@ void testLoadTileWrapsDestinationAcrossTmemEnd() {
             "LOAD_TILE wrap leaves bytes outside row span unchanged");
 }
 
+void testLoadTileFourBitOddSourceNibbleWrapsAcrossTmemEnd() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    // Three 4-bit texels per row: texel 1 is the low nibble of byte 0.
+    require(bus.write8(0x1C00U, 0x12U) && bus.write8(0x1C01U, 0x30U) &&
+            bus.write8(0x1C02U, 0x45U) && bus.write8(0x1C03U, 0x60U),
+            "seed two rows with odd-start 4-bit source texels");
+    for (std::uint16_t i = 0U; i < 8U; ++i)
+        require(state.tmem.writeByte(i, 0xEEU),
+                "seed TMEM bytes at wrapped 4-bit destination");
+
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (1ULL << 32U) | 0x1C00ULL;
+    const std::uint64_t tile =
+        (0x35ULL << 56U) | (1ULL << 41U) | (511ULL << 32U);
+    const std::uint64_t load =
+        (0x34ULL << 56U) | (4ULL << 12U) | (4ULL << 32U) | (8ULL << 12U) | 4ULL;
+    require(bus.write64(0xB60U, image) && bus.write64(0xB68U, tile) &&
+            bus.write64(0xB70U, load),
+            "seed odd-source-nibble LOAD_TILE crossing TMEM end");
+    require(bus.write32(Bus::kDpStart, 0xB60U) &&
+            bus.write32(Bus::kDpEnd, 0xB78U),
+            "publish odd-source-nibble wrapping LOAD_TILE sequence");
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "odd-source-nibble wrapping LOAD_TILE sequence executes");
+
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(4088U, value) && value == 0x23U,
+            "first row packs odd-start source nibbles at final TMEM byte");
+    require(state.tmem.readByte(4U, value) && value == 0x56U,
+            "odd row swizzles and wraps packed nibbles to TMEM start");
+    require(state.tmem.readByte(0U, value) && value == 0xEEU &&
+            state.tmem.readByte(1U, value) && value == 0xEEU,
+            "combined nibble and wrap edge case preserves untouched TMEM bytes");
+}
+
 void testLoadTile16BitWrapsDestinationAcrossTmemEnd() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1933,6 +1971,7 @@ int main() {
     testLoadTileHonorsTileLineStrideAcrossOddRows();
     testLoadTileWrapsDestinationAcrossTmemEnd();
     testLoadTile4BitWrapsDestinationAcrossTmemEnd();
+    testLoadTileFourBitOddSourceNibbleWrapsAcrossTmemEnd();
     testLoadTile16BitWrapsDestinationAcrossTmemEnd();
     testLoadTileRejectsOutOfRangeSourceWithoutPartialTmemWrites();
     testLoadTileFourBitRangeStartingAtOddSourceNibble();
