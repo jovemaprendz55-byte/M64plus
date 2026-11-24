@@ -813,6 +813,39 @@ void testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines() {
             "fractional DXT leaves the fourth word unswapped");
 }
 
+void testLoadBlockContinuesAcrossTextureImageRows() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0; i < 8U; ++i)
+        require(bus.write8(0x1B00U + i, static_cast<std::uint8_t>(0x20U + i)),
+                "seed two rows for linear LOAD_BLOCK transfer");
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (3ULL << 32U) | 0x1B00U;
+    const std::uint64_t setTile = (0x35ULL << 56U);
+    // Begin at X=2 of a four-texel row and load four contiguous texels.
+    const std::uint64_t loadBlock =
+        (0x33ULL << 56U) | (8ULL << 44U) | (20ULL << 12U);
+    require(bus.write64(0xB60U, setImage) &&
+            bus.write64(0xB68U, setTile) &&
+            bus.write64(0xB70U, loadBlock),
+            "seed LOAD_BLOCK row-crossing sequence");
+    require(bus.write32(Bus::kDpStart, 0xB60U) &&
+            bus.write32(Bus::kDpEnd, 0xB78U),
+            "publish LOAD_BLOCK row-crossing sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "row-crossing LOAD_BLOCK sequence executes");
+
+    std::uint8_t value = 0U;
+    for (std::uint16_t i = 0; i < 4U; ++i) {
+        require(state.tmem.readByte(i, value) &&
+                value == static_cast<std::uint8_t>(0x22U + i),
+                "LOAD_BLOCK reads contiguous texels across the image row boundary");
+    }
+}
+
 void testLoadBlockRejectsStartOutsideTextureImageWidth() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1178,6 +1211,7 @@ int main() {
     testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadBlockDxtSwapsOddLineWords();
     testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines();
+    testLoadBlockContinuesAcrossTextureImageRows();
     testLoadBlockRejectsStartOutsideTextureImageWidth();
     testLoadBlockRejectsUnsupportedTexelSizes();
     testLoadTlutReplicatesEntriesIntoHighTmem();
