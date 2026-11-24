@@ -2195,6 +2195,10 @@ void testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists() {
 
         require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
                 "triangle command remains explicitly unsupported before rasterization");
+        require(state.hasTriangle &&
+                state.lastTriangle.layout.wordCount == words &&
+                state.lastTriangle.edge.yLow == 0U,
+                "processor retains the fully decoded triangle for a future rasterizer");
         std::uint32_t current = 0U;
         require(bus.read32(Bus::kDpCurrent, current) &&
                 current == start + static_cast<std::uint32_t>(words) * 8U,
