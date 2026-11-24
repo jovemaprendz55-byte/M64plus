@@ -1096,8 +1096,7 @@ void testLoadTile32BitUsesNonzeroSourceXAcrossRows() {
     const std::uint64_t setImage =
         (0x3DULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | 0x1E00ULL;
     const std::uint64_t setTile =
-        (0x35ULL << 56U) | (3ULL << 51U) | (1ULL << 41U) |
-        (1ULL << 32U);
+        (0x35ULL << 56U) | (3ULL << 51U) | (1ULL << 41U);
     const std::uint64_t loadTile =
         (0x34ULL << 56U) | (4ULL << 44U) |
         (8ULL << 12U) | 4ULL;
