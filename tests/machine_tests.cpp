@@ -2929,6 +2929,40 @@ void testMiInterruptSourcesRemainAggregatedWhenOneMaskIsCleared() {
 }
 
 
+
+void testMachineResetPreservesInsertedCartridgeAndClearsRdram() {
+    N64Machine machine;
+    std::vector<std::uint8_t> rom(64U, 0U);
+    rom[0] = 0x80U;
+    rom[1] = 0x37U;
+    rom[2] = 0x12U;
+    rom[3] = 0x40U;
+    rom[4] = 0x12U;
+    rom[5] = 0x34U;
+    rom[6] = 0x56U;
+    rom[7] = 0x78U;
+
+    require(machine.bus().loadCartridge(rom.data(), rom.size()),
+            "load cartridge before machine reset");
+    require(machine.bus().rdram().write32(0x200U, 0xAABBCCDDU),
+            "write RDRAM before machine reset");
+
+    machine.reset();
+
+    std::uint32_t value = 0U;
+    require(machine.bus().read32(Bus::kCartridgeBase, value) &&
+                value == 0x80371240U,
+            "machine reset preserves the inserted cartridge header");
+    require(machine.bus().read32(Bus::kCartridgeBase + 4U, value) &&
+                value == 0x12345678U,
+            "machine reset preserves cartridge contents");
+    require(machine.bus().rdram().read32(0x200U, value) && value == 0U,
+            "machine reset clears RDRAM contents");
+    require(machine.cpu().pc() == 0U,
+            "machine reset restores default CPU reset address");
+}
+
+
 void testMachineResetClearsCpuAndMiInterruptState() {
     N64Machine machine;
     constexpr std::uint32_t kMiSpSource = 1U << 0U;
@@ -2968,6 +3002,7 @@ void testMachineResetClearsCpuAndMiInterruptState() {
 } // namespace
 
 int main() {
+    testMachineResetPreservesInsertedCartridgeAndClearsRdram();
     testMachineResetClearsCpuAndMiInterruptState();
     testTlbPairedPagesAsidGlobalAndPermissions();
     testCp0RandomCyclesWithinWiredBoundary();
