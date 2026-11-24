@@ -486,6 +486,35 @@ bool RdpCommandDecoder::decodeTriangleCommand(
                            candidate.zCoefficients.data(),
                            candidate.zWords.size(), 4U);
     }
+    const auto copyGroup = [](auto& destination, const auto& source,
+                              std::size_t offset) noexcept {
+        for (std::size_t i = 0; i < destination.size(); ++i)
+            destination[i] = source[offset + i];
+    };
+    if (candidate.layout.hasShade) {
+        copyGroup(candidate.shade.rgba, candidate.shadeCoefficients, 0U);
+        copyGroup(candidate.shade.drgbaDx, candidate.shadeCoefficients, 4U);
+        copyGroup(candidate.shade.rgbaFraction, candidate.shadeCoefficients, 8U);
+        copyGroup(candidate.shade.drgbaDxFraction, candidate.shadeCoefficients, 12U);
+        copyGroup(candidate.shade.drgbaDe, candidate.shadeCoefficients, 16U);
+        copyGroup(candidate.shade.drgbaDy, candidate.shadeCoefficients, 20U);
+        copyGroup(candidate.shade.drgbaDeFraction, candidate.shadeCoefficients, 24U);
+        copyGroup(candidate.shade.drgbaDyFraction, candidate.shadeCoefficients, 28U);
+    }
+    if (candidate.layout.hasTexture) {
+        copyGroup(candidate.texture.stw, candidate.textureCoefficients, 0U);
+        copyGroup(candidate.texture.dstwDx, candidate.textureCoefficients, 3U);
+        copyGroup(candidate.texture.stwFraction, candidate.textureCoefficients, 6U);
+        copyGroup(candidate.texture.dstwDxFraction, candidate.textureCoefficients, 9U);
+        copyGroup(candidate.texture.dstwDe, candidate.textureCoefficients, 12U);
+        copyGroup(candidate.texture.dstwDy, candidate.textureCoefficients, 15U);
+        copyGroup(candidate.texture.dstwDeFraction, candidate.textureCoefficients, 18U);
+        copyGroup(candidate.texture.dstwDyFraction, candidate.textureCoefficients, 21U);
+    }
+    if (candidate.layout.hasZ) {
+        copyGroup(candidate.depth.zDzDx, candidate.zCoefficients, 0U);
+        copyGroup(candidate.depth.zDzDy, candidate.zCoefficients, 4U);
+    }
     command = candidate;
     return true;
 }
