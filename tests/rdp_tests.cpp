@@ -78,6 +78,43 @@ void testDpcCommandStreamIntegration() {
             "RDP stream advances DPC cursor by complete command length");
 }
 
+void testMaximumTriangleCommandWaitsForAllWords() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpCommandPacket packet{};
+    constexpr std::uint32_t start = 0xA00U;
+    constexpr std::uint32_t wordCount = 22U;
+    for (std::uint32_t i = 0; i < wordCount; ++i) {
+        const std::uint64_t value = i == 0U
+            ? (0x0FULL << 56U)
+            : static_cast<std::uint64_t>(i);
+        require(bus.write64(start + i * 8U, value),
+                "seed maximum-length triangle command");
+    }
+    require(bus.write32(Bus::kDpStart, start),
+            "set DPC start for maximum triangle command");
+    require(bus.write32(Bus::kDpEnd, start + (wordCount - 1U) * 8U),
+            "publish all but final triangle command word");
+    require(!RdpCommandStream::fetchNext(bus, packet),
+            "maximum triangle command waits for its final word");
+    std::uint32_t current = 0U;
+    require(bus.read32(Bus::kDpCurrent, current) && current == start,
+            "incomplete maximum triangle leaves DPC cursor unchanged");
+
+    require(bus.write32(Bus::kDpEnd, start + wordCount * 8U),
+            "publish complete maximum triangle command");
+    require(RdpCommandStream::fetchNext(bus, packet),
+            "maximum triangle command is fetched when all words are available");
+    require(packet.info.opcode == 0x0FU && packet.info.lengthWords == wordCount,
+            "maximum triangle packet reports its 22-word framing");
+    require(packet.words[0] == (0x0FULL << 56U) &&
+            packet.words[wordCount - 1U] == wordCount - 1U,
+            "maximum triangle packet retains first and final command words");
+    require(bus.read32(Bus::kDpCurrent, current) &&
+            current == start + wordCount * 8U,
+            "complete maximum triangle advances DPC by all 22 words");
+}
+
 void testRdpSynchronizationCommands() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1088,6 +1125,7 @@ void testTextureRectangleLengths() {
 int main() {
     testSingleWordCommands();
     testTriangleCommandLengths();
+    testMaximumTriangleCommandWaitsForAllWords();
     testTextureRectangleLengths();
     testDpcCommandStreamIntegration();
     testRdpSynchronizationCommands();
