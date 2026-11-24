@@ -553,6 +553,41 @@ void testLoadTileFourBitRangeStartingAtOddSourceNibble() {
             "4-bit LOAD_TILE selects source low nibble then next high nibble");
 }
 
+void testLoadTileFourBitOddSourceNibbleAcrossSwizzledRows() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    require(bus.write8(0x1790U, 0x12U) &&
+            bus.write8(0x1791U, 0x34U) &&
+            bus.write8(0x1792U, 0x56U) &&
+            bus.write8(0x1793U, 0x78U),
+            "seed two-row 4-bit image for odd-nibble range");
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (3ULL << 32U) | 0x1790ULL;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (1ULL << 41U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 44U) | (8ULL << 12U) | 4ULL;
+    require(bus.write64(0xA60U, setImage) &&
+            bus.write64(0xA68U, setTile) &&
+            bus.write64(0xA70U, loadTile),
+            "seed two-row odd-nibble LOAD_TILE sequence");
+    require(bus.write32(Bus::kDpStart, 0xA60U) &&
+            bus.write32(Bus::kDpEnd, 0xA78U),
+            "publish two-row odd-nibble LOAD_TILE sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) ==
+                    RdpProcessResult::Processed,
+                "two-row odd-nibble LOAD_TILE commands execute");
+
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0x34U,
+            "first row packs low source nibble before next high nibble");
+    require(state.tmem.readByte(12U, value) && value == 0x67U,
+            "odd row packs source nibbles after TMEM word swizzle");
+}
+
+
 void testLoadTilePacksFourBitNibblesAndSwizzlesOddRows() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1448,6 +1483,7 @@ int main() {
     testLoadTileCopiesTextureImageIntoTmem();
     testLoadTileRejectsOutOfRangeSourceWithoutPartialTmemWrites();
     testLoadTileFourBitRangeStartingAtOddSourceNibble();
+    testLoadTileFourBitOddSourceNibbleAcrossSwizzledRows();
     testLoadTilePacksFourBitNibblesAndSwizzlesOddRows();
     testLoadTileSwizzlesOddRowsFor16BitTexels();
     testLoadTileSplits32BitRgbaAcrossTmemBanks();
