@@ -1080,6 +1080,68 @@ void testLoadTileRgba32UpperBankStaysAlignedAcrossBankWrap() {
             "odd row wraps both RGBA32 banks independently without overlap");
 }
 
+void testLoadTile32BitWrapsBothBanksAcrossTmemEnd() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint8_t source[] = {
+        0x11U, 0x22U, 0x33U, 0x44U, 0x55U, 0x66U, 0x77U, 0x88U,
+        0x99U, 0xAAU, 0xBBU, 0xCCU, 0xDDU, 0xEEU, 0xFFU, 0x10U
+    };
+    for (std::uint32_t i = 0U; i < sizeof(source); ++i)
+        require(bus.write8(0x1D00U + i, source[i]),
+                "seed two-row RGBA32 source for TMEM bank wrap");
+    for (std::uint16_t i = 0U; i < 8U; ++i) {
+        require(state.tmem.writeByte(i, 0xE0U) &&
+                state.tmem.writeByte(static_cast<std::uint16_t>(0x800U + i), 0xE1U),
+                "seed lower and upper RGBA32 TMEM wrap sentinels");
+    }
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (3ULL << 51U) | (1ULL << 32U) | 0x1D00ULL;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (3ULL << 51U) | (1ULL << 41U) |
+        (511ULL << 32U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 12U) | 4ULL;
+    require(bus.write64(0xBE0U, setImage) &&
+            bus.write64(0xBE8U, setTile) &&
+            bus.write64(0xBF0U, loadTile),
+            "seed two-row RGBA32 LOAD_TILE crossing both TMEM bank ends");
+    require(bus.write32(Bus::kDpStart, 0xBE0U) &&
+            bus.write32(Bus::kDpEnd, 0xBF8U),
+            "publish RGBA32 dual-bank wrapping LOAD_TILE sequence");
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "RGBA32 dual-bank wrapping LOAD_TILE sequence executes");
+
+    const auto expect = [&state](std::uint16_t address, std::uint8_t expected,
+                                 const char* message) {
+        std::uint8_t value = 0U;
+        require(state.tmem.readByte(address, value) && value == expected, message);
+    };
+    expect(0x7F8U, 0x11U, "RGBA32 first texel red wraps to lower bank end");
+    expect(0x7F9U, 0x22U, "RGBA32 first texel green wraps to lower bank end");
+    expect(0x7FAU, 0x55U, "RGBA32 second texel red follows at lower bank end");
+    expect(0x7FBU, 0x66U, "RGBA32 second texel green follows at lower bank end");
+    expect(0xFF8U, 0x33U, "RGBA32 first texel blue wraps to upper bank end");
+    expect(0xFF9U, 0x44U, "RGBA32 first texel alpha wraps to upper bank end");
+    expect(0xFFAU, 0x77U, "RGBA32 second texel blue follows at upper bank end");
+    expect(0xFFBU, 0x88U, "RGBA32 second texel alpha follows at upper bank end");
+    expect(4U, 0x99U, "RGBA32 odd row swizzles red to lower bank start");
+    expect(5U, 0xAAU, "RGBA32 odd row swizzles green to lower bank start");
+    expect(6U, 0xDDU, "RGBA32 odd row swizzles second red texel");
+    expect(7U, 0xEEU, "RGBA32 odd row swizzles second green texel");
+    expect(0x804U, 0xBBU, "RGBA32 odd row swizzles blue to upper bank start");
+    expect(0x805U, 0xCCU, "RGBA32 odd row swizzles alpha to upper bank start");
+    expect(0x806U, 0xFFU, "RGBA32 odd row swizzles second blue texel");
+    expect(0x807U, 0x10U, "RGBA32 odd row swizzles second alpha texel");
+    expect(0U, 0xE0U, "RGBA32 lower bank wrap preserves bytes outside loaded span");
+    expect(1U, 0xE0U, "RGBA32 lower bank wrap preserves adjacent sentinel");
+    expect(0x800U, 0xE1U, "RGBA32 upper bank wrap preserves bytes outside loaded span");
+    expect(0x801U, 0xE1U, "RGBA32 upper bank wrap preserves adjacent sentinel");
+}
+
 void testLoadTile32BitValidatesWholeSourceBeforeWritingEitherBank() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1980,6 +2042,7 @@ int main() {
     testLoadTileSwizzlesOddRowsFor16BitTexels();
     testLoadTileSplits32BitRgbaAcrossTmemBanks();
     testLoadTileRgba32UpperBankStaysAlignedAcrossBankWrap();
+    testLoadTile32BitWrapsBothBanksAcrossTmemEnd();
     testLoadTile32BitValidatesWholeSourceBeforeWritingEitherBank();
     testLoadTile32BitValidatesEverySourceRowBeforeWritingBanks();
     testLoadTileRejectsNonRgba32FormatsWithoutWritingTmem();
