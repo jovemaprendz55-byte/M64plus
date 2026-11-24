@@ -2928,9 +2928,47 @@ void testMiInterruptSourcesRemainAggregatedWhenOneMaskIsCleared() {
             "aggregated pending-bit test does not take an interrupt exception");
 }
 
+
+void testMachineResetClearsCpuAndMiInterruptState() {
+    N64Machine machine;
+    constexpr std::uint32_t kMiSpSource = 1U << 0U;
+    constexpr std::uint32_t kMiSpMaskSet = 1U << 1U;
+    constexpr std::uint64_t kCauseIp2 = 1ULL << 10U;
+
+    require(machine.bus().write32(Bus::kMiInterruptMask, kMiSpMaskSet),
+            "enable MI SP interrupt before machine reset");
+    machine.bus().setMiInterrupt(0U, true);
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                         1ULL | kCauseIp2),
+            "enable CPU global and external interrupt masks");
+    require(machine.stepCpu(),
+            "CPU accepts pending MI interrupt before reset");
+    require((machine.cpu().cp0().read(m64plus::n64::Cp0::kCause) & kCauseIp2) != 0U,
+            "CPU Cause records external interrupt before reset");
+    require(machine.cpu().cp0().exceptionLevel(),
+            "CPU enters exception level for MI interrupt");
+
+    machine.reset();
+
+    require((machine.cpu().cp0().read(m64plus::n64::Cp0::kCause) & kCauseIp2) == 0U,
+            "machine reset clears CPU external interrupt pending bit");
+    require(!machine.cpu().cp0().exceptionLevel(),
+            "machine reset clears CPU exception level");
+    std::uint32_t value = 0U;
+    require(machine.bus().read32(Bus::kMiInterrupt, value) && value == 0U,
+            "machine reset clears MI source register");
+    require(machine.bus().read32(Bus::kMiInterruptMask, value) && value == 0U,
+            "machine reset clears MI interrupt mask");
+    require((kMiSpSource & value) == 0U,
+            "machine reset leaves SP interrupt mask disabled");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000000ULL,
+            "machine reset restores the CPU reset PC");
+}
+
 } // namespace
 
 int main() {
+    testMachineResetClearsCpuAndMiInterruptState();
     testTlbPairedPagesAsidGlobalAndPermissions();
     testCp0RandomCyclesWithinWiredBoundary();
     testCp0CountCompareTimerInterrupt();
