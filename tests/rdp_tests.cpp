@@ -1136,6 +1136,41 @@ void testLoadBlockWrapsDestinationAcrossTmemEnd() {
             "LOAD_BLOCK wrap does not overwrite bytes beyond its destination span");
 }
 
+void testLoadBlockRejectsSourcePastRdramEndWithoutPartialWrites() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t source = static_cast<std::uint32_t>(Rdram::kSize - 4U);
+    for (std::uint32_t i = 0; i < 4U; ++i)
+        require(bus.write8(source + i, static_cast<std::uint8_t>(0x30U + i)),
+                "seed valid prefix at end of RDRAM");
+    for (std::uint32_t i = 0; i < 8U; ++i)
+        require(state.tmem.writeByte(static_cast<std::uint16_t>(i), 0xEEU),
+                "seed TMEM before invalid LOAD_BLOCK source");
+
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (1ULL << 51U) | (7ULL << 32U) | source;
+    const std::uint64_t tile = (0x35ULL << 56U);
+    const std::uint64_t load = (0x33ULL << 56U) | (28ULL << 12U);
+    require(bus.write64(0xB20U, image) && bus.write64(0xB28U, tile) &&
+            bus.write64(0xB30U, load),
+            "seed LOAD_BLOCK crossing RDRAM boundary");
+    require(bus.write32(Bus::kDpStart, 0xB20U) &&
+            bus.write32(Bus::kDpEnd, 0xB38U),
+            "publish RDRAM-boundary LOAD_BLOCK sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TEXTURE_IMAGE configures end-of-RDRAM source");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE configures RDRAM-boundary test");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "LOAD_BLOCK rejects a source range extending beyond RDRAM");
+
+    std::uint8_t value = 0U;
+    for (std::uint16_t i = 0; i < 8U; ++i)
+        require(state.tmem.readByte(i, value) && value == 0xEEU,
+                "rejected LOAD_BLOCK leaves all destination TMEM bytes unchanged");
+}
+
 void testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines() {
     using namespace m64plus::n64;
     // DXT=0xFFF advances at least one line per 64-bit word. The line
@@ -1781,6 +1816,7 @@ int main() {
     testLoadTileRejectsNonRgba32FormatsWithoutWritingTmem();
     testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadBlockWrapsDestinationAcrossTmemEnd();
+    testLoadBlockRejectsSourcePastRdramEndWithoutPartialWrites();
     testLoadBlockDxtSwapsOddLineWords();
     testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines();
     testLoadBlockContinuesAcrossTextureImageRows();
