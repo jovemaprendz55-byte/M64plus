@@ -56,6 +56,33 @@ struct RdpTriangleLayout final {
     bool hasZ = false;
 };
 
+struct RdpTriangleShadeCoefficients final {
+    std::array<std::int16_t, 4> rgba{};
+    std::array<std::int16_t, 4> drgbaDx{};
+    std::array<std::int16_t, 4> rgbaFraction{};
+    std::array<std::int16_t, 4> drgbaDxFraction{};
+    std::array<std::int16_t, 4> drgbaDe{};
+    std::array<std::int16_t, 4> drgbaDy{};
+    std::array<std::int16_t, 4> drgbaDeFraction{};
+    std::array<std::int16_t, 4> drgbaDyFraction{};
+};
+
+struct RdpTriangleTextureCoefficients final {
+    std::array<std::int16_t, 3> stw{};
+    std::array<std::int16_t, 3> dstwDx{};
+    std::array<std::int16_t, 3> stwFraction{};
+    std::array<std::int16_t, 3> dstwDxFraction{};
+    std::array<std::int16_t, 3> dstwDe{};
+    std::array<std::int16_t, 3> dstwDy{};
+    std::array<std::int16_t, 3> dstwDeFraction{};
+    std::array<std::int16_t, 3> dstwDyFraction{};
+};
+
+struct RdpTriangleZCoefficients final {
+    std::array<std::int16_t, 4> zDzDx{};
+    std::array<std::int16_t, 4> zDzDy{};
+};
+
 struct RdpTriangleCommand final {
     RdpTriangleEdgeState edge{};
     RdpTriangleLayout layout{};
@@ -68,6 +95,9 @@ struct RdpTriangleCommand final {
     std::array<std::int16_t, 32> shadeCoefficients{};
     std::array<std::int16_t, 24> textureCoefficients{};
     std::array<std::int16_t, 8> zCoefficients{};
+    RdpTriangleShadeCoefficients shade{};
+    RdpTriangleTextureCoefficients texture{};
+    RdpTriangleZCoefficients depth{};
 };
 
 struct RdpCommandPacket final {
