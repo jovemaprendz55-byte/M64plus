@@ -150,6 +150,39 @@ void testCpuKseg3LoadStoreUsesTlbTranslation() {
             "KSEG3 store writes data to translated physical address");
 }
 
+void testMachineRdpRunnerHonorsCommandBudget() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (2ULL << 51U) | (7ULL << 32U) | 0x6000U,
+        (0x37ULL << 56U) | 0xA1B2C3D4ULL
+    };
+    for (std::size_t i = 0; i < 2U; ++i) {
+        require(bus.write64(0x780U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "write budgeted machine RDP command");
+    }
+    require(bus.write32(Bus::kDpStart, 0x780U) &&
+            bus.write32(Bus::kDpEnd, 0x790U),
+            "publish budgeted machine RDP command stream");
+
+    require(machine.runRdp(1U) == 1U,
+            "machine RDP runner processes no more than one command per budget");
+    std::uint32_t current = 0U;
+    require(bus.read32(Bus::kDpCurrent, current) && current == 0x788U,
+            "RDP current advances by exactly one command after a one-command budget");
+    require(machine.rdp().hasColorImage && !machine.rdp().hasFillColor,
+            "one-command budget applies only the first RDP state update");
+
+    require(machine.runRdp(1U) == 1U,
+            "a subsequent RDP slice processes the next command");
+    require(bus.read32(Bus::kDpCurrent, current) && current == 0x790U,
+            "second RDP slice advances current to the published end");
+    require(machine.rdp().hasFillColor && machine.rdp().fillColor == 0xA1B2C3D4U,
+            "second RDP slice applies the fill-color state update");
+    require(machine.runRdp(1U) == 0U,
+            "RDP runner reports no work after the command stream is exhausted");
+}
+
 void testMachineRunsRdpFillIntoFramebuffer() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -3201,6 +3234,7 @@ int main() {
     testCpuMtc0RequiresKernelPrivilege();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
+    testMachineRdpRunnerHonorsCommandBudget();
     testMachineRunsRdpFillIntoFramebuffer();
     testMachineOwnsAndProcessesRdpState();
     testCpuKsegDirectMappingWithoutTlb();
