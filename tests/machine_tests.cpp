@@ -183,6 +183,32 @@ void testMachineRdpRunnerHonorsCommandBudget() {
             "RDP runner reports no work after the command stream is exhausted");
 }
 
+void testMachineRdpRunnerConsumesUnsupportedCommands() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    const std::uint64_t commands[] = {
+        (0x08ULL << 56U), // Triangle command: recognized length, not yet rasterized.
+        (0x37ULL << 56U) | 0x55667788ULL
+    };
+    require(bus.write64(0x980U, commands[0]) &&
+            bus.write64(0x988U, commands[1]),
+            "write unsupported and supported RDP commands");
+    require(bus.write32(Bus::kDpStart, 0x980U) &&
+            bus.write32(Bus::kDpEnd, 0x990U),
+            "publish mixed RDP command stream");
+
+    require(machine.runRdp(2U) == 2U,
+            "machine RDP runner consumes unsupported command without retrying forever");
+    std::uint32_t current = 0U;
+    require(bus.read32(Bus::kDpCurrent, current) && current == 0x990U,
+            "unsupported triangle command advances DPC to following command");
+    require(machine.rdp().hasFillColor &&
+            machine.rdp().fillColor == 0x55667788U,
+            "runner continues and processes supported command after unsupported triangle");
+    require(machine.runRdp(1U) == 0U,
+            "mixed RDP stream is exhausted after unsupported command was consumed");
+}
+
 void testMachineRunsRdpTextureLoadIntoTmem() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -3279,6 +3305,7 @@ int main() {
     testMachineRdpRunnerHonorsCommandBudget();
     testMachineRunsRdpFillIntoFramebuffer();
     testMachineRunsRdpTextureLoadIntoTmem();
+    testMachineRdpRunnerConsumesUnsupportedCommands();
     testMachineOwnsAndProcessesRdpState();
     testCpuKsegDirectMappingWithoutTlb();
     testCpuFetchesAndExecutesFromCartridgeKseg1();
