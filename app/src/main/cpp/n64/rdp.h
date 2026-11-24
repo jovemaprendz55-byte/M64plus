@@ -19,6 +19,7 @@ struct RdpTriangleLayout;
 struct RdpTriangleEdgeState;
 struct RdpCommandPacket;
 struct RdpTriangleCommand;
+struct RdpTextureRectangleCommand;
 
 class RdpCommandDecoder final {
 public:
@@ -28,6 +29,24 @@ public:
                                    RdpTriangleEdgeState& edge) noexcept;
     static bool decodeTriangleCommand(const RdpCommandPacket& packet,
                                       RdpTriangleCommand& command) noexcept;
+    static bool decodeTextureRectangle(const RdpCommandPacket& packet,
+                                       RdpTextureRectangleCommand& command) noexcept;
+};
+
+// Raw texture-rectangle fields. Coordinates are retained in 10.2 form;
+// S/T and their derivatives retain their signed 16-bit command representation.
+struct RdpTextureRectangleCommand final {
+    std::uint16_t xh = 0;
+    std::uint16_t yh = 0;
+    std::uint16_t xl = 0;
+    std::uint16_t yl = 0;
+    std::uint8_t tile = 0;
+    std::int16_t s = 0;
+    std::int16_t t = 0;
+    std::int16_t dsdx = 0;
+    std::int16_t dtdy = 0;
+    bool flip = false;
+    std::array<std::uint64_t, 2> rawWords{};
 };
 
 struct RdpTriangleEdgeState final {
