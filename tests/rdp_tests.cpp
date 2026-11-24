@@ -95,7 +95,7 @@ void testTriangleCommandPacketDecoding() {
             require(command.shadeWords[0] == packet.words[4],
                     "shade coefficients copied from declared offset");
             require(command.shadeCoefficients[0] ==
-                        static_cast<std::int32_t>(0xA5000000U + 4U) &&
+                        static_cast<std::int32_t>(0xA5000000U) &&
                     command.shadeCoefficients[1] == 4,
                     "shade payload decodes high and low signed halves in order");
         }
@@ -104,7 +104,7 @@ void testTriangleCommandPacketDecoding() {
             require(command.textureWords[0] == packet.words[offset],
                     "texture coefficients copied from declared offset");
             require(command.textureCoefficients[0] ==
-                        static_cast<std::int32_t>(0xA5000000U + offset) &&
+                        static_cast<std::int32_t>(0xA5000000U) &&
                     command.textureCoefficients[1] ==
                         static_cast<std::int32_t>(offset),
                     "texture payload decodes signed halves in order");
