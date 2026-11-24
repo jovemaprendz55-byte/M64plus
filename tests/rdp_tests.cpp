@@ -2057,6 +2057,35 @@ void testUnsupportedRdpCommandIsReported() {
             "unsupported command framing still advances DPC cursor");
 }
 
+void testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists() {
+    using namespace m64plus::n64;
+    for (std::uint8_t flags = 0U; flags < 8U; ++flags) {
+        Bus bus;
+        RdpSyncState state{};
+        const std::uint32_t start = 0xA80U;
+        const std::uint8_t opcode = static_cast<std::uint8_t>(0x08U + flags);
+        const std::uint8_t words = RdpCommandDecoder::decode(header(opcode)).lengthWords;
+        for (std::uint32_t i = 0U; i < words; ++i) {
+            const std::uint64_t value = i == 0U
+                ? (static_cast<std::uint64_t>(opcode) << 56U)
+                : (0xA500000000000000ULL | i);
+            require(bus.write64(start + i * 8U, value),
+                    "seed complete triangle command packet");
+        }
+        require(bus.write32(Bus::kDpStart, start),
+                "set DPC start for triangle command");
+        require(bus.write32(Bus::kDpEnd, start + static_cast<std::uint32_t>(words) * 8U),
+                "publish complete triangle command");
+
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+                "triangle command remains explicitly unsupported before rasterization");
+        std::uint32_t current = 0U;
+        require(bus.read32(Bus::kDpCurrent, current) &&
+                current == start + static_cast<std::uint32_t>(words) * 8U,
+                "unsupported triangle consumes its entire framed packet");
+    }
+}
+
 void testTextureRectangleLengths() {
     require(m64plus::n64::RdpCommandDecoder::decode(header(0x24U)).lengthWords == 2U,
             "texture rectangle has two words");
@@ -2069,6 +2098,7 @@ int main() {
     testSingleWordCommands();
     testTriangleCommandLengths();
     testMaximumTriangleCommandWaitsForAllWords();
+    testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testTextureRectangleLengths();
     testDpcCommandStreamIntegration();
     testRdpSynchronizationCommands();
