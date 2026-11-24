@@ -162,6 +162,19 @@ void testTriangleCommandPacketDecoding() {
                     command.shade.drgbaDeFraction[0] == command.shadeCoefficients[24] &&
                     command.shade.drgbaDyFraction[0] == command.shadeCoefficients[28],
                     "named shade groups map to the documented eight-word order");
+            const std::array<const std::array<std::int16_t, 4>*, 8> shadeGroups = {
+                &command.shade.rgba, &command.shade.drgbaDx,
+                &command.shade.rgbaFraction, &command.shade.drgbaDxFraction,
+                &command.shade.drgbaDe, &command.shade.drgbaDy,
+                &command.shade.drgbaDeFraction, &command.shade.drgbaDyFraction
+            };
+            for (std::size_t group = 0; group < shadeGroups.size(); ++group) {
+                for (std::size_t component = 0; component < 4U; ++component) {
+                    require((*shadeGroups[group])[component] ==
+                            command.shadeCoefficients[group * 4U + component],
+                            "every named shade component matches its raw coefficient");
+                }
+            }
         }
         if (layout.hasTexture) {
             for (std::size_t i = 0; i < command.textureCoefficients.size(); ++i) {
@@ -183,6 +196,19 @@ void testTriangleCommandPacketDecoding() {
                     command.texture.dstwDeFraction[0] == command.textureCoefficients[18] &&
                     command.texture.dstwDyFraction[0] == command.textureCoefficients[21],
                     "named texture groups map to the documented eight-word order");
+            const std::array<const std::array<std::int16_t, 3>*, 8> textureGroups = {
+                &command.texture.stw, &command.texture.dstwDx,
+                &command.texture.stwFraction, &command.texture.dstwDxFraction,
+                &command.texture.dstwDe, &command.texture.dstwDy,
+                &command.texture.dstwDeFraction, &command.texture.dstwDyFraction
+            };
+            for (std::size_t group = 0; group < textureGroups.size(); ++group) {
+                for (std::size_t component = 0; component < 3U; ++component) {
+                    require((*textureGroups[group])[component] ==
+                            command.textureCoefficients[group * 3U + component],
+                            "every named texture component matches its raw coefficient");
+                }
+            }
         }
         if (layout.hasZ) {
             for (std::size_t i = 0; i < command.zCoefficients.size(); ++i) {
