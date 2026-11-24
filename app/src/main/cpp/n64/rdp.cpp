@@ -326,24 +326,35 @@ bool loadTlutEntries(Bus& bus, RdpSyncState& state,
                      const RdpTextureLoadState& load) noexcept {
     if (!state.hasTextureImage || !state.hasTile[load.tile] ||
         state.textureImage.size != 2U) return false;
+    const RdpImageState& image = state.textureImage;
     const RdpTileState& tile = state.tiles[load.tile];
-    const std::uint32_t count = (static_cast<std::uint32_t>(load.sh) >> 2U) + 1U;
+    const std::uint32_t firstX = load.sl >> 2U;
+    const std::uint32_t firstY = load.tl >> 2U;
+    const std::uint32_t lastX = load.sh >> 2U;
+    if (lastX < firstX || lastX >= image.width) return false;
+    const std::uint32_t count = lastX - firstX + 1U;
     if (count == 0U || count > 256U || tile.tmem < 256U ||
         static_cast<std::uint32_t>(tile.tmem) + count > 512U) return false;
 
+    const std::uint64_t firstTexel =
+        static_cast<std::uint64_t>(firstY) * image.width + firstX;
+    const std::uint64_t sourceBase =
+        static_cast<std::uint64_t>(image.address) + firstTexel * 2U;
+    const std::uint64_t sourceEnd =
+        sourceBase + static_cast<std::uint64_t>(count) * 2U;
+    if (sourceEnd > static_cast<std::uint64_t>(UINT32_MAX) + 1U) return false;
+
     for (std::uint32_t i = 0; i < count; ++i) {
-        const std::uint64_t address =
-            static_cast<std::uint64_t>(state.textureImage.address) + i * 2U;
+        const std::uint64_t address = sourceBase + i * 2U;
         std::uint16_t ignored = 0;
-        if (address > UINT32_MAX ||
-            !bus.read16(static_cast<std::uint32_t>(address), ignored)) return false;
+        if (!bus.read16(static_cast<std::uint32_t>(address), ignored)) return false;
     }
 
     const std::uint64_t destinationBase =
         static_cast<std::uint64_t>(tile.tmem) * 8U;
     for (std::uint32_t i = 0; i < count; ++i) {
         const std::uint32_t address =
-            state.textureImage.address + i * 2U;
+            static_cast<std::uint32_t>(sourceBase + i * 2U);
         std::uint16_t entry = 0;
         if (!bus.read16(address, entry)) return false;
         const std::uint64_t replicated =
