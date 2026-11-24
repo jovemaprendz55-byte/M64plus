@@ -210,6 +210,8 @@ struct RdpTextureLoadState final {
 };
 
 struct RdpSyncState final {
+    RdpTriangleCommand lastTriangle{};
+    bool hasTriangle = false;
     RdpTextureLoadState lastTextureLoad{};
     bool hasTextureLoad = false;
     RdpTextureMemory tmem{};
