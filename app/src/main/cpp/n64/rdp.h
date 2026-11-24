@@ -18,6 +18,17 @@ struct RdpCommandInfo final {
 class RdpCommandDecoder final {
 public:
     static RdpCommandInfo decode(std::uint64_t header) noexcept;
+    static bool decodeTriangleLayout(std::uint8_t opcode, RdpTriangleLayout& layout) noexcept;
+};
+
+struct RdpTriangleLayout final {
+    std::uint8_t wordCount = 0;
+    std::uint8_t shadeWordOffset = 0;
+    std::uint8_t textureWordOffset = 0;
+    std::uint8_t zWordOffset = 0;
+    bool hasShade = false;
+    bool hasTexture = false;
+    bool hasZ = false;
 };
 
 struct RdpCommandPacket final {
