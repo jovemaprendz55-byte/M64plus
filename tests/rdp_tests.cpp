@@ -488,6 +488,48 @@ void testLoadTileCopiesTextureImageIntoTmem() {
 }
 
 
+void testLoadTileHonorsTileLineStrideAcrossOddRows() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    require(bus.write8(0x17C0U, 0x11U) &&
+            bus.write8(0x17C1U, 0x22U) &&
+            bus.write8(0x17C2U, 0x33U) &&
+            bus.write8(0x17C3U, 0x44U),
+            "seed two-row texture for tile line-stride test");
+    for (std::uint32_t i = 0; i < 24U; ++i)
+        state.tmem.writeByte(static_cast<std::uint16_t>(i), 0xA5U);
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (1ULL << 32U) | 0x17C0ULL;
+    // A line value of two reserves 16 bytes between successive tile rows.
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (2ULL << 41U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 12U) | 4ULL;
+    require(bus.write64(0xAE0U, setImage) &&
+            bus.write64(0xAE8U, setTile) &&
+            bus.write64(0xAF0U, loadTile),
+            "seed LOAD_TILE line-stride command sequence");
+    require(bus.write32(Bus::kDpStart, 0xAE0U) &&
+            bus.write32(Bus::kDpEnd, 0xAF8U),
+            "publish LOAD_TILE line-stride sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "LOAD_TILE line-stride setup and transfer are processed");
+
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0x11U &&
+            state.tmem.readByte(1U, value) && value == 0x22U,
+            "LOAD_TILE writes the first row at the tile base");
+    require(state.tmem.readByte(20U, value) && value == 0x33U &&
+            state.tmem.readByte(21U, value) && value == 0x44U,
+            "LOAD_TILE applies line stride before odd-row half swap");
+    require(state.tmem.readByte(16U, value) && value == 0xA5U &&
+            state.tmem.readByte(17U, value) && value == 0xA5U,
+            "LOAD_TILE leaves padding between tile rows untouched");
+}
+
 void testLoadTileRejectsOutOfRangeSourceWithoutPartialTmemWrites() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1481,6 +1523,7 @@ int main() {
     testRdpTextureMemory();
     testRdpTextureLoadCommandFields();
     testLoadTileCopiesTextureImageIntoTmem();
+    testLoadTileHonorsTileLineStrideAcrossOddRows();
     testLoadTileRejectsOutOfRangeSourceWithoutPartialTmemWrites();
     testLoadTileFourBitRangeStartingAtOddSourceNibble();
     testLoadTileFourBitOddSourceNibbleAcrossSwizzledRows();
