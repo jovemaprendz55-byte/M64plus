@@ -2830,6 +2830,28 @@ void testMiExternalInterruptReachesMainCpu() {
     require(cpu.cp0().exceptionLevel(), "MI interrupt sets CP0 EXL");
 }
 
+
+void testMiExternalInterruptDeassertionClearsCpuPendingBit() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    auto& cpu = machine.cpu();
+
+    require(bus.write32(Bus::kMiInterruptMask, 1U << 1U),
+            "enable MI SP interrupt mask for deassertion test");
+    bus.setMiInterrupt(0U, true);
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    constexpr std::uint64_t statusIeAndIp2Mask = (1ULL << 0U) | (1ULL << 10U);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, statusIeAndIp2Mask),
+            "enable CPU external interrupt input");
+
+    bus.setMiInterrupt(0U, false);
+    require(!bus.miInterruptPending(), "clearing MI SP source removes pending MI interrupt");
+    require(machine.stepCpu(), "CPU executes normally after MI source is deasserted");
+    require(!cpu.hasLastException(), "deasserted MI source does not cause an interrupt exception");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kCause) & (1ULL << 10U)) == 0U,
+            "deasserted MI source clears CP0 Cause.IP2 before CPU execution");
+}
+
 } // namespace
 
 int main() {
@@ -2837,6 +2859,7 @@ int main() {
     testCp0RandomCyclesWithinWiredBoundary();
     testCp0CountCompareTimerInterrupt();
     testMiExternalInterruptReachesMainCpu();
+    testMiExternalInterruptDeassertionClearsCpuPendingBit();
     testCpuAcceptsCp0TimerInterruptBetweenInstructions();
     testCpuDefersTimerInterruptUntilAfterBranchDelaySlot();
     testCpuSyscallAndBreakpointExceptions();
