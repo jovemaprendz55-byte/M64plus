@@ -412,6 +412,8 @@ bool RdpCommandDecoder::decodeTriangleEdge(
     };
     RdpTriangleEdgeState candidate{};
     candidate.leftMajor = ((words[0] >> 55U) & 1U) == 0U;
+    candidate.level = static_cast<std::uint8_t>((words[0] >> 51U) & 0x07U);
+    candidate.tile = static_cast<std::uint8_t>((words[0] >> 48U) & 0x07U);
     candidate.yLow = static_cast<std::uint16_t>(words[0] & 0x3FFFU);
     candidate.yMiddle = static_cast<std::uint16_t>((words[0] >> 16U) & 0x3FFFU);
     candidate.yHigh = static_cast<std::uint16_t>((words[0] >> 32U) & 0x3FFFU);
