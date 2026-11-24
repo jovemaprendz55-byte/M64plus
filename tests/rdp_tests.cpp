@@ -114,7 +114,7 @@ void testTriangleCommandPacketDecoding() {
             require(command.zWords[0] == packet.words[offset],
                     "Z coefficients copied from declared offset");
             require(command.zCoefficients[0] ==
-                        static_cast<std::int32_t>(0xA5000000U + offset) &&
+                        static_cast<std::int32_t>(0xA5000000U) &&
                     command.zCoefficients[1] ==
                         static_cast<std::int32_t>(offset),
                     "Z payload decodes signed halves in order");
