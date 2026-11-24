@@ -512,8 +512,14 @@ bool RdpCommandDecoder::decodeTriangleCommand(
         copyGroup(candidate.texture.dstwDyFraction, candidate.textureCoefficients, 21U);
     }
     if (candidate.layout.hasZ) {
-        copyGroup(candidate.depth.zDzDx, candidate.zCoefficients, 0U);
-        copyGroup(candidate.depth.zDzDy, candidate.zCoefficients, 4U);
+        candidate.depth.z = candidate.zCoefficients[0];
+        candidate.depth.zFraction = candidate.zCoefficients[1];
+        candidate.depth.dzDx = candidate.zCoefficients[2];
+        candidate.depth.dzDxFraction = candidate.zCoefficients[3];
+        candidate.depth.dzDe = candidate.zCoefficients[4];
+        candidate.depth.dzDeFraction = candidate.zCoefficients[5];
+        candidate.depth.dzDy = candidate.zCoefficients[6];
+        candidate.depth.dzDyFraction = candidate.zCoefficients[7];
     }
     command = candidate;
     return true;
