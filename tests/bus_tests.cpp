@@ -28,6 +28,27 @@ void testMiVersionRegisterReportsRcpRevision() {
             "MI_VERSION remains unchanged after a write");
 }
 
+void testMiInterruptRegisterReflectsSourcesAndIsReadOnly() {
+    Bus bus;
+    std::uint32_t pending = 0U;
+    for (unsigned source = 0U; source < 6U; ++source) {
+        const std::uint32_t sourceBit = 1U << source;
+        bus.setMiInterrupt(source, true);
+        require(bus.read32(Bus::kMiInterrupt, pending),
+                "MI interrupt register is readable");
+        require((pending & sourceBit) != 0U,
+                "MI interrupt register exposes asserted source");
+        bus.setMiInterrupt(source, false);
+        require(bus.read32(Bus::kMiInterrupt, pending) &&
+                (pending & sourceBit) == 0U,
+                "MI interrupt register clears deasserted source");
+    }
+    require(bus.write32(Bus::kMiInterrupt, 0xFFFFFFFFU),
+            "writes to read-only MI interrupt register are ignored");
+    require(bus.read32(Bus::kMiInterrupt, pending) && pending == 0U,
+            "MI interrupt register remains clear after ignored write");
+}
+
 void testMiInterruptMaskSetAndClearCommands() {
     Bus bus;
     std::uint32_t mask = 0U;
@@ -379,6 +400,7 @@ void testCartridgeRomMappingAndValidation() {
 } // namespace
 
 int main() {
+    testMiInterruptRegisterReflectsSourcesAndIsReadOnly();
     testMiInterruptMaskSetAndClearCommands();
     testMiVersionRegisterReportsRcpRevision();
     testDpRegisterWindow();
