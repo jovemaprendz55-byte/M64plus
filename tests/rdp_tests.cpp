@@ -1117,6 +1117,38 @@ void testLoadTlutRejectsDestinationBeyondTmemWithoutPartialWrites() {
             "rejected TLUT destination overflow leaves final TMEM slot unchanged");
 }
 
+void testLoadTlutRejectsDestinationBelowPaletteRegionWithoutWrites() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t image = 0x1700U;
+    require(bus.write16(image, 0xF801U), "seed TLUT source entry below palette region");
+    state.tmem.write64(0x7F8U, 0x1122334455667788ULL);
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (2ULL << 51U) | (1ULL << 32U) | image;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (255ULL << 32U);
+    const std::uint64_t loadTlut = (0x30ULL << 56U);
+    require(bus.write64(0x8C0U, setImage) &&
+            bus.write64(0x8C8U, setTile) &&
+            bus.write64(0x8D0U, loadTlut),
+            "seed TLUT destination below palette region sequence");
+    require(bus.write32(Bus::kDpStart, 0x8C0U) &&
+            bus.write32(Bus::kDpEnd, 0x8D8U),
+            "publish TLUT low destination sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
+            RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "configure source and low TMEM destination");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "LOAD_TLUT rejects destination below TMEM palette region");
+
+    std::uint64_t actual = 0U;
+    require(state.tmem.read64(0x7F8U, actual) &&
+            actual == 0x1122334455667788ULL,
+            "rejected low TLUT destination leaves TMEM unchanged");
+}
+
 void testLoadTlutHonorsTextureImageCoordinatesAndRange() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1400,6 +1432,7 @@ int main() {
     testLoadTlutRejectsOutOfRangeSourceWithoutPartialTmemWrites();
     testLoadTlutRejectsRangePastImageWidthWithoutPartialWrites();
     testLoadTlutRejectsDestinationBeyondTmemWithoutPartialWrites();
+    testLoadTlutRejectsDestinationBelowPaletteRegionWithoutWrites();
     testLoadTlutHonorsTextureImageCoordinatesAndRange();
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
     testFillRectangleWritesRgba16AlternatingHalfwords();
