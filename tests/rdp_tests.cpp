@@ -2264,6 +2264,36 @@ void testFillRectangleHonorsScissorFieldParity() {
     }
 }
 
+void testFillRectangleWritesFinalRdramPixelAtExactBoundary() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint32_t base = static_cast<std::uint32_t>(Rdram::kSize - 4U);
+    constexpr std::uint32_t color = 0x89ABCDEFU;
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (1ULL << 32U) | base,
+        (0x37ULL << 56U) | color,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x36ULL << 56U)
+    };
+    constexpr std::uint32_t start = 0xE80U;
+    for (std::size_t i = 0U; i < 4U; ++i)
+        require(bus.write64(start + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed exact-boundary fill command stream");
+    require(bus.write32(Bus::kDpStart, start) &&
+            bus.write32(Bus::kDpEnd, start + 32U),
+            "publish exact-boundary fill command stream");
+
+    for (unsigned i = 0U; i < 4U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "single-pixel fill at final RDRAM word is processed");
+
+    std::uint32_t pixel = 0U;
+    require(bus.read32(base, pixel) && pixel == color,
+            "final valid RDRAM word receives the fill color");
+}
+
 void testFillRectangleRejectsOutOfRangeWithoutPartialWrites() {
     using namespace m64plus::n64;
     Bus bus;
@@ -2596,6 +2626,7 @@ int main() {
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
     testFillRectangleWritesRgba16AlternatingHalfwords();
     testFillRectangleHonorsScissorFieldParity();
+    testFillRectangleWritesFinalRdramPixelAtExactBoundary();
     testFillRectangleRejectsOutOfRangeWithoutPartialWrites();
     testFillRectangleRejectsEmptyScissorIntersectionWithoutWrites();
     testFillRectangleRejectsInvertedCoordinatesWithoutWrites();
