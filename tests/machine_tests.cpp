@@ -2999,9 +2999,48 @@ void testMachineResetClearsCpuAndMiInterruptState() {
             "machine reset restores the default CPU reset PC");
 }
 
+
+void testMachineResetClearsRspAndSpExecutionState() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+
+    const std::uint32_t rspProgram[] = {
+        0x24011234U, // ADDIU r1,zero,0x1234
+        0x0000000DU  // BREAK
+    };
+    for (std::uint32_t i = 0; i < 2U; ++i) {
+        require(bus.write32(Bus::kSpImemBase + 0x20U + i * 4U, rspProgram[i]),
+                "load RSP reset-test program into IMEM");
+    }
+    require(bus.write32(Bus::kSpPc, 0x20U), "set RSP reset-test PC");
+    require(bus.write32(Bus::kSpStatus, 1U), "release SP HALT for reset test");
+    require(machine.runRsp(4U) == 2U, "execute RSP task before machine reset");
+    require(machine.rsp().reg(1U) == 0x1234U,
+            "RSP has nonzero scalar state before machine reset");
+    require(bus.spBroke() && bus.spHalted(),
+            "RSP BREAK leaves SP halted and broke before machine reset");
+
+    machine.reset();
+
+    require(machine.rsp().pc() == 0U && machine.rsp().instructionsExecuted() == 0U,
+            "machine reset clears RSP PC and instruction counter");
+    require(machine.rsp().reg(1U) == 0U,
+            "machine reset clears RSP scalar registers");
+    require(!machine.rsp().halted() && !machine.rsp().faulted(),
+            "machine reset clears RSP internal halt and fault state");
+    require(bus.spProgramCounter() == 0U && bus.spHalted() && !bus.spBroke(),
+            "machine reset restores SP PC and halted status");
+    std::uint32_t value = 0U;
+    require(bus.read32(Bus::kSpDmemBase, value) && value == 0U,
+            "machine reset clears SP DMEM");
+    require(bus.read32(Bus::kSpImemBase + 0x20U, value) && value == 0U,
+            "machine reset clears SP IMEM");
+}
+
 } // namespace
 
 int main() {
+    testMachineResetClearsRspAndSpExecutionState();
     testMachineResetPreservesInsertedCartridgeAndClearsRdram();
     testMachineResetClearsCpuAndMiInterruptState();
     testTlbPairedPagesAsidGlobalAndPermissions();
