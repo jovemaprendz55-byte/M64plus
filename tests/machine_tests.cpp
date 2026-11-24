@@ -150,6 +150,49 @@ void testCpuKseg3LoadStoreUsesTlbTranslation() {
             "KSEG3 store writes data to translated physical address");
 }
 
+void testMachineRunsRdpFillIntoFramebuffer() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t base = 0x5000U;
+    constexpr std::uint32_t sentinel = 0xAABBCCDDU;
+    constexpr std::uint32_t color = 0x11223344U;
+
+    for (std::uint32_t i = 0; i < 16U; ++i) {
+        require(bus.write32(base + i * 4U, sentinel),
+                "seed machine RDP framebuffer sentinels");
+    }
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | base,
+        (0x37ULL << 56U) | color,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x36ULL << 56U) | (8ULL << 44U) | (8ULL << 32U)
+    };
+    for (std::size_t i = 0; i < 4U; ++i) {
+        require(bus.write64(0x700U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "write machine RDP fill command stream");
+    }
+    require(bus.write32(Bus::kDpStart, 0x700U) &&
+            bus.write32(Bus::kDpEnd, 0x720U),
+            "publish machine RDP fill command stream");
+
+    require(machine.runRdp(4U) == 4U,
+            "machine RDP runner consumes setup and fill commands");
+    require(machine.runRdp(4U) == 0U,
+            "machine RDP runner stops at the end of the command stream");
+
+    for (std::uint32_t y = 0; y < 4U; ++y) {
+        for (std::uint32_t x = 0; x < 4U; ++x) {
+            std::uint32_t pixel = 0U;
+            require(bus.read32(base + (y * 4U + x) * 4U, pixel),
+                    "read machine-produced framebuffer pixel");
+            const bool inside = x < 3U && y < 3U;
+            require(pixel == (inside ? color : sentinel),
+                    "machine RDP runner writes only the requested fill rectangle");
+        }
+    }
+}
+
 void testMachineOwnsAndProcessesRdpState() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -3158,6 +3201,7 @@ int main() {
     testCpuMtc0RequiresKernelPrivilege();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
+    testMachineRunsRdpFillIntoFramebuffer();
     testMachineOwnsAndProcessesRdpState();
     testCpuKsegDirectMappingWithoutTlb();
     testCpuFetchesAndExecutesFromCartridgeKseg1();
