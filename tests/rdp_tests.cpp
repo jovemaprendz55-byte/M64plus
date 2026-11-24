@@ -72,6 +72,25 @@ void testTriangleEdgeHeaderDecoding() {
 
 void testTriangleCommandPacketDecoding() {
     using namespace m64plus::n64;
+    const auto packFour = [](std::uint16_t a, std::uint16_t b,
+                             std::uint16_t c, std::uint16_t d) noexcept {
+        return (static_cast<std::uint64_t>(a) << 48U) |
+               (static_cast<std::uint64_t>(b) << 32U) |
+               (static_cast<std::uint64_t>(c) << 16U) |
+               static_cast<std::uint64_t>(d);
+    };
+    const auto packTexture = [](std::uint16_t a, std::uint16_t b,
+                                std::uint16_t c) noexcept {
+        return (static_cast<std::uint64_t>(a) << 48U) |
+               (static_cast<std::uint64_t>(b) << 32U) |
+               (static_cast<std::uint64_t>(c) << 16U) | 0xBEEFULL;
+    };
+    constexpr std::array<std::int16_t, 4> expectedFour = {
+        4097, -32766, 32765, -1
+    };
+    constexpr std::array<std::uint16_t, 4> encodedFour = {
+        0x1001U, 0x8002U, 0x7FFDU, 0xFFFFU
+    };
     for (std::uint8_t flags = 0U; flags < 8U; ++flags) {
         RdpCommandPacket packet{};
         const std::uint8_t opcode = static_cast<std::uint8_t>(0x08U + flags);
@@ -82,8 +101,39 @@ void testTriangleCommandPacketDecoding() {
         packet.words[1] = 0xFFF0000080000001ULL;
         packet.words[2] = 0x000180007FFFFFFFULL;
         packet.words[3] = 0xFFFF800000020000ULL;
-        for (std::size_t i = 4U; i < packet.info.lengthWords; ++i)
-            packet.words[i] = 0xA500000000000000ULL + i;
+
+        RdpTriangleLayout layout{};
+        require(RdpCommandDecoder::decodeTriangleLayout(opcode, layout),
+                "triangle layout is available for coefficient fixture");
+        if (layout.hasShade) {
+            for (std::size_t word = 0; word < 8U; ++word) {
+                const std::uint16_t base = static_cast<std::uint16_t>(word * 4U);
+                packet.words[layout.shadeWordOffset + word] = packFour(
+                    static_cast<std::uint16_t>(encodedFour[0] + base),
+                    static_cast<std::uint16_t>(encodedFour[1] + base),
+                    static_cast<std::uint16_t>(encodedFour[2] + base),
+                    static_cast<std::uint16_t>(encodedFour[3] + base));
+            }
+        }
+        if (layout.hasTexture) {
+            for (std::size_t word = 0; word < 8U; ++word) {
+                const std::uint16_t base = static_cast<std::uint16_t>(word * 3U);
+                packet.words[layout.textureWordOffset + word] = packTexture(
+                    static_cast<std::uint16_t>(encodedFour[0] + base),
+                    static_cast<std::uint16_t>(encodedFour[1] + base),
+                    static_cast<std::uint16_t>(encodedFour[2] + base));
+            }
+        }
+        if (layout.hasZ) {
+            for (std::size_t word = 0; word < 2U; ++word) {
+                const std::uint16_t base = static_cast<std::uint16_t>(word * 4U);
+                packet.words[layout.zWordOffset + word] = packFour(
+                    static_cast<std::uint16_t>(encodedFour[0] + base),
+                    static_cast<std::uint16_t>(encodedFour[1] + base),
+                    static_cast<std::uint16_t>(encodedFour[2] + base),
+                    static_cast<std::uint16_t>(encodedFour[3] + base));
+            }
+        }
 
         RdpTriangleCommand command{};
         require(RdpCommandDecoder::decodeTriangleCommand(packet, command),
@@ -91,33 +141,33 @@ void testTriangleCommandPacketDecoding() {
         require(command.layout.wordCount == packet.info.lengthWords &&
                 command.edge.yLow == 0x0345U,
                 "triangle packet combines edge header and optional layout");
-        if (command.layout.hasShade) {
-            require(command.shadeWords[0] == packet.words[4],
-                    "shade coefficients copied from declared offset");
-            require(command.shadeCoefficients[0] == -23296 &&
-                    command.shadeCoefficients[1] == 0 &&
-                    command.shadeCoefficients[2] == 0 &&
-                    command.shadeCoefficients[3] == 4,
-                    "shade payload decodes four signed 16-bit fields in order");
+        if (layout.hasShade) {
+            for (std::size_t i = 0; i < command.shadeCoefficients.size(); ++i) {
+                const std::int16_t expected = expectedFour[i % 4U] +
+                    static_cast<std::int16_t>((i / 4U) * 4U);
+                require(command.shadeCoefficients[i] == expected,
+                        "all shade coefficient fields retain their signed order");
+            }
         }
-        if (command.layout.hasTexture) {
-            const std::size_t offset = command.layout.textureWordOffset;
-            require(command.textureWords[0] == packet.words[offset],
-                    "texture coefficients copied from declared offset");
-            require(command.textureCoefficients[0] == -23296 &&
-                    command.textureCoefficients[1] == 0 &&
-                    command.textureCoefficients[2] == 0,
-                    "texture payload decodes three signed fields and skips unused low bits");
+        if (layout.hasTexture) {
+            for (std::size_t i = 0; i < command.textureCoefficients.size(); ++i) {
+                const std::int16_t expected = expectedFour[i % 4U] +
+                    static_cast<std::int16_t>((i / 3U) * 3U);
+                require(command.textureCoefficients[i] == expected,
+                        "all texture coefficient fields retain order and skip low 16 bits");
+            }
+            for (const std::uint64_t word : command.textureWords) {
+                require((word & 0xFFFFU) == 0xBEEFULL,
+                        "texture coefficient low 16 bits remain preserved as unused payload");
+            }
         }
-        if (command.layout.hasZ) {
-            const std::size_t offset = command.layout.zWordOffset;
-            require(command.zWords[0] == packet.words[offset],
-                    "Z coefficients copied from declared offset");
-            require(command.zCoefficients[0] == -23296 &&
-                    command.zCoefficients[1] == 0 &&
-                    command.zCoefficients[2] == 0 &&
-                    command.zCoefficients[3] == static_cast<std::int16_t>(offset),
-                    "Z payload decodes four signed 16-bit fields in order");
+        if (layout.hasZ) {
+            for (std::size_t i = 0; i < command.zCoefficients.size(); ++i) {
+                const std::int16_t expected = expectedFour[i % 4U] +
+                    static_cast<std::int16_t>((i / 4U) * 4U);
+                require(command.zCoefficients[i] == expected,
+                        "all Z coefficient fields retain their signed order");
+            }
         }
     }
 
