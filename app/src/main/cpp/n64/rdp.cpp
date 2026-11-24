@@ -638,6 +638,16 @@ RdpProcessResult RdpCommandProcessor::processNext(
         return RdpProcessResult::NoCommand;
 
     switch (packet.info.opcode) {
+    case 0x24U: // TEXTURE_RECTANGLE
+    case 0x25U: { // TEXTURE_RECTANGLE_FLIP
+        RdpTextureRectangleCommand rectangle{};
+        if (!RdpCommandDecoder::decodeTextureRectangle(packet, rectangle))
+            return RdpProcessResult::Unsupported;
+        state.lastTextureRectangle = rectangle;
+        state.hasTextureRectangle = true;
+        // Packet decoding is integrated; texture sampling and rasterization remain pending.
+        return RdpProcessResult::Unsupported;
+    }
     case 0x08U: // TRIANGLE
     case 0x09U:
     case 0x0AU:
