@@ -2358,6 +2358,40 @@ void testFillRectangleRejectsRgba16OverflowWithoutPartialWrites() {
             "rejected RGBA16 fill leaves final valid halfword unchanged");
 }
 
+void testFillRectangleRejectsRgba32OverflowWithoutPartialWrites() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint32_t base = static_cast<std::uint32_t>(Rdram::kSize - 4U);
+    constexpr std::uint32_t sentinel = 0x5A6B7C8DU;
+    require(bus.write32(base, sentinel),
+            "seed final RDRAM word before overflowing RGBA32 fill");
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (2ULL << 32U) | base,
+        (0x37ULL << 56U) | 0x11223344ULL,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x36ULL << 56U) | (4ULL << 44U)
+    };
+    constexpr std::uint32_t start = 0xF00U;
+    for (std::size_t i = 0U; i < 4U; ++i)
+        require(bus.write64(start + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed overflowing RGBA32 fill command stream");
+    require(bus.write32(Bus::kDpStart, start) &&
+            bus.write32(Bus::kDpEnd, start + 32U),
+            "publish overflowing RGBA32 fill command stream");
+
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "overflowing RGBA32 fill setup command is processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "RGBA32 fill crossing RDRAM end is rejected");
+
+    std::uint32_t pixel = 0U;
+    require(bus.read32(base, pixel) && pixel == sentinel,
+            "rejected RGBA32 fill leaves final valid word unchanged");
+}
+
 void testFillRectangleRejectsOutOfRangeWithoutPartialWrites() {
     using namespace m64plus::n64;
     Bus bus;
@@ -2693,6 +2727,7 @@ int main() {
     testFillRectangleWritesFinalRdramPixelAtExactBoundary();
     testFillRectangleWritesFinalRdramHalfwordAtExactBoundary();
     testFillRectangleRejectsRgba16OverflowWithoutPartialWrites();
+    testFillRectangleRejectsRgba32OverflowWithoutPartialWrites();
     testFillRectangleRejectsOutOfRangeWithoutPartialWrites();
     testFillRectangleRejectsEmptyScissorIntersectionWithoutWrites();
     testFillRectangleRejectsInvertedCoordinatesWithoutWrites();
