@@ -959,6 +959,50 @@ void testLoadTile32BitValidatesWholeSourceBeforeWritingEitherBank() {
     }
 }
 
+void testLoadTile32BitValidatesEverySourceRowBeforeWritingBanks() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint32_t sourceBase = static_cast<std::uint32_t>(Rdram::kSize - 4U);
+    require(bus.write32(sourceBase, 0x11223344U),
+            "seed final valid RGBA32 source row");
+    for (std::uint16_t i = 0U; i < 8U; ++i) {
+        require(state.tmem.writeByte(i, static_cast<std::uint8_t>(0xC0U + i)) &&
+                state.tmem.writeByte(static_cast<std::uint16_t>(0x800U + i),
+                                     static_cast<std::uint8_t>(0xD0U + i)),
+                "seed both TMEM banks before invalid second row");
+    }
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (3ULL << 51U) | (1ULL << 32U) | sourceBase;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (3ULL << 51U) | (1ULL << 41U) | (1ULL << 32U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 32U);
+    require(bus.write64(0xB40U, setImage) &&
+            bus.write64(0xB48U, setTile) &&
+            bus.write64(0xB50U, loadTile),
+            "seed two-row RGBA32 LOAD_TILE with second row beyond RDRAM");
+    require(bus.write32(Bus::kDpStart, 0xB40U) &&
+            bus.write32(Bus::kDpEnd, 0xB58U),
+            "publish two-row invalid RGBA32 source sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
+            RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "configure RGBA32 image and tile before validating both rows");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "RGBA32 LOAD_TILE rejects a later row crossing the RDRAM boundary");
+
+    for (std::uint16_t i = 0U; i < 8U; ++i) {
+        std::uint8_t lower = 0U;
+        std::uint8_t upper = 0U;
+        require(state.tmem.readByte(i, lower) &&
+                state.tmem.readByte(static_cast<std::uint16_t>(0x800U + i), upper) &&
+                lower == static_cast<std::uint8_t>(0xC0U + i) &&
+                upper == static_cast<std::uint8_t>(0xD0U + i),
+                "rejected later RGBA32 row leaves both TMEM banks unchanged");
+    }
+}
+
 void testLoadTileRejectsNonRgba32FormatsWithoutWritingTmem() {
     using namespace m64plus::n64;
     for (const bool invalidImageFormat : {true, false}) {
@@ -1695,6 +1739,7 @@ int main() {
     testLoadTileSplits32BitRgbaAcrossTmemBanks();
     testLoadTileRgba32UpperBankStaysAlignedAcrossBankWrap();
     testLoadTile32BitValidatesWholeSourceBeforeWritingEitherBank();
+    testLoadTile32BitValidatesEverySourceRowBeforeWritingBanks();
     testLoadTileRejectsNonRgba32FormatsWithoutWritingTmem();
     testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadBlockDxtSwapsOddLineWords();
