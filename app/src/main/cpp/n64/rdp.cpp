@@ -401,6 +401,30 @@ bool RdpTextureMemory::write64(std::uint16_t address, std::uint64_t value) noexc
     return true;
 }
 
+bool RdpCommandDecoder::decodeTriangleEdge(
+    const std::array<std::uint64_t, 4>& words,
+    RdpTriangleEdgeState& edge) noexcept {
+    const auto signed32 = [](std::uint32_t bits) noexcept -> std::int32_t {
+        const std::int64_t value = (bits & 0x80000000U) != 0U
+            ? static_cast<std::int64_t>(bits) - 0x100000000LL
+            : static_cast<std::int64_t>(bits);
+        return static_cast<std::int32_t>(value);
+    };
+    RdpTriangleEdgeState candidate{};
+    candidate.leftMajor = ((words[0] >> 55U) & 1U) != 0U;
+    candidate.yLow = static_cast<std::uint16_t>(words[0] & 0x3FFFU);
+    candidate.yMiddle = static_cast<std::uint16_t>((words[0] >> 16U) & 0x3FFFU);
+    candidate.yHigh = static_cast<std::uint16_t>((words[0] >> 32U) & 0x3FFFU);
+    candidate.xLeft = signed32(static_cast<std::uint32_t>(words[1]));
+    candidate.dxLeftDy = signed32(static_cast<std::uint32_t>(words[1] >> 32U));
+    candidate.xHigh = signed32(static_cast<std::uint32_t>(words[2]));
+    candidate.dxHighDy = signed32(static_cast<std::uint32_t>(words[2] >> 32U));
+    candidate.xMiddle = signed32(static_cast<std::uint32_t>(words[3]));
+    candidate.dxMiddleDy = signed32(static_cast<std::uint32_t>(words[3] >> 32U));
+    edge = candidate;
+    return true;
+}
+
 bool RdpCommandDecoder::decodeTriangleLayout(
     std::uint8_t opcode, RdpTriangleLayout& layout) noexcept {
     if (opcode < 0x08U || opcode > 0x0FU) return false;
