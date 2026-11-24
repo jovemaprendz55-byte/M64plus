@@ -813,6 +813,38 @@ void testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines() {
             "fractional DXT leaves the fourth word unswapped");
 }
 
+void testLoadBlockRejectsStartOutsideTextureImageWidth() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    require(bus.write8(0x1A00U, 0x12U) && bus.write8(0x1A01U, 0x34U),
+            "seed bytes beyond the declared texture row");
+    state.tmem.writeByte(0U, 0xA5U);
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (3ULL << 32U) | 0x1A00ULL;
+    const std::uint64_t setTile = (0x35ULL << 56U);
+    // The image is four texels wide, so S=4 is outside its valid row.
+    const std::uint64_t loadBlock =
+        (0x33ULL << 56U) | (16ULL << 44U) | (16ULL << 12U);
+    require(bus.write64(0xB40U, setImage) &&
+            bus.write64(0xB48U, setTile) &&
+            bus.write64(0xB50U, loadBlock),
+            "seed out-of-range LOAD_BLOCK start sequence");
+    require(bus.write32(Bus::kDpStart, 0xB40U) &&
+            bus.write32(Bus::kDpEnd, 0xB58U),
+            "publish out-of-range LOAD_BLOCK sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TEXTURE_IMAGE configures four-texel row");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE configures out-of-range LOAD_BLOCK test");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "LOAD_BLOCK rejects a starting S coordinate beyond image width");
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0xA5U,
+            "rejected out-of-range LOAD_BLOCK leaves TMEM unchanged");
+}
+
 void testLoadBlockRejectsUnsupportedTexelSizes() {
     using namespace m64plus::n64;
     for (const std::uint32_t size : {0U, 3U}) {
@@ -1146,6 +1178,7 @@ int main() {
     testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadBlockDxtSwapsOddLineWords();
     testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines();
+    testLoadBlockRejectsStartOutsideTextureImageWidth();
     testLoadBlockRejectsUnsupportedTexelSizes();
     testLoadTlutReplicatesEntriesIntoHighTmem();
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
