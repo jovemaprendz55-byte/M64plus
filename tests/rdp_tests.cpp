@@ -1080,6 +1080,61 @@ void testLoadTileRgba32UpperBankStaysAlignedAcrossBankWrap() {
             "odd row wraps both RGBA32 banks independently without overlap");
 }
 
+void testLoadTile32BitUsesNonzeroSourceXAcrossRows() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint8_t source[] = {
+        0x00U, 0x01U, 0x02U, 0x03U, 0x10U, 0x11U, 0x12U, 0x13U,
+        0x20U, 0x21U, 0x22U, 0x23U,
+        0x30U, 0x31U, 0x32U, 0x33U, 0x40U, 0x41U, 0x42U, 0x43U,
+        0x50U, 0x51U, 0x52U, 0x53U
+    };
+    for (std::uint32_t i = 0U; i < sizeof(source); ++i)
+        require(bus.write8(0x1E00U + i, source[i]),
+                "seed three-wide two-row RGBA32 source");
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | 0x1E00ULL;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (3ULL << 51U) | (1ULL << 41U) |
+        (1ULL << 32U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
+        (8ULL << 12U) | 4ULL;
+    require(bus.write64(0xC10U, setImage) &&
+            bus.write64(0xC18U, setTile) &&
+            bus.write64(0xC20U, loadTile),
+            "seed offset-source RGBA32 LOAD_TILE sequence");
+    require(bus.write32(Bus::kDpStart, 0xC10U) &&
+            bus.write32(Bus::kDpEnd, 0xC28U),
+            "publish offset-source RGBA32 LOAD_TILE sequence");
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "offset-source RGBA32 LOAD_TILE executes");
+
+    const auto expect = [&state](std::uint16_t address, std::uint8_t expected,
+                                 const char* message) {
+        std::uint8_t value = 0U;
+        require(state.tmem.readByte(address, value) && value == expected, message);
+    };
+    expect(0U, 0x10U, "first selected texel red comes from nonzero source X");
+    expect(1U, 0x11U, "first selected texel green comes from nonzero source X");
+    expect(2U, 0x20U, "second selected texel red follows source X");
+    expect(3U, 0x21U, "second selected texel green follows source X");
+    expect(0x800U, 0x12U, "first selected texel blue uses upper bank");
+    expect(0x801U, 0x13U, "first selected texel alpha uses upper bank");
+    expect(0x802U, 0x22U, "second selected texel blue uses upper bank");
+    expect(0x803U, 0x23U, "second selected texel alpha uses upper bank");
+    expect(4U, 0x40U, "second source row applies odd-row swizzle");
+    expect(5U, 0x41U, "second source row preserves green channel");
+    expect(6U, 0x50U, "second source row selects next texel at nonzero X");
+    expect(7U, 0x51U, "second source row selects next texel green");
+    expect(0x804U, 0x42U, "second source row blue is swizzled in upper bank");
+    expect(0x805U, 0x43U, "second source row alpha is swizzled in upper bank");
+    expect(0x806U, 0x52U, "second source row second blue texel");
+    expect(0x807U, 0x53U, "second source row second alpha texel");
+}
+
 void testLoadTile32BitWrapsBothBanksAcrossTmemEnd() {
     using namespace m64plus::n64;
     Bus bus;
@@ -2042,6 +2097,7 @@ int main() {
     testLoadTileSwizzlesOddRowsFor16BitTexels();
     testLoadTileSplits32BitRgbaAcrossTmemBanks();
     testLoadTileRgba32UpperBankStaysAlignedAcrossBankWrap();
+    testLoadTile32BitUsesNonzeroSourceXAcrossRows();
     testLoadTile32BitWrapsBothBanksAcrossTmemEnd();
     testLoadTile32BitValidatesWholeSourceBeforeWritingEitherBank();
     testLoadTile32BitValidatesEverySourceRowBeforeWritingBanks();
