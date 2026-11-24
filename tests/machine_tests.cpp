@@ -2805,12 +2805,38 @@ void testCpuEretReturnsToBranchAfterDelaySlotException() {
             "ERET clears EXL after a delay-slot exception");
 }
 
+
+void testMiExternalInterruptReachesMainCpu() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    auto& cpu = machine.cpu();
+
+    require(bus.write32(Bus::kMiInterruptMask, 1U << 1U),
+            "enable MI SP interrupt mask");
+    bus.setMiInterrupt(0U, true);
+    require(bus.miInterruptPending(), "asserted SP source becomes pending when masked");
+
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    constexpr std::uint64_t statusIeAndIp2Mask = (1ULL << 0U) | (1ULL << 10U);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, statusIeAndIp2Mask),
+            "enable CPU interrupts and external IP2 mask");
+
+    require(machine.stepCpu(), "CPU accepts pending MI external interrupt");
+    require(cpu.lastExceptionCode() ==
+                static_cast<std::uint8_t>(m64plus::n64::ExceptionCode::Interrupt),
+            "MI interrupt enters the CPU Interrupt exception");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kCause) & (1ULL << 10U)) != 0U,
+            "MI interrupt is reflected in CP0 Cause.IP2");
+    require(cpu.cp0().exceptionLevel(), "MI interrupt sets CP0 EXL");
+}
+
 } // namespace
 
 int main() {
     testTlbPairedPagesAsidGlobalAndPermissions();
     testCp0RandomCyclesWithinWiredBoundary();
     testCp0CountCompareTimerInterrupt();
+    testMiExternalInterruptReachesMainCpu();
     testCpuAcceptsCp0TimerInterruptBetweenInstructions();
     testCpuDefersTimerInterruptUntilAfterBranchDelaySlot();
     testCpuSyscallAndBreakpointExceptions();
