@@ -15,6 +15,19 @@ void require(bool condition, const char* message) {
 }
 
 
+void testMiVersionRegisterReportsRcpRevision() {
+    Bus bus;
+    std::uint32_t value = 0U;
+    require(bus.read32(Bus::kMiVersion, value),
+            "MI_VERSION register is readable");
+    require(value == 0x02020102U,
+            "MI_VERSION reports the N64 RCP revision");
+    require(bus.write32(Bus::kMiVersion, 0xFFFFFFFFU),
+            "writes to read-only MI_VERSION are ignored");
+    require(bus.read32(Bus::kMiVersion, value) && value == 0x02020102U,
+            "MI_VERSION remains unchanged after a write");
+}
+
 void testDpRegisterWindow() {
     Bus bus;
     std::uint32_t value = 0;
@@ -340,6 +353,7 @@ void testCartridgeRomMappingAndValidation() {
 } // namespace
 
 int main() {
+    testMiVersionRegisterReportsRcpRevision();
     testDpRegisterWindow();
     testCartridgeRomMappingAndValidation();
     testPiCartridgeToRdramDmaAndInterrupt();
