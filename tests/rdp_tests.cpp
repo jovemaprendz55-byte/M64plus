@@ -1082,6 +1082,41 @@ void testLoadTlutRejectsRangePastImageWidthWithoutPartialWrites() {
             "out-of-width LOAD_TLUT leaves destination TMEM unchanged");
 }
 
+void testLoadTlutRejectsDestinationBeyondTmemWithoutPartialWrites() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t image = 0x1600U;
+    require(bus.write16(image, 0xF801U) &&
+            bus.write16(image + 2U, 0x07C1U),
+            "seed two TLUT source entries");
+    state.tmem.write64(0xFF8U, 0x1122334455667788ULL);
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (2ULL << 51U) | (1ULL << 32U) | image;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (511ULL << 32U);
+    const std::uint64_t loadTlut =
+        (0x30ULL << 56U) | (4ULL << 12U);
+    require(bus.write64(0x900U, setImage) &&
+            bus.write64(0x908U, setTile) &&
+            bus.write64(0x910U, loadTlut),
+            "seed TLUT destination overflow sequence");
+    require(bus.write32(Bus::kDpStart, 0x900U) &&
+            bus.write32(Bus::kDpEnd, 0x918U),
+            "publish TLUT destination overflow sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
+            RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "configure source and last TMEM palette slot");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "LOAD_TLUT rejects a range extending beyond TMEM");
+
+    std::uint64_t last = 0U;
+    require(state.tmem.read64(0xFF8U, last) &&
+            last == 0x1122334455667788ULL,
+            "rejected TLUT destination overflow leaves final TMEM slot unchanged");
+}
+
 void testLoadTlutHonorsTextureImageCoordinatesAndRange() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1364,6 +1399,7 @@ int main() {
     testLoadTlutReplicatesEntriesIntoHighTmem();
     testLoadTlutRejectsOutOfRangeSourceWithoutPartialTmemWrites();
     testLoadTlutRejectsRangePastImageWidthWithoutPartialWrites();
+    testLoadTlutRejectsDestinationBeyondTmemWithoutPartialWrites();
     testLoadTlutHonorsTextureImageCoordinatesAndRange();
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
     testFillRectangleWritesRgba16AlternatingHalfwords();
