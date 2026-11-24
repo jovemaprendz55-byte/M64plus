@@ -530,6 +530,44 @@ void testLoadTileHonorsTileLineStrideAcrossOddRows() {
             "LOAD_TILE leaves padding between tile rows untouched");
 }
 
+void testLoadTileWrapsDestinationAcrossTmemEnd() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    require(bus.write8(0x17E0U, 0x11U) && bus.write8(0x17E1U, 0x22U) &&
+            bus.write8(0x17E2U, 0x33U) && bus.write8(0x17E3U, 0x44U),
+            "seed two-row LOAD_TILE source near TMEM wrap");
+    for (std::uint16_t i = 0U; i < 8U; ++i)
+        require(state.tmem.writeByte(i, 0xEEU),
+                "seed TMEM bytes at wrapped LOAD_TILE destination");
+
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (1ULL << 51U) | (1ULL << 32U) | 0x17E0ULL;
+    const std::uint64_t tile =
+        (0x35ULL << 56U) | (1ULL << 41U) | (511ULL << 32U);
+    const std::uint64_t load = (0x34ULL << 56U) | (4ULL << 12U) | 4ULL;
+    require(bus.write64(0xB80U, image) && bus.write64(0xB88U, tile) &&
+            bus.write64(0xB90U, load),
+            "seed LOAD_TILE command crossing TMEM end");
+    require(bus.write32(Bus::kDpStart, 0xB80U) &&
+            bus.write32(Bus::kDpEnd, 0xB98U),
+            "publish wrapping LOAD_TILE sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "wrapping LOAD_TILE sequence executes");
+
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(4088U, value) && value == 0x11U &&
+            state.tmem.readByte(4089U, value) && value == 0x22U,
+            "LOAD_TILE preserves first row at final TMEM bytes");
+    require(state.tmem.readByte(4U, value) && value == 0x33U &&
+            state.tmem.readByte(5U, value) && value == 0x44U,
+            "LOAD_TILE wraps odd-row-swizzled destination to TMEM start");
+    require(state.tmem.readByte(0U, value) && value == 0xEEU &&
+            state.tmem.readByte(1U, value) && value == 0xEEU,
+            "LOAD_TILE wrap leaves bytes outside row span unchanged");
+}
+
 void testLoadTileRejectsInvertedCoordinatesWithoutWrites() {
     using namespace m64plus::n64;
     const std::uint64_t invalidLoads[] = {
@@ -1804,6 +1842,7 @@ int main() {
     testLoadTileValidatesEverySourceRowBeforeWritingTmem();
     testLoadTileRejectsRangePastTextureImageWidthWithoutWrites();
     testLoadTileHonorsTileLineStrideAcrossOddRows();
+    testLoadTileWrapsDestinationAcrossTmemEnd();
     testLoadTileRejectsOutOfRangeSourceWithoutPartialTmemWrites();
     testLoadTileFourBitRangeStartingAtOddSourceNibble();
     testLoadTileFourBitOddSourceNibbleAcrossSwizzledRows();
