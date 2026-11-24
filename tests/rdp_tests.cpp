@@ -41,6 +41,35 @@ void testTriangleCommandLengths() {
     }
 }
 
+void testTriangleEdgeHeaderDecoding() {
+    using namespace m64plus::n64;
+    const std::array<std::uint64_t, 4> words = {
+        (1ULL << 55U) | (0x0123ULL << 32U) | (0x0234ULL << 16U) | 0x0345ULL,
+        (0xFFF00000ULL << 32U) | 0x80000001ULL,
+        (0x00018000ULL << 32U) | 0x7FFFFFFFULL,
+        (0xFFFF8000ULL << 32U) | 0x00020000ULL
+    };
+    RdpTriangleEdgeState edge{};
+    require(RdpCommandDecoder::decodeTriangleEdge(words, edge),
+            "four-word triangle edge header decodes");
+    require(edge.leftMajor && edge.yLow == 0x0345U &&
+            edge.yMiddle == 0x0234U && edge.yHigh == 0x0123U,
+            "triangle Y coordinates and major-edge direction decode");
+    require(edge.xLeft == static_cast<std::int32_t>(0x80000001U) &&
+            edge.dxLeftDy == -1048576 &&
+            edge.xHigh == 0x7FFFFFFF &&
+            edge.dxHighDy == 98304 &&
+            edge.xMiddle == 131072 &&
+            edge.dxMiddleDy == -32768,
+            "triangle edge X values and signed slopes decode as 16.16 values");
+
+    RdpTriangleEdgeState zero{};
+    const std::array<std::uint64_t, 4> empty{};
+    require(RdpCommandDecoder::decodeTriangleEdge(empty, zero) &&
+            !zero.leftMajor && zero.yLow == 0U && zero.xLeft == 0,
+            "zeroed triangle edge header decodes deterministically");
+}
+
 void testTriangleOptionalBlockLayout() {
     using namespace m64plus::n64;
     for (std::uint8_t flags = 0U; flags < 8U; ++flags) {
@@ -2138,6 +2167,7 @@ int main() {
     testSingleWordCommands();
     testTriangleCommandLengths();
     testTriangleOptionalBlockLayout();
+    testTriangleEdgeHeaderDecoding();
     testMaximumTriangleCommandWaitsForAllWords();
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testTextureRectangleLengths();
