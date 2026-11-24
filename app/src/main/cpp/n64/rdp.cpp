@@ -442,20 +442,23 @@ bool RdpCommandDecoder::decodeTriangleCommand(
         edgeWords[i] = packet.words[i];
     if (!decodeTriangleEdge(edgeWords, candidate.edge)) return false;
 
-    const auto signedHalf = [](std::uint32_t value) noexcept {
-        return value <= 0x7FFFFFFFU
-            ? static_cast<std::int32_t>(value)
-            : static_cast<std::int32_t>(
-                static_cast<std::int64_t>(value) - 0x100000000LL);
+    const auto signedCoefficient = [](std::uint16_t bits) noexcept {
+        const std::int32_t value = (bits & 0x8000U) != 0U
+            ? static_cast<std::int32_t>(bits) - 0x10000
+            : static_cast<std::int32_t>(bits);
+        return static_cast<std::int16_t>(value);
     };
-    const auto decodeCoefficients = [&signedHalf](
-        const std::uint64_t* source, std::int32_t* destination,
-        std::size_t wordCount) noexcept {
+    const auto decodeCoefficients = [&signedCoefficient](
+        const std::uint64_t* source, std::int16_t* destination,
+        std::size_t wordCount, std::size_t fieldsPerWord) noexcept {
         for (std::size_t i = 0; i < wordCount; ++i) {
-            destination[i * 2U] =
-                signedHalf(static_cast<std::uint32_t>(source[i] >> 32U));
-            destination[i * 2U + 1U] =
-                signedHalf(static_cast<std::uint32_t>(source[i]));
+            for (std::size_t field = 0; field < fieldsPerWord; ++field) {
+                const unsigned shift = static_cast<unsigned>(48U - field * 16U);
+                const auto bits = static_cast<std::uint16_t>(
+                    (source[i] >> shift) & 0xFFFFU);
+                destination[i * fieldsPerWord + field] =
+                    signedCoefficient(bits);
+            }
         }
     };
     if (candidate.layout.hasShade) {
@@ -464,7 +467,7 @@ bool RdpCommandDecoder::decodeTriangleCommand(
                 packet.words[candidate.layout.shadeWordOffset + i];
         decodeCoefficients(candidate.shadeWords.data(),
                            candidate.shadeCoefficients.data(),
-                           candidate.shadeWords.size());
+                           candidate.shadeWords.size(), 4U);
     }
     if (candidate.layout.hasTexture) {
         for (std::size_t i = 0; i < candidate.textureWords.size(); ++i)
@@ -472,14 +475,14 @@ bool RdpCommandDecoder::decodeTriangleCommand(
                 packet.words[candidate.layout.textureWordOffset + i];
         decodeCoefficients(candidate.textureWords.data(),
                            candidate.textureCoefficients.data(),
-                           candidate.textureWords.size());
+                           candidate.textureWords.size(), 3U);
     }
     if (candidate.layout.hasZ) {
         for (std::size_t i = 0; i < candidate.zWords.size(); ++i)
             candidate.zWords[i] = packet.words[candidate.layout.zWordOffset + i];
         decodeCoefficients(candidate.zWords.data(),
                            candidate.zCoefficients.data(),
-                           candidate.zWords.size());
+                           candidate.zWords.size(), 4U);
     }
     command = candidate;
     return true;
