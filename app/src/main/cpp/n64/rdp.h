@@ -79,8 +79,14 @@ struct RdpTriangleTextureCoefficients final {
 };
 
 struct RdpTriangleZCoefficients final {
-    std::array<std::int16_t, 4> zDzDx{};
-    std::array<std::int16_t, 4> zDzDy{};
+    std::int16_t z = 0;
+    std::int16_t zFraction = 0;
+    std::int16_t dzDx = 0;
+    std::int16_t dzDxFraction = 0;
+    std::int16_t dzDe = 0;
+    std::int16_t dzDeFraction = 0;
+    std::int16_t dzDy = 0;
+    std::int16_t dzDyFraction = 0;
 };
 
 struct RdpTriangleCommand final {
