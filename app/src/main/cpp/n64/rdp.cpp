@@ -401,6 +401,36 @@ bool RdpTextureMemory::write64(std::uint16_t address, std::uint64_t value) noexc
     return true;
 }
 
+bool RdpCommandDecoder::decodeTriangleLayout(
+    std::uint8_t opcode, RdpTriangleLayout& layout) noexcept {
+    if (opcode < 0x08U || opcode > 0x0FU) return false;
+
+    const bool shade = (opcode & 0x04U) != 0U;
+    const bool texture = (opcode & 0x02U) != 0U;
+    const bool z = (opcode & 0x01U) != 0U;
+    std::uint8_t offset = 4U;
+
+    RdpTriangleLayout candidate{};
+    candidate.hasShade = shade;
+    candidate.hasTexture = texture;
+    candidate.hasZ = z;
+    if (shade) {
+        candidate.shadeWordOffset = offset;
+        offset = static_cast<std::uint8_t>(offset + 8U);
+    }
+    if (texture) {
+        candidate.textureWordOffset = offset;
+        offset = static_cast<std::uint8_t>(offset + 8U);
+    }
+    if (z) {
+        candidate.zWordOffset = offset;
+        offset = static_cast<std::uint8_t>(offset + 2U);
+    }
+    candidate.wordCount = offset;
+    layout = candidate;
+    return true;
+}
+
 RdpCommandInfo RdpCommandDecoder::decode(std::uint64_t header) noexcept {
     const auto opcode = static_cast<std::uint8_t>((header >> 56U) & 0x3FU);
     std::uint8_t words = 1U;
