@@ -530,6 +530,40 @@ void testLoadTileHonorsTileLineStrideAcrossOddRows() {
             "LOAD_TILE leaves padding between tile rows untouched");
 }
 
+void testLoadTileRejectsRangePastTextureImageWidthWithoutWrites() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    require(bus.write8(0x17E0U, 0x11U) &&
+            bus.write8(0x17E1U, 0x22U) &&
+            bus.write8(0x17E2U, 0x33U),
+            "seed bytes around the declared texture row boundary");
+    state.tmem.writeByte(0U, 0xA5U);
+    state.tmem.writeByte(1U, 0x5AU);
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (1ULL << 32U) | 0x17E0ULL;
+    const std::uint64_t setTile = (0x35ULL << 56U);
+    // The image is two texels wide, but this rectangle requests three.
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (8ULL << 12U);
+    require(bus.write64(0xB80U, setImage) &&
+            bus.write64(0xB88U, setTile) &&
+            bus.write64(0xB90U, loadTile),
+            "seed LOAD_TILE image-width rejection sequence");
+    require(bus.write32(Bus::kDpStart, 0xB80U) &&
+            bus.write32(Bus::kDpEnd, 0xB98U),
+            "publish LOAD_TILE image-width rejection sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
+            RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "configure image and tile before invalid LOAD_TILE");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "LOAD_TILE rejects a rectangle extending past image width");
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0xA5U &&
+            state.tmem.readByte(1U, value) && value == 0x5AU,
+            "out-of-width LOAD_TILE leaves TMEM unchanged");
+}
+
 void testLoadTileRejectsOutOfRangeSourceWithoutPartialTmemWrites() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1523,6 +1557,7 @@ int main() {
     testRdpTextureMemory();
     testRdpTextureLoadCommandFields();
     testLoadTileCopiesTextureImageIntoTmem();
+    testLoadTileRejectsRangePastTextureImageWidthWithoutWrites();
     testLoadTileHonorsTileLineStrideAcrossOddRows();
     testLoadTileRejectsOutOfRangeSourceWithoutPartialTmemWrites();
     testLoadTileFourBitRangeStartingAtOddSourceNibble();
