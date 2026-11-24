@@ -411,16 +411,16 @@ bool RdpCommandDecoder::decodeTriangleEdge(
         return static_cast<std::int32_t>(value);
     };
     RdpTriangleEdgeState candidate{};
-    candidate.leftMajor = ((words[0] >> 55U) & 1U) != 0U;
+    candidate.leftMajor = ((words[0] >> 55U) & 1U) == 0U;
     candidate.yLow = static_cast<std::uint16_t>(words[0] & 0x3FFFU);
     candidate.yMiddle = static_cast<std::uint16_t>((words[0] >> 16U) & 0x3FFFU);
     candidate.yHigh = static_cast<std::uint16_t>((words[0] >> 32U) & 0x3FFFU);
-    candidate.xLeft = signed32(static_cast<std::uint32_t>(words[1]));
-    candidate.dxLeftDy = signed32(static_cast<std::uint32_t>(words[1] >> 32U));
-    candidate.xHigh = signed32(static_cast<std::uint32_t>(words[2]));
-    candidate.dxHighDy = signed32(static_cast<std::uint32_t>(words[2] >> 32U));
-    candidate.xMiddle = signed32(static_cast<std::uint32_t>(words[3]));
-    candidate.dxMiddleDy = signed32(static_cast<std::uint32_t>(words[3] >> 32U));
+    candidate.xLeft = signed32(static_cast<std::uint32_t>(words[1] >> 32U));
+    candidate.dxLeftDy = signed32(static_cast<std::uint32_t>(words[1]));
+    candidate.xHigh = signed32(static_cast<std::uint32_t>(words[2] >> 32U));
+    candidate.dxHighDy = signed32(static_cast<std::uint32_t>(words[2]));
+    candidate.xMiddle = signed32(static_cast<std::uint32_t>(words[3] >> 32U));
+    candidate.dxMiddleDy = signed32(static_cast<std::uint32_t>(words[3]));
     edge = candidate;
     return true;
 }
