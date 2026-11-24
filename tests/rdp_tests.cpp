@@ -1006,6 +1006,44 @@ void testLoadTlutReplicatesEntriesIntoHighTmem() {
             "LOAD_TLUT quadricates third palette entry");
 }
 
+void testLoadTlutRejectsOutOfRangeSourceWithoutPartialTmemWrites() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint32_t source = static_cast<std::uint32_t>(Rdram::kSize - 2U);
+    require(bus.write16(source, 0xF801U),
+            "seed final valid TLUT source entry");
+    state.tmem.write64(0x800U, 0x1122334455667788ULL);
+    state.tmem.write64(0x808U, 0x99AABBCCDDEEFF00ULL);
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (2ULL << 51U) | (1ULL << 32U) | source;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (256ULL << 32U);
+    const std::uint64_t loadTlut =
+        (0x30ULL << 56U) | (4ULL << 12U);
+    require(bus.write64(0x960U, setImage) &&
+            bus.write64(0x968U, setTile) &&
+            bus.write64(0x970U, loadTlut),
+            "seed out-of-range TLUT load sequence");
+    require(bus.write32(Bus::kDpStart, 0x960U) &&
+            bus.write32(Bus::kDpEnd, 0x978U),
+            "publish out-of-range TLUT sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
+            RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "configure image and tile before invalid LOAD_TLUT");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "LOAD_TLUT rejects source entries crossing RDRAM end");
+
+    std::uint64_t first = 0U;
+    std::uint64_t second = 0U;
+    require(state.tmem.read64(0x800U, first) &&
+            state.tmem.read64(0x808U, second) &&
+            first == 0x1122334455667788ULL &&
+            second == 0x99AABBCCDDEEFF00ULL,
+            "invalid LOAD_TLUT leaves all destination TMEM entries unchanged");
+}
+
 void testLoadTlutHonorsTextureImageCoordinatesAndRange() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1286,6 +1324,7 @@ int main() {
     testLoadBlockRejectsStartOutsideTextureImageWidth();
     testLoadBlockRejectsUnsupportedTexelSizes();
     testLoadTlutReplicatesEntriesIntoHighTmem();
+    testLoadTlutRejectsOutOfRangeSourceWithoutPartialTmemWrites();
     testLoadTlutHonorsTextureImageCoordinatesAndRange();
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
     testFillRectangleWritesRgba16AlternatingHalfwords();
