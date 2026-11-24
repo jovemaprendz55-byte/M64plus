@@ -140,12 +140,30 @@ void testTriangleCommandPacketDecoding() {
         }
 
         RdpTriangleCommand command{};
+        command.shade.rgba.fill(111);
+        command.texture.stw.fill(222);
+        command.depth.z = 333;
+        command.shadeCoefficients.fill(111);
+        command.textureCoefficients.fill(222);
+        command.zCoefficients.fill(333);
         require(RdpCommandDecoder::decodeTriangleCommand(packet, command),
                 "complete triangle packet decodes");
         require(command.layout.wordCount == packet.info.lengthWords &&
                 command.edge.level == 6U && command.edge.tile == 2U &&
                 command.edge.yLow == 0x0345U,
                 "triangle packet carries LOD level, tile, edge header and optional layout");
+        if (!layout.hasShade) {
+            require(command.shade.rgba[0] == 0 && command.shadeCoefficients[0] == 0,
+                    "absent shade block clears prior decoded values");
+        }
+        if (!layout.hasTexture) {
+            require(command.texture.stw[0] == 0 && command.textureCoefficients[0] == 0,
+                    "absent texture block clears prior decoded values");
+        }
+        if (!layout.hasZ) {
+            require(command.depth.z == 0 && command.zCoefficients[0] == 0,
+                    "absent depth block clears prior decoded values");
+        }
         if (layout.hasShade) {
             for (std::size_t i = 0; i < command.shadeCoefficients.size(); ++i) {
                 const std::int16_t expected = expectedFour[i % 4U] +
