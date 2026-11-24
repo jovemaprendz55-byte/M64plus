@@ -971,6 +971,41 @@ void testLoadTlutReplicatesEntriesIntoHighTmem() {
             "LOAD_TLUT quadricates third palette entry");
 }
 
+void testLoadTlutHonorsTextureImageCoordinatesAndRange() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t image = 0x1400U;
+    require(bus.write16(image + 10U, 0xF801U) &&
+            bus.write16(image + 12U, 0x07C1U),
+            "seed TLUT entries at nonzero image coordinates");
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (2ULL << 51U) | (3ULL << 32U) | image;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (256ULL << 32U);
+    const std::uint64_t loadTlut =
+        (0x30ULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
+        (8ULL << 12U) | 4ULL;
+    require(bus.write64(0x940U, setImage) &&
+            bus.write64(0x948U, setTile) &&
+            bus.write64(0x950U, loadTlut), "seed offset TLUT load sequence");
+    require(bus.write32(Bus::kDpStart, 0x940U) &&
+            bus.write32(Bus::kDpEnd, 0x958U), "publish offset TLUT sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TEXTURE_IMAGE configures four-wide palette source");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE configures TLUT destination");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "LOAD_TLUT loads the selected source range");
+
+    std::uint64_t word = 0U;
+    require(state.tmem.read64(0x800U, word) && word == 0xF801F801F801F801ULL,
+            "LOAD_TLUT starts at SL/TL texture image coordinate");
+    require(state.tmem.read64(0x808U, word) && word == 0x07C107C107C107C1ULL,
+            "LOAD_TLUT count is based on SH minus SL");
+}
+ 
 void testFillRectangleWritesRgba32PixelsAndHonorsScissor() {
     using namespace m64plus::n64;
     const std::uint32_t base = 0x3000U;
@@ -1215,6 +1250,7 @@ int main() {
     testLoadBlockRejectsStartOutsideTextureImageWidth();
     testLoadBlockRejectsUnsupportedTexelSizes();
     testLoadTlutReplicatesEntriesIntoHighTmem();
+    testLoadTlutHonorsTextureImageCoordinatesAndRange();
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
     testFillRectangleWritesRgba16AlternatingHalfwords();
     testFillRectangleHonorsScissorFieldParity();
