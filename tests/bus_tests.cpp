@@ -28,6 +28,32 @@ void testMiVersionRegisterReportsRcpRevision() {
             "MI_VERSION remains unchanged after a write");
 }
 
+void testMiInterruptMaskSetAndClearCommands() {
+    Bus bus;
+    std::uint32_t mask = 0U;
+    for (unsigned source = 0U; source < 6U; ++source) {
+        const std::uint32_t sourceBit = 1U << source;
+        const std::uint32_t setCommand = 1U << (source * 2U + 1U);
+        const std::uint32_t clearCommand = 1U << (source * 2U);
+        bus.setMiInterrupt(source, true);
+        require(bus.write32(Bus::kMiInterruptMask, setCommand),
+                "MI interrupt mask accepts per-source set command");
+        require(bus.read32(Bus::kMiInterruptMask, mask) &&
+                (mask & sourceBit) != 0U,
+                "MI interrupt mask enables selected source");
+        require(bus.miInterruptPending(),
+                "enabled asserted MI source becomes pending");
+        require(bus.write32(Bus::kMiInterruptMask, clearCommand),
+                "MI interrupt mask accepts per-source clear command");
+        require(bus.read32(Bus::kMiInterruptMask, mask) &&
+                (mask & sourceBit) == 0U,
+                "MI interrupt mask disables selected source");
+        require(!bus.miInterruptPending(),
+                "disabled MI source is not reported pending");
+        bus.setMiInterrupt(source, false);
+    }
+}
+
 void testDpRegisterWindow() {
     Bus bus;
     std::uint32_t value = 0;
@@ -353,6 +379,7 @@ void testCartridgeRomMappingAndValidation() {
 } // namespace
 
 int main() {
+    testMiInterruptMaskSetAndClearCommands();
     testMiVersionRegisterReportsRcpRevision();
     testDpRegisterWindow();
     testCartridgeRomMappingAndValidation();
