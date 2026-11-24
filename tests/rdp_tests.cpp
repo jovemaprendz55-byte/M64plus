@@ -70,6 +70,53 @@ void testTriangleEdgeHeaderDecoding() {
             "zeroed triangle edge header decodes deterministically");
 }
 
+void testTriangleCommandPacketDecoding() {
+    using namespace m64plus::n64;
+    for (std::uint8_t flags = 0U; flags < 8U; ++flags) {
+        RdpCommandPacket packet{};
+        const std::uint8_t opcode = static_cast<std::uint8_t>(0x08U + flags);
+        packet.info = RdpCommandDecoder::decode(
+            static_cast<std::uint64_t>(opcode) << 56U);
+        packet.words[0] = (static_cast<std::uint64_t>(opcode) << 56U) |
+                          (0x0123ULL << 32U) | (0x0234ULL << 16U) | 0x0345ULL;
+        packet.words[1] = 0xFFF0000080000001ULL;
+        packet.words[2] = 0x000180007FFFFFFFULL;
+        packet.words[3] = 0xFFFF800000020000ULL;
+        for (std::size_t i = 4U; i < packet.info.lengthWords; ++i)
+            packet.words[i] = 0xA500000000000000ULL + i;
+
+        RdpTriangleCommand command{};
+        require(RdpCommandDecoder::decodeTriangleCommand(packet, command),
+                "complete triangle packet decodes");
+        require(command.layout.wordCount == packet.info.lengthWords &&
+                command.edge.yLow == 0x0345U,
+                "triangle packet combines edge header and optional layout");
+        if (command.layout.hasShade)
+            require(command.shadeWords[0] == packet.words[4],
+                    "shade coefficients copied from declared offset");
+        if (command.layout.hasTexture) {
+            const std::size_t offset = command.layout.textureWordOffset;
+            require(command.textureWords[0] == packet.words[offset],
+                    "texture coefficients copied from declared offset");
+        }
+        if (command.layout.hasZ) {
+            const std::size_t offset = command.layout.zWordOffset;
+            require(command.zWords[0] == packet.words[offset],
+                    "Z coefficients copied from declared offset");
+        }
+    }
+
+    RdpCommandPacket invalid{};
+    invalid.info.opcode = 0x08U;
+    invalid.info.lengthWords = 4U;
+    invalid.words[0] = 0x0900000000000000ULL;
+    RdpTriangleCommand unchanged{};
+    unchanged.edge.yLow = 123U;
+    require(!RdpCommandDecoder::decodeTriangleCommand(invalid, unchanged) &&
+            unchanged.edge.yLow == 123U,
+            "mismatched triangle packet is rejected without changing output");
+}
+
 void testTriangleOptionalBlockLayout() {
     using namespace m64plus::n64;
     for (std::uint8_t flags = 0U; flags < 8U; ++flags) {
@@ -2168,6 +2215,7 @@ int main() {
     testTriangleCommandLengths();
     testTriangleOptionalBlockLayout();
     testTriangleEdgeHeaderDecoding();
+    testTriangleCommandPacketDecoding();
     testMaximumTriangleCommandWaitsForAllWords();
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testTextureRectangleLengths();
