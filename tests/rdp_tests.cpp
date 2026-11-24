@@ -574,6 +574,44 @@ void testLoadTileRejectsInvertedCoordinatesWithoutWrites() {
     }
 }
 
+void testLoadTileValidatesEverySourceRowBeforeWritingTmem() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint32_t lastByte = static_cast<std::uint32_t>(Rdram::kSize - 1U);
+    require(bus.write8(lastByte, 0x7BU),
+            "seed final valid byte for multi-row LOAD_TILE");
+    for (std::uint16_t i = 0U; i < 8U; ++i)
+        state.tmem.writeByte(i, static_cast<std::uint8_t>(0xC0U + i));
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | lastByte;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (1ULL << 41U);
+    // One texel per row: row zero is valid, but row one exceeds RDRAM.
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 12U);
+    require(bus.write64(0xB40U, setImage) &&
+            bus.write64(0xB48U, setTile) &&
+            bus.write64(0xB50U, loadTile),
+            "seed multi-row out-of-range LOAD_TILE sequence");
+    require(bus.write32(Bus::kDpStart, 0xB40U) &&
+            bus.write32(Bus::kDpEnd, 0xB58U),
+            "publish multi-row out-of-range LOAD_TILE sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
+            RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "configure image and tile before multi-row invalid LOAD_TILE");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "LOAD_TILE rejects a later source row outside RDRAM");
+
+    for (std::uint16_t i = 0U; i < 8U; ++i) {
+        std::uint8_t value = 0U;
+        require(state.tmem.readByte(i, value) &&
+                value == static_cast<std::uint8_t>(0xC0U + i),
+                "invalid later source row leaves all TMEM bytes unchanged");
+    }
+}
+
 void testLoadTileRejectsRangePastTextureImageWidthWithoutWrites() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1602,6 +1640,7 @@ int main() {
     testRdpTextureLoadCommandFields();
     testLoadTileCopiesTextureImageIntoTmem();
     testLoadTileRejectsInvertedCoordinatesWithoutWrites();
+    testLoadTileValidatesEverySourceRowBeforeWritingTmem();
     testLoadTileRejectsRangePastTextureImageWidthWithoutWrites();
     testLoadTileHonorsTileLineStrideAcrossOddRows();
     testLoadTileRejectsOutOfRangeSourceWithoutPartialTmemWrites();
