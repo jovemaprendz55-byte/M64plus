@@ -2889,6 +2889,45 @@ void testMiMaskCommandsDriveCpuExternalPendingBit() {
             "masked IP2 observation does not raise an exception while CPU IE is disabled");
 }
 
+
+void testMiInterruptSourcesRemainAggregatedWhenOneMaskIsCleared() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    auto& cpu = machine.cpu();
+
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 10U),
+            "enable CPU IP2 mask without global interrupt enable");
+    require(bus.write32(Bus::kMiInterruptMask, (1U << 1U) | (1U << 9U)),
+            "enable MI SP and PI interrupt masks");
+    bus.setMiInterrupt(0U, true);
+    bus.setMiInterrupt(4U, true);
+    require(bus.miInterruptPending(), "SP and PI sources are both pending");
+
+    require(machine.stepCpu(), "CPU samples simultaneous SP and PI interrupts");
+    constexpr std::uint64_t ip2 = 1ULL << 10U;
+    require((cpu.cp0().read(m64plus::n64::Cp0::kCause) & ip2) != 0U,
+            "simultaneous MI sources assert CPU Cause.IP2");
+
+    require(bus.write32(Bus::kMiInterruptMask, 1U),
+            "clear only the MI SP interrupt mask");
+    require(bus.miInterruptPending(),
+            "pending PI source keeps aggregate MI interrupt asserted");
+    require(machine.stepCpu(), "CPU samples remaining PI interrupt source");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kCause) & ip2) != 0U,
+            "clearing SP mask does not clear IP2 while PI remains enabled and pending");
+
+    require(bus.write32(Bus::kMiInterruptMask, 1U << 8U),
+            "clear the remaining MI PI interrupt mask");
+    require(!bus.miInterruptPending(),
+            "aggregate MI interrupt clears after all pending sources are masked");
+    require(machine.stepCpu(), "CPU samples that no enabled MI sources remain");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kCause) & ip2) == 0U,
+            "CPU Cause.IP2 clears after all enabled MI sources are masked");
+    require(!cpu.hasLastException(),
+            "aggregated pending-bit test does not take an interrupt exception");
+}
+
 } // namespace
 
 int main() {
@@ -2898,6 +2937,7 @@ int main() {
     testMiExternalInterruptReachesMainCpu();
     testMiExternalInterruptDeassertionClearsCpuPendingBit();
     testMiMaskCommandsDriveCpuExternalPendingBit();
+    testMiInterruptSourcesRemainAggregatedWhenOneMaskIsCleared();
     testCpuAcceptsCp0TimerInterruptBetweenInstructions();
     testCpuDefersTimerInterruptUntilAfterBranchDelaySlot();
     testCpuSyscallAndBreakpointExceptions();
