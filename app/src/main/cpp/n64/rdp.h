@@ -32,6 +32,9 @@ public:
 
 struct RdpTriangleEdgeState final {
     bool leftMajor = false;
+    // RDP texture LOD level (mip levels minus one) and tile descriptor index.
+    std::uint8_t level = 0;
+    std::uint8_t tile = 0;
     std::uint16_t yLow = 0;
     std::uint16_t yMiddle = 0;
     std::uint16_t yHigh = 0;
