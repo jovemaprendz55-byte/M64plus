@@ -33,7 +33,7 @@ public:
     static constexpr std::uint32_t kMiVersion = kMiBase + 0x04U;
     static constexpr std::uint32_t kMiInterrupt = kMiBase + 0x08U;
     static constexpr std::uint32_t kMiInterruptMask = kMiBase + 0x0CU;
-    static constexpr std::uint32_t kMiVersionValue = 0x01010101U;
+    static constexpr std::uint32_t kMiVersionValue = 0x02020102U;
     static constexpr std::uint32_t kSpRegBase = 0x04040000U;
     static constexpr std::uint32_t kSpPc = 0x04080000U;
     static constexpr std::uint32_t kDpRegBase = 0x04100000U;
