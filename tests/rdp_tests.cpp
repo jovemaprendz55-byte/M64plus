@@ -1124,14 +1124,14 @@ void testLoadTile32BitUsesNonzeroSourceXAcrossRows() {
     expect(0x801U, 0x13U, "first selected texel alpha uses upper bank");
     expect(0x802U, 0x22U, "second selected texel blue uses upper bank");
     expect(0x803U, 0x23U, "second selected texel alpha uses upper bank");
-    expect(4U, 0x50U, "second source row applies odd-row swizzle");
-    expect(5U, 0x51U, "second source row preserves green channel");
-    expect(6U, 0x60U, "second source row selects next texel at nonzero X");
-    expect(7U, 0x61U, "second source row selects next texel green");
-    expect(0x804U, 0x52U, "second source row blue is swizzled in upper bank");
-    expect(0x805U, 0x53U, "second source row alpha is swizzled in upper bank");
-    expect(0x806U, 0x62U, "second source row second blue texel");
-    expect(0x807U, 0x63U, "second source row second alpha texel");
+    expect(12U, 0x50U, "second source row applies odd-row swizzle at tile stride");
+    expect(13U, 0x51U, "second source row preserves green channel");
+    expect(14U, 0x60U, "second source row selects next texel at nonzero X");
+    expect(15U, 0x61U, "second source row selects next texel green");
+    expect(0x80CU, 0x52U, "second source row blue is swizzled in upper bank");
+    expect(0x80DU, 0x53U, "second source row alpha is swizzled in upper bank");
+    expect(0x80EU, 0x62U, "second source row second blue texel");
+    expect(0x80FU, 0x63U, "second source row second alpha texel");
 }
 
 void testLoadTile32BitWrapsBothBanksAcrossTmemEnd() {
