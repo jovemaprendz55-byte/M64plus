@@ -530,6 +530,50 @@ void testLoadTileHonorsTileLineStrideAcrossOddRows() {
             "LOAD_TILE leaves padding between tile rows untouched");
 }
 
+void testLoadTileRejectsInvertedCoordinatesWithoutWrites() {
+    using namespace m64plus::n64;
+    const std::uint64_t invalidLoads[] = {
+        (0x34ULL << 56U) | (4ULL << 44U), // SL > SH
+        (0x34ULL << 56U) | (4ULL << 32U)  // TL > TH
+    };
+
+    for (std::size_t scenario = 0; scenario < 2U; ++scenario) {
+        Bus bus;
+        RdpSyncState state{};
+        require(bus.write8(0x17D0U, 0x12U) &&
+                bus.write8(0x17D1U, 0x34U) &&
+                bus.write8(0x17D2U, 0x56U),
+                "seed source bytes for inverted LOAD_TILE coordinates");
+        for (std::uint16_t i = 0U; i < 8U; ++i)
+            state.tmem.writeByte(i, static_cast<std::uint8_t>(0xA0U + i));
+
+        const std::uint64_t setImage =
+            (0x3DULL << 56U) | (1ULL << 51U) | (1ULL << 32U) | 0x17D0ULL;
+        const std::uint64_t setTile = (0x35ULL << 56U);
+        require(bus.write64(0xB60U, setImage) &&
+                bus.write64(0xB68U, setTile) &&
+                bus.write64(0xB70U, invalidLoads[scenario]),
+                "seed inverted-coordinate LOAD_TILE sequence");
+        require(bus.write32(Bus::kDpStart, 0xB60U) &&
+                bus.write32(Bus::kDpEnd, 0xB78U),
+                "publish inverted-coordinate LOAD_TILE sequence");
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
+                RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "configure image and tile before inverted LOAD_TILE");
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+                scenario == 0U
+                    ? "LOAD_TILE rejects SL greater than SH"
+                    : "LOAD_TILE rejects TL greater than TH");
+
+        for (std::uint16_t i = 0U; i < 8U; ++i) {
+            std::uint8_t value = 0U;
+            require(state.tmem.readByte(i, value) &&
+                    value == static_cast<std::uint8_t>(0xA0U + i),
+                    "inverted-coordinate LOAD_TILE leaves TMEM unchanged");
+        }
+    }
+}
+
 void testLoadTileRejectsRangePastTextureImageWidthWithoutWrites() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1557,6 +1601,7 @@ int main() {
     testRdpTextureMemory();
     testRdpTextureLoadCommandFields();
     testLoadTileCopiesTextureImageIntoTmem();
+    testLoadTileRejectsInvertedCoordinatesWithoutWrites();
     testLoadTileRejectsRangePastTextureImageWidthWithoutWrites();
     testLoadTileHonorsTileLineStrideAcrossOddRows();
     testLoadTileRejectsOutOfRangeSourceWithoutPartialTmemWrites();
