@@ -1105,7 +1105,7 @@ void testLoadBlockWrapsDestinationAcrossTmemEnd() {
     for (std::uint32_t i = 0; i < 16U; ++i)
         require(bus.write8(0x1E00U + i, static_cast<std::uint8_t>(0x40U + i)),
                 "seed LOAD_BLOCK data for TMEM wrap");
-    for (std::uint32_t i = 0; i < 8U; ++i) {
+    for (std::uint32_t i = 0; i < 9U; ++i) {
         require(state.tmem.writeByte(static_cast<std::uint16_t>(i), 0xEEU),
                 "seed TMEM bytes after wrap destination");
     }
