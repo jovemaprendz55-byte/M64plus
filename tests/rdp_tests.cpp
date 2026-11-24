@@ -2384,6 +2384,38 @@ void testTextureRectanglePacketDecoding() {
             "invalid texture rectangle packet leaves output unchanged");
 }
 
+void testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists() {
+    using namespace m64plus::n64;
+    for (std::uint8_t opcode : {0x24U, 0x25U}) {
+        Bus bus;
+        RdpSyncState state{};
+        const std::uint32_t start = 0xA40U;
+        const std::uint64_t first = (static_cast<std::uint64_t>(opcode) << 56U) |
+            (0x120ULL << 44U) | (0x230ULL << 32U) | (3ULL << 24U) |
+            (0x340ULL << 12U) | 0x450ULL;
+        const std::uint64_t second = (0xFFF0ULL << 48U) | (0x8001ULL << 32U) |
+            (0x0100ULL << 16U) | 0x0200ULL;
+        require(bus.write64(start, first) && bus.write64(start + 8U, second),
+                "seed complete texture rectangle command packet");
+        require(bus.write32(Bus::kDpStart, start) &&
+                bus.write32(Bus::kDpEnd, start + 16U),
+                "publish complete texture rectangle command");
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+                "texture rectangle remains unsupported until texture rasterization exists");
+        require(state.hasTextureRectangle &&
+                state.lastTextureRectangle.tile == 3U &&
+                state.lastTextureRectangle.xh == 0x120U &&
+                state.lastTextureRectangle.yl == 0x450U &&
+                state.lastTextureRectangle.s == -16 &&
+                state.lastTextureRectangle.t == -32767 &&
+                state.lastTextureRectangle.flip == (opcode == 0x25U),
+                "processor retains decoded texture rectangle state for future rasterizer");
+        std::uint32_t current = 0U;
+        require(bus.read32(Bus::kDpCurrent, current) && current == start + 16U,
+                "texture rectangle consumes its complete two-word packet");
+    }
+}
+
 void testTextureRectangleLengths() {
     require(m64plus::n64::RdpCommandDecoder::decode(header(0x24U)).lengthWords == 2U,
             "texture rectangle has two words");
@@ -2402,6 +2434,7 @@ int main() {
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testTextureRectangleLengths();
     testTextureRectanglePacketDecoding();
+    testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testDpcCommandStreamIntegration();
     testRdpSynchronizationCommands();
     testRdpBasicStateCommands();
