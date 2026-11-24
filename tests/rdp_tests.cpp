@@ -2426,6 +2426,40 @@ void testFillRectangleRejectsLaterRowOverflowWithoutPartialWrites() {
             "later-row overflow rejection preserves the earlier valid row");
 }
 
+void testFillRectangleRejectsRgba16LaterRowOverflowWithoutPartialWrites() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint32_t base = static_cast<std::uint32_t>(Rdram::kSize - 2U);
+    constexpr std::uint16_t sentinel = 0x6B7CU;
+    require(bus.write16(base, sentinel),
+            "seed final RDRAM halfword before RGBA16 later-row overflow");
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (2ULL << 51U) | base,
+        (0x37ULL << 56U) | 0x11223344ULL,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x36ULL << 56U) | 4ULL
+    };
+    constexpr std::uint32_t start = 0xF40U;
+    for (std::size_t i = 0U; i < 4U; ++i)
+        require(bus.write64(start + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed RGBA16 later-row overflow fill command stream");
+    require(bus.write32(Bus::kDpStart, start) &&
+            bus.write32(Bus::kDpEnd, start + 32U),
+            "publish RGBA16 later-row overflow fill command stream");
+
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "RGBA16 later-row overflow setup command is processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "RGBA16 fill with a later row beyond RDRAM is rejected");
+
+    std::uint16_t pixel = 0U;
+    require(bus.read16(base, pixel) && pixel == sentinel,
+            "RGBA16 later-row overflow rejection preserves the earlier valid row");
+}
+
 void testFillRectangleRejectsOutOfRangeWithoutPartialWrites() {
     using namespace m64plus::n64;
     Bus bus;
@@ -2763,6 +2797,7 @@ int main() {
     testFillRectangleRejectsRgba16OverflowWithoutPartialWrites();
     testFillRectangleRejectsRgba32OverflowWithoutPartialWrites();
     testFillRectangleRejectsLaterRowOverflowWithoutPartialWrites();
+    testFillRectangleRejectsRgba16LaterRowOverflowWithoutPartialWrites();
     testFillRectangleRejectsOutOfRangeWithoutPartialWrites();
     testFillRectangleRejectsEmptyScissorIntersectionWithoutWrites();
     testFillRectangleRejectsInvertedCoordinatesWithoutWrites();
