@@ -523,6 +523,37 @@ void testLoadTileRejectsOutOfRangeSourceWithoutPartialTmemWrites() {
             "invalid LOAD_TILE leaves all destination TMEM bytes unchanged");
 }
 
+void testLoadTileFourBitRangeStartingAtOddSourceNibble() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    require(bus.write8(0x1780U, 0x12U) &&
+            bus.write8(0x1781U, 0x34U),
+            "seed 4-bit image for odd-nibble source range");
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (3ULL << 32U) | 0x1780ULL;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (1ULL << 41U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
+        (8ULL << 12U);
+    require(bus.write64(0xA20U, setImage) &&
+            bus.write64(0xA28U, setTile) &&
+            bus.write64(0xA30U, loadTile),
+            "seed odd-nibble 4-bit LOAD_TILE sequence");
+    require(bus.write32(Bus::kDpStart, 0xA20U) &&
+            bus.write32(Bus::kDpEnd, 0xA38U),
+            "publish odd-nibble 4-bit LOAD_TILE sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) ==
+                    RdpProcessResult::Processed,
+                "odd-nibble 4-bit LOAD_TILE command is processed");
+
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0x23U,
+            "4-bit LOAD_TILE selects source low nibble then next high nibble");
+}
+
 void testLoadTilePacksFourBitNibblesAndSwizzlesOddRows() {
     using namespace m64plus::n64;
     Bus bus;
@@ -1417,6 +1448,7 @@ int main() {
     testRdpTextureLoadCommandFields();
     testLoadTileCopiesTextureImageIntoTmem();
     testLoadTileRejectsOutOfRangeSourceWithoutPartialTmemWrites();
+    testLoadTileFourBitRangeStartingAtOddSourceNibble();
     testLoadTilePacksFourBitNibblesAndSwizzlesOddRows();
     testLoadTileSwizzlesOddRowsFor16BitTexels();
     testLoadTileSplits32BitRgbaAcrossTmemBanks();
