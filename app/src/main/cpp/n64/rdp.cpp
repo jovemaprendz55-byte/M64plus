@@ -245,6 +245,7 @@ bool loadBlockTexels(Bus& bus, RdpSyncState& state,
                       const RdpTextureLoadState& load) noexcept {
     if (!state.hasTextureImage || !state.hasTile[load.tile] ||
         load.sh < load.sl || (load.sl & 0x03U) != 0U ||
+        (load.sl >> 2U) >= state.textureImage.width ||
         (load.tl & 0x03U) != 0U || (load.sh & 0x03U) != 0U) return false;
     const RdpImageState& image = state.textureImage;
     const RdpTileState& tile = state.tiles[load.tile];
