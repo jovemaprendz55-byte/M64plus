@@ -91,18 +91,33 @@ void testTriangleCommandPacketDecoding() {
         require(command.layout.wordCount == packet.info.lengthWords &&
                 command.edge.yLow == 0x0345U,
                 "triangle packet combines edge header and optional layout");
-        if (command.layout.hasShade)
+        if (command.layout.hasShade) {
             require(command.shadeWords[0] == packet.words[4],
                     "shade coefficients copied from declared offset");
+            require(command.shadeCoefficients[0] ==
+                        static_cast<std::int32_t>(0xA5000000U + 4U) &&
+                    command.shadeCoefficients[1] == 4,
+                    "shade payload decodes high and low signed halves in order");
+        }
         if (command.layout.hasTexture) {
             const std::size_t offset = command.layout.textureWordOffset;
             require(command.textureWords[0] == packet.words[offset],
                     "texture coefficients copied from declared offset");
+            require(command.textureCoefficients[0] ==
+                        static_cast<std::int32_t>(0xA5000000U + offset) &&
+                    command.textureCoefficients[1] ==
+                        static_cast<std::int32_t>(offset),
+                    "texture payload decodes signed halves in order");
         }
         if (command.layout.hasZ) {
             const std::size_t offset = command.layout.zWordOffset;
             require(command.zWords[0] == packet.words[offset],
                     "Z coefficients copied from declared offset");
+            require(command.zCoefficients[0] ==
+                        static_cast<std::int32_t>(0xA5000000U + offset) &&
+                    command.zCoefficients[1] ==
+                        static_cast<std::int32_t>(offset),
+                    "Z payload decodes signed halves in order");
         }
     }
 
