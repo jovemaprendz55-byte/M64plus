@@ -2392,6 +2392,41 @@ void testFillRectangleRejectsRgba32OverflowWithoutPartialWrites() {
             "rejected RGBA32 fill leaves final valid word unchanged");
 }
 
+void testFillRectangleIgnoresUnselectedFieldOverflow() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint32_t base = static_cast<std::uint32_t>(Rdram::kSize - 4U);
+    constexpr std::uint32_t sentinel = 0xA1B2C3D4U;
+    constexpr std::uint32_t color = 0x10293847U;
+    require(bus.write32(base, sentinel),
+            "seed final RDRAM word before field-selected fill");
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | base,
+        (0x37ULL << 56U) | color,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x2DULL << 56U) | (1ULL << 25U) |
+            (4ULL << 12U) | 8ULL,
+        (0x36ULL << 56U) | (4ULL << 32U)
+    };
+    constexpr std::uint32_t start = 0xF60U;
+    for (std::size_t i = 0U; i < 5U; ++i)
+        require(bus.write64(start + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed field-selected boundary fill command stream");
+    require(bus.write32(Bus::kDpStart, start) &&
+            bus.write32(Bus::kDpEnd, start + 40U),
+            "publish field-selected boundary fill command stream");
+
+    for (unsigned i = 0U; i < 5U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "field-selected boundary fill command is processed");
+
+    std::uint32_t pixel = 0U;
+    require(bus.read32(base, pixel) && pixel == color,
+            "valid selected scanline is written while overflowing unselected scanline is ignored");
+}
+
 void testFillRectangleRejectsLaterRowOverflowWithoutPartialWrites() {
     using namespace m64plus::n64;
     Bus bus;
@@ -2796,6 +2831,7 @@ int main() {
     testFillRectangleWritesFinalRdramHalfwordAtExactBoundary();
     testFillRectangleRejectsRgba16OverflowWithoutPartialWrites();
     testFillRectangleRejectsRgba32OverflowWithoutPartialWrites();
+    testFillRectangleIgnoresUnselectedFieldOverflow();
     testFillRectangleRejectsLaterRowOverflowWithoutPartialWrites();
     testFillRectangleRejectsRgba16LaterRowOverflowWithoutPartialWrites();
     testFillRectangleRejectsOutOfRangeWithoutPartialWrites();
