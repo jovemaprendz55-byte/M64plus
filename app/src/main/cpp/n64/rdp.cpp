@@ -425,6 +425,41 @@ bool RdpCommandDecoder::decodeTriangleEdge(
     return true;
 }
 
+bool RdpCommandDecoder::decodeTriangleCommand(
+    const RdpCommandPacket& packet, RdpTriangleCommand& command) noexcept {
+    const std::uint8_t opcode =
+        static_cast<std::uint8_t>((packet.words[0] >> 56U) & 0x3FU);
+    if (packet.info.opcode != opcode) return false;
+
+    RdpTriangleCommand candidate{};
+    if (!decodeTriangleLayout(opcode, candidate.layout) ||
+        packet.info.lengthWords != candidate.layout.wordCount) {
+        return false;
+    }
+
+    std::array<std::uint64_t, 4> edgeWords{};
+    for (std::size_t i = 0; i < edgeWords.size(); ++i)
+        edgeWords[i] = packet.words[i];
+    if (!decodeTriangleEdge(edgeWords, candidate.edge)) return false;
+
+    if (candidate.layout.hasShade) {
+        for (std::size_t i = 0; i < candidate.shadeWords.size(); ++i)
+            candidate.shadeWords[i] =
+                packet.words[candidate.layout.shadeWordOffset + i];
+    }
+    if (candidate.layout.hasTexture) {
+        for (std::size_t i = 0; i < candidate.textureWords.size(); ++i)
+            candidate.textureWords[i] =
+                packet.words[candidate.layout.textureWordOffset + i];
+    }
+    if (candidate.layout.hasZ) {
+        for (std::size_t i = 0; i < candidate.zWords.size(); ++i)
+            candidate.zWords[i] = packet.words[candidate.layout.zWordOffset + i];
+    }
+    command = candidate;
+    return true;
+}
+
 bool RdpCommandDecoder::decodeTriangleLayout(
     std::uint8_t opcode, RdpTriangleLayout& layout) noexcept {
     if (opcode < 0x08U || opcode > 0x0FU) return false;
