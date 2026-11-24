@@ -1086,9 +1086,9 @@ void testLoadTile32BitUsesNonzeroSourceXAcrossRows() {
     RdpSyncState state{};
     const std::uint8_t source[] = {
         0x00U, 0x01U, 0x02U, 0x03U, 0x10U, 0x11U, 0x12U, 0x13U,
-        0x20U, 0x21U, 0x22U, 0x23U,
-        0x30U, 0x31U, 0x32U, 0x33U, 0x40U, 0x41U, 0x42U, 0x43U,
-        0x50U, 0x51U, 0x52U, 0x53U
+        0x20U, 0x21U, 0x22U, 0x23U, 0x30U, 0x31U, 0x32U, 0x33U,
+        0x40U, 0x41U, 0x42U, 0x43U, 0x50U, 0x51U, 0x52U, 0x53U,
+        0x60U, 0x61U, 0x62U, 0x63U, 0x70U, 0x71U, 0x72U, 0x73U
     };
     for (std::uint32_t i = 0U; i < sizeof(source); ++i)
         require(bus.write8(0x1E00U + i, source[i]),
@@ -1099,7 +1099,7 @@ void testLoadTile32BitUsesNonzeroSourceXAcrossRows() {
         (0x35ULL << 56U) | (3ULL << 51U) | (1ULL << 41U) |
         (1ULL << 32U);
     const std::uint64_t loadTile =
-        (0x34ULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
+        (0x34ULL << 56U) | (4ULL << 44U) |
         (8ULL << 12U) | 4ULL;
     require(bus.write64(0xC10U, setImage) &&
             bus.write64(0xC18U, setTile) &&
@@ -1125,14 +1125,14 @@ void testLoadTile32BitUsesNonzeroSourceXAcrossRows() {
     expect(0x801U, 0x13U, "first selected texel alpha uses upper bank");
     expect(0x802U, 0x22U, "second selected texel blue uses upper bank");
     expect(0x803U, 0x23U, "second selected texel alpha uses upper bank");
-    expect(4U, 0x40U, "second source row applies odd-row swizzle");
-    expect(5U, 0x41U, "second source row preserves green channel");
-    expect(6U, 0x50U, "second source row selects next texel at nonzero X");
-    expect(7U, 0x51U, "second source row selects next texel green");
-    expect(0x804U, 0x42U, "second source row blue is swizzled in upper bank");
-    expect(0x805U, 0x43U, "second source row alpha is swizzled in upper bank");
-    expect(0x806U, 0x52U, "second source row second blue texel");
-    expect(0x807U, 0x53U, "second source row second alpha texel");
+    expect(4U, 0x50U, "second source row applies odd-row swizzle");
+    expect(5U, 0x51U, "second source row preserves green channel");
+    expect(6U, 0x60U, "second source row selects next texel at nonzero X");
+    expect(7U, 0x61U, "second source row selects next texel green");
+    expect(0x804U, 0x52U, "second source row blue is swizzled in upper bank");
+    expect(0x805U, 0x53U, "second source row alpha is swizzled in upper bank");
+    expect(0x806U, 0x62U, "second source row second blue texel");
+    expect(0x807U, 0x63U, "second source row second alpha texel");
 }
 
 void testLoadTile32BitWrapsBothBanksAcrossTmemEnd() {
