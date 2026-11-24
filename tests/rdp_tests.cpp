@@ -535,8 +535,7 @@ void testLoadTileFourBitRangeStartingAtOddSourceNibble() {
     const std::uint64_t setTile =
         (0x35ULL << 56U) | (1ULL << 41U);
     const std::uint64_t loadTile =
-        (0x34ULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
-        (8ULL << 12U);
+        (0x34ULL << 56U) | (4ULL << 44U) | (8ULL << 12U);
     require(bus.write64(0xA20U, setImage) &&
             bus.write64(0xA28U, setTile) &&
             bus.write64(0xA30U, loadTile),
