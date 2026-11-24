@@ -21,6 +21,21 @@ class RdpCommandDecoder final {
 public:
     static RdpCommandInfo decode(std::uint64_t header) noexcept;
     static bool decodeTriangleLayout(std::uint8_t opcode, RdpTriangleLayout& layout) noexcept;
+    static bool decodeTriangleEdge(const std::array<std::uint64_t, 4>& words,
+                                   RdpTriangleEdgeState& edge) noexcept;
+};
+
+struct RdpTriangleEdgeState final {
+    bool leftMajor = false;
+    std::uint16_t yLow = 0;
+    std::uint16_t yMiddle = 0;
+    std::uint16_t yHigh = 0;
+    std::int32_t xLeft = 0;
+    std::int32_t dxLeftDy = 0;
+    std::int32_t xHigh = 0;
+    std::int32_t dxHighDy = 0;
+    std::int32_t xMiddle = 0;
+    std::int32_t dxMiddleDy = 0;
 };
 
 struct RdpTriangleLayout final {
