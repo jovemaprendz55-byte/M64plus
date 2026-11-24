@@ -151,7 +151,7 @@ void testTriangleCommandPacketDecoding() {
         }
         if (layout.hasTexture) {
             for (std::size_t i = 0; i < command.textureCoefficients.size(); ++i) {
-                const std::int16_t expected = expectedFour[i % 4U] +
+                const std::int16_t expected = expectedFour[i % 3U] +
                     static_cast<std::int16_t>((i / 3U) * 3U);
                 require(command.textureCoefficients[i] == expected,
                         "all texture coefficient fields retain order and skip low 16 bits");
