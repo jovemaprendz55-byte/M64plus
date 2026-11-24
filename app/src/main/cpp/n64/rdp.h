@@ -59,6 +59,10 @@ struct RdpTriangleCommand final {
     std::array<std::uint64_t, 8> shadeWords{};
     std::array<std::uint64_t, 8> textureWords{};
     std::array<std::uint64_t, 2> zWords{};
+    // Each 64-bit payload word contributes its high then low signed 32-bit half.
+    std::array<std::int32_t, 16> shadeCoefficients{};
+    std::array<std::int32_t, 16> textureCoefficients{};
+    std::array<std::int32_t, 4> zCoefficients{};
 };
 
 struct RdpCommandPacket final {
