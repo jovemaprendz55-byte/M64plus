@@ -2389,7 +2389,7 @@ void testFillRectangleRejectsInvertedVerticalCoordinatesWithoutWrites() {
         (0x3FULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | base,
         (0x37ULL << 56U) | 0x11223344ULL,
         (0x2FULL << 56U) | (3ULL << 52U),
-        (0x36ULL << 56U) | (8ULL << 44U) | (4ULL << 32U)
+        (0x36ULL << 56U) | (8ULL << 44U) | (4ULL << 32U) | 8ULL
     };
     constexpr std::uint32_t start = 0xE60U;
     for (std::size_t i = 0U; i < 4U; ++i)
