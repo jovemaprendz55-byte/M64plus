@@ -2852,6 +2852,43 @@ void testMiExternalInterruptDeassertionClearsCpuPendingBit() {
             "deasserted MI source clears CP0 Cause.IP2 before CPU execution");
 }
 
+
+void testMiMaskCommandsDriveCpuExternalPendingBit() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    auto& cpu = machine.cpu();
+
+    // Keep CPU interrupts globally disabled so each step can observe IP2
+    // without taking an exception.
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 10U),
+            "enable the CPU IP2 mask while global interrupts remain disabled");
+    require(bus.write32(Bus::kMiInterruptMask, 1U << 1U),
+            "enable MI SP interrupt source");
+    bus.setMiInterrupt(0U, true);
+    require(machine.stepCpu(), "CPU samples asserted MI SP source");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kCause) & (1ULL << 10U)) != 0U,
+            "asserted masked MI source raises CPU Cause.IP2");
+
+    require(bus.write32(Bus::kMiInterruptMask, 1U),
+            "clear MI SP interrupt mask with clear command");
+    require(!bus.miInterruptPending(),
+            "clearing MI mask suppresses still-asserted SP source");
+    require(machine.stepCpu(), "CPU samples cleared MI interrupt mask");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kCause) & (1ULL << 10U)) == 0U,
+            "cleared MI mask deasserts CPU Cause.IP2");
+
+    require(bus.write32(Bus::kMiInterruptMask, 1U << 1U),
+            "set MI SP interrupt mask again");
+    require(bus.miInterruptPending(),
+            "re-enabling MI mask exposes the still-asserted SP source");
+    require(machine.stepCpu(), "CPU samples re-enabled MI interrupt mask");
+    require((cpu.cp0().read(m64plus::n64::Cp0::kCause) & (1ULL << 10U)) != 0U,
+            "re-enabled MI mask reasserts CPU Cause.IP2");
+    require(!cpu.hasLastException(),
+            "masked IP2 observation does not raise an exception while CPU IE is disabled");
+}
+
 } // namespace
 
 int main() {
@@ -2860,6 +2897,7 @@ int main() {
     testCp0CountCompareTimerInterrupt();
     testMiExternalInterruptReachesMainCpu();
     testMiExternalInterruptDeassertionClearsCpuPendingBit();
+    testMiMaskCommandsDriveCpuExternalPendingBit();
     testCpuAcceptsCp0TimerInterruptBetweenInstructions();
     testCpuDefersTimerInterruptUntilAfterBranchDelaySlot();
     testCpuSyscallAndBreakpointExceptions();
