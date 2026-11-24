@@ -442,19 +442,44 @@ bool RdpCommandDecoder::decodeTriangleCommand(
         edgeWords[i] = packet.words[i];
     if (!decodeTriangleEdge(edgeWords, candidate.edge)) return false;
 
+    const auto signedHalf = [](std::uint32_t value) noexcept {
+        return value <= 0x7FFFFFFFU
+            ? static_cast<std::int32_t>(value)
+            : static_cast<std::int32_t>(
+                static_cast<std::int64_t>(value) - 0x100000000LL);
+    };
+    const auto decodeCoefficients = [&signedHalf](
+        const std::uint64_t* source, std::int32_t* destination,
+        std::size_t wordCount) noexcept {
+        for (std::size_t i = 0; i < wordCount; ++i) {
+            destination[i * 2U] =
+                signedHalf(static_cast<std::uint32_t>(source[i] >> 32U));
+            destination[i * 2U + 1U] =
+                signedHalf(static_cast<std::uint32_t>(source[i]));
+        }
+    };
     if (candidate.layout.hasShade) {
         for (std::size_t i = 0; i < candidate.shadeWords.size(); ++i)
             candidate.shadeWords[i] =
                 packet.words[candidate.layout.shadeWordOffset + i];
+        decodeCoefficients(candidate.shadeWords.data(),
+                           candidate.shadeCoefficients.data(),
+                           candidate.shadeWords.size());
     }
     if (candidate.layout.hasTexture) {
         for (std::size_t i = 0; i < candidate.textureWords.size(); ++i)
             candidate.textureWords[i] =
                 packet.words[candidate.layout.textureWordOffset + i];
+        decodeCoefficients(candidate.textureWords.data(),
+                           candidate.textureCoefficients.data(),
+                           candidate.textureWords.size());
     }
     if (candidate.layout.hasZ) {
         for (std::size_t i = 0; i < candidate.zWords.size(); ++i)
             candidate.zWords[i] = packet.words[candidate.layout.zWordOffset + i];
+        decodeCoefficients(candidate.zWords.data(),
+                           candidate.zCoefficients.data(),
+                           candidate.zWords.size());
     }
     command = candidate;
     return true;
