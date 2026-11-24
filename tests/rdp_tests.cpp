@@ -945,7 +945,7 @@ void testLoadTlutReplicatesEntriesIntoHighTmem() {
             bus.write16(0x1404U, 0x003FU), "seed three 16-bit TLUT entries");
 
     const std::uint64_t setImage =
-        (0x3DULL << 56U) | (2ULL << 51U) | 0x1400ULL;
+        (0x3DULL << 56U) | (2ULL << 51U) | (2ULL << 32U) | 0x1400ULL;
     const std::uint64_t setTile =
         (0x35ULL << 56U) | (2ULL << 51U) | (256ULL << 32U);
     const std::uint64_t loadTlut =
