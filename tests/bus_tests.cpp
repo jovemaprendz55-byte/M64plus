@@ -436,6 +436,48 @@ void testPiCartridgeToRdramDmaAndInterrupt() {
             "reject RDRAM-to-read-only-ROM DMA direction");
 }
 
+void testDpResetClearsCommandStreamAndModes() {
+    Bus bus;
+    std::uint32_t value = 0U;
+    std::uint64_t command = 0U;
+
+    require(bus.write64(0x500U, 0x123456789ABCDEF0ULL),
+            "seed RDRAM command before DPC reset");
+    require(bus.write64(Bus::kSpDmemBase + 0x40U, 0x0FEDCBA987654321ULL),
+            "seed XBUS command before DPC reset");
+    require(bus.write32(Bus::kDpStart, 0x500U),
+            "set DPC start before reset");
+    require(bus.write32(Bus::kDpEnd, 0x508U),
+            "set DPC end before reset");
+    require(bus.write32(Bus::kDpStatus, (1U << 1U) | (1U << 3U) | (1U << 5U)),
+            "enable XBUS, freeze, and flush before reset");
+    require(bus.read32(Bus::kDpStatus, value) &&
+            (value & (Bus::kDpXbusDmemDma | Bus::kDpFreeze | Bus::kDpFlush)) ==
+                (Bus::kDpXbusDmemDma | Bus::kDpFreeze | Bus::kDpFlush),
+            "DPC modes are active before reset");
+
+    bus.reset();
+
+    require(bus.read32(Bus::kDpStart, value) && value == 0U,
+            "DPC reset clears start address");
+    require(bus.read32(Bus::kDpEnd, value) && value == 0U,
+            "DPC reset clears end address");
+    require(bus.read32(Bus::kDpCurrent, value) && value == 0U,
+            "DPC reset clears command cursor");
+    require(bus.read32(Bus::kDpStatus, value) && value == 0U,
+            "DPC reset clears XBUS, freeze, and flush modes");
+    require(bus.dpCommandsRemaining() == 0U,
+            "DPC reset removes pending command stream");
+
+    require(bus.write64(0x500U, 0xA1A2A3A4A5A6A7A8ULL),
+            "seed fresh RDRAM command after reset");
+    require(bus.write32(Bus::kDpStart, 0x500U) &&
+            bus.write32(Bus::kDpEnd, 0x508U),
+            "publish fresh RDRAM command after reset");
+    require(bus.readDpCommand(command) && command == 0xA1A2A3A4A5A6A7A8ULL,
+            "DPC reset restores RDRAM command mode");
+}
+
 void testCartridgeRomMappingAndValidation() {
     Bus bus;
     const std::uint8_t rom[] = {
@@ -479,6 +521,7 @@ int main() {
     testMiResetClearsInterruptSourcesAndMasks();
     testMiVersionRegisterReportsRcpRevision();
     testDpRegisterWindow();
+    testDpResetClearsCommandStreamAndModes();
     testCartridgeRomMappingAndValidation();
     testPiCartridgeToRdramDmaAndInterrupt();
     testDpCommandStreamFromRdramAndDmem();
