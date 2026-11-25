@@ -596,3 +596,30 @@ A cobertura garante enquadramento e retenção dos campos decodificados para as 
 **Próxima validação recomendada:** manter separadas três camadas: (a) decodificação e consumo do pacote de retângulo; (b) transferência e organização dos bytes em TMEM; (c) amostragem/rasterização e comparação de pixels. Para iniciar a terceira camada, ainda será necessário um vetor de saída independente, com estado de tile, TMEM, coordenadas, modos e framebuffer esperado documentados.
 
 **Limite desta revisão:** somente documentação foi alterada. Não foram modificados código C++, testes executáveis ou o comportamento do processador RDP.
+
+
+### 18.14 Inventário dos testes de estado e sincronização do RDP
+
+Foi revisada a cobertura dos comandos de estado em `tests/rdp_tests.cpp`. Esses testes verificam o armazenamento e a decodificação dos registradores que preparam operações posteriores; não demonstram que todos esses estados já são aplicados pelo rasterizador.
+
+| Grupo de comandos | Teste existente | Cobertura observada |
+|---|---|---|
+| Sincronização | `testRdpSynchronizationCommands` | SYNC_LOAD, SYNC_PIPE, SYNC_TILE e SYNC_FULL atualizam contadores; SYNC_FULL aciona a interrupção DP. |
+| Estado básico | `testRdpBasicStateCommands` | SET_SCISSOR, SET_OTHER_MODES, SET_TILE_SIZE, SET_TILE, SET_FILL_COLOR, SET_TEXTURE_IMAGE e SET_COLOR_IMAGE são retidos no estado. |
+| Campos de estado | `testRdpStateFieldDecoding` | Decodificação de coordenadas do scissor, campos do tile, tile size e imagens de textura/cor, incluindo formatos e endereços. |
+| Modos e combiner | `testRdpOtherModesAndCombineDecoding` | Extração dos campos de ciclo, perspectiva, opções de textura e seletores do combiner. |
+| Cores e depth | `testRdpColorAndDepthStateCommands` | SET_FILL_COLOR, SET_FOG_COLOR, SET_BLEND_COLOR, SET_PRIM_COLOR, SET_ENV_COLOR e SET_Z_IMAGE. |
+| Conversão e keying | `testRdpConvertAndKeyStateCommands` | Coeficientes SET_CONVERT com extensão de sinal e parâmetros SET_KEY_GB/SET_KEY_R. |
+| Profundidade primitiva | `testRdpPrimitiveDepthCommand` | SET_PRIM_DEPTH extrai Z e delta-Z e preserva o comando bruto. |
+
+**Leitura correta do estágio atual:**
+
+1. O processador já reconhece e guarda uma parte ampla dos registradores de configuração do RDP.
+2. Decodificar um campo de SET_COMBINE ou SET_OTHER_MODES não significa que o combiner ou os modos de ciclo estejam produzindo efeitos na imagem.
+3. O estado de scissor já participa do caminho de FILL_RECTANGLE testado; isso não comprova sua aplicação geral a triângulos e retângulos de textura.
+4. A presença de cores primária, ambiente, fog e blend, assim como de Z_IMAGE e PRIM_DEPTH, não comprova a implementação dos estágios de interpolação, comparação de profundidade ou blending.
+5. Os testes de sincronização validam contadores e interrupção DP no modelo atual; não substituem uma validação temporal completa do pipeline de hardware.
+
+**Próxima etapa recomendada:** elaborar uma matriz de dependências entre registradores e operações que efetivamente os consomem. Para cada campo, registrar: comando de origem, estrutura de estado, consumidor implementado, teste de efeito observável e lacuna restante. Isso evita confundir suporte de decodificação com suporte funcional e ajuda a escolher o próximo teste de integração sem iniciar prematuramente o rasterizador.
+
+**Limite desta revisão:** somente documentação foi alterada. Não foram modificados código C++, testes executáveis ou o comportamento do processador RDP.
