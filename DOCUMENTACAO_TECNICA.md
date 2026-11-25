@@ -1315,3 +1315,26 @@ O manual de programação do Nintendo 64 explica que LOAD_TILE usa os parâmetro
 **Próxima lacuna:** criar um teste de integração da sequência GBI CI4 para S ímpar que verifique separadamente bytes de origem lidos, bytes TMEM escritos, stride/padding e estado final do tile de renderização. Não usar a expressão `line` como substituto da contagem de bytes da carga e não declarar o nibble inicial correto sem uma regra de amostragem documentada ou um vetor de referência independente.
 
 **Status:** esclarecimento documental; nenhum código C++ ou teste executável foi alterado ou executado nesta etapa.
+
+
+### 18.33 O que a documentação oficial esclarece sobre CI4 e alinhamento
+
+A documentação oficial ajuda a separar o comportamento conhecido da hipótese ainda aberta:
+
+- O manual descreve que `LOAD_TILE` carrega uma região retangular arbitrária da imagem para TMEM e que cada linha é completada automaticamente até o limite de palavra de 64 bits. Isso confirma que o preenchimento/padding é por linha, não que a quantidade de bytes úteis seja igual ao campo `line`.
+- O manual também diz que o tile usado para carregar e o tile usado para renderizar podem ter descrições diferentes. A macro CI4 explora isso: carrega os bytes empacotados com descritor 8b e depois configura o descritor de renderização como 4b.
+- A referência da macro `gDPLoadTextureTile_4b` faz a conversão de S para coordenadas de byte durante a carga; o `SET_TILE_SIZE` final conserva as coordenadas CI4 lógicas para o tile de renderização.
+
+Esses pontos explicam por que a carga pode incluir o byte que contém um nibble de S ímpar e ainda assim usar um tile de renderização CI4 com os limites lógicos originais. **Não basta, porém, para provar o resultado de amostragem**: a documentação consultada não fornece um vetor explícito que determine, para esta sequência específica, qual nibble o sampler apresenta como primeiro texel quando S começa ímpar.
+
+**Conclusão atualizada:** não há evidência documental de defeito na macro apenas por S ímpar ou pelo fato de o intervalo tocar quatro bytes com stride de oito. O comportamento do primeiro nibble permanece uma questão de validação de coordenadas de renderização, não uma discrepância já demonstrada na extensão da carga.
+
+**Referências primárias:**
+- Manual de programação Nintendo 64, capítulo 13, seção *Tile Descriptor Loading*: tile de carga e tile de renderização podem ter descrições diferentes; LOAD_TILE atualiza SL/TL/SH/TH. https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-05.html
+- Manual de programação Nintendo 64, capítulo 13, seção *Texture Loading*: LOAD_TILE transfere uma região retangular e completa cada linha até limites de palavra TMEM de 64 bits. https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-09.html
+- Manual de programação Nintendo 64, capítulo 13, seção *Tile Attributes*: `line` é número de palavras de 64 bits por linha e também controla o stride TMEM. https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-04.html
+- Macro oficial `gDPLoadTextureTile_4b` e variante `gsDPLoadTextureTile_4b`: https://ultra64.ca/files/documentation/online-manuals/man/header/gbi.htm
+
+**Próxima verificação útil:** registrar num teste de integração (ainda não implementado) a sequência de comandos expandida para S=1..6 e S=2..7, conferir bytes/padding em TMEM e, separadamente, consultar um vetor de referência de amostragem CI4 para o nibble inicial. Até existir esse vetor ou um teste independente, não classificar o resultado do sampler como correto ou incorreto.
+
+**Status:** documentação atualizada com fontes oficiais; nenhum código C++ ou teste executável foi alterado ou executado.
