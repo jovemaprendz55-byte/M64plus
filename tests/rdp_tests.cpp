@@ -1767,6 +1767,44 @@ void testLoadBlockRejectsSourcePastRdramEndWithoutPartialWrites() {
                 "rejected LOAD_BLOCK leaves all destination TMEM bytes unchanged");
 }
 
+void testLoadBlockDxtCarriesAtExactHalfLine() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0; i < 24U; ++i)
+        require(bus.write8(0x1F00U + i, static_cast<std::uint8_t>(0x40U + i)),
+                "seed exact-half-line DXT data");
+
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (1ULL << 51U) | (31ULL << 32U) | 0x1F00U;
+    const std::uint64_t tile = (0x35ULL << 56U);
+    // Exactly 0x800 advances one complete line after each 64-bit word.
+    const std::uint64_t load =
+        (0x33ULL << 56U) | (92ULL << 12U) | 0x800ULL;
+    require(bus.write64(0xB90U, image) &&
+            bus.write64(0xB98U, tile) &&
+            bus.write64(0xBA0U, load),
+            "seed exact-half-line DXT command sequence");
+    require(bus.write32(Bus::kDpStart, 0xB90U) &&
+            bus.write32(Bus::kDpEnd, 0xBA8U),
+            "publish exact-half-line DXT sequence");
+    for (unsigned i = 0; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) ==
+                    RdpProcessResult::Processed,
+                "exact-half-line DXT sequence executes");
+
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0x40U &&
+            state.tmem.readByte(7U, value) && value == 0x47U,
+            "first LOAD_BLOCK word remains unswapped");
+    require(state.tmem.readByte(8U, value) && value == 0x4CU &&
+            state.tmem.readByte(12U, value) && value == 0x48U,
+            "second LOAD_BLOCK word swaps halves at the exact DXT carry");
+    require(state.tmem.readByte(16U, value) && value == 0x50U &&
+            state.tmem.readByte(20U, value) && value == 0x54U,
+            "third LOAD_BLOCK word returns to normal order after the next carry");
+}
+
 void testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines() {
     using namespace m64plus::n64;
     // DXT=0xFFF advances at least one line per 64-bit word. The line
@@ -3206,6 +3244,7 @@ int main() {
     testLoadBlockWrapsDestinationAcrossTmemEnd();
     testLoadBlockRejectsSourcePastRdramEndWithoutPartialWrites();
     testLoadBlockDxtSwapsOddLineWords();
+    testLoadBlockDxtCarriesAtExactHalfLine();
     testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines();
     testLoadBlockContinuesAcrossTextureImageRows();
     testLoadBlockRejectsStartOutsideTextureImageWidth();
