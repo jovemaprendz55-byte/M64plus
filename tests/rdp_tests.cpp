@@ -755,6 +755,45 @@ void testLoadTileUpdatesTileSizeAndSetTileSizeOverrides() {
             "SET_TILE_SIZE replaces the coordinates written by LOAD_TILE");
 }
 
+void testLoadTileUsesLoadTileDescriptorSizeForSourceAddressing() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    require(bus.write8(0x16C0U, 0x11U) &&
+            bus.write8(0x16C1U, 0x22U) &&
+            bus.write8(0x16C2U, 0x33U) &&
+            bus.write8(0x16C3U, 0x44U),
+            "seed source bytes for LOAD_TILE descriptor-size test");
+
+    // The source image is declared 8-bit, but the load tile is 16-bit.
+    // The load engine's texel addressing must follow the selected load tile.
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (3ULL << 32U) | 0x16C0ULL;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (2ULL << 51U) | (1ULL << 41U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 12U) | 4ULL;
+    constexpr std::uint32_t start = 0xAC0U;
+    require(bus.write64(start, setImage) &&
+            bus.write64(start + 8U, setTile) &&
+            bus.write64(start + 16U, loadTile),
+            "seed mismatched image/load-tile size command sequence");
+    require(bus.write32(Bus::kDpStart, start) &&
+            bus.write32(Bus::kDpEnd, start + 24U),
+            "publish mismatched image/load-tile size sequence");
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) ==
+                    RdpProcessResult::Processed,
+                "mismatched image/load-tile size commands execute");
+
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0x11U &&
+            state.tmem.readByte(1U, value) && value == 0x22U &&
+            state.tmem.readByte(2U, value) && value == 0x33U &&
+            state.tmem.readByte(3U, value) && value == 0x44U,
+            "LOAD_TILE addresses source texels using the load tile's 16-bit size");
+}
+
 void testLoadTileCopiesTextureImageIntoTmem() {
     using namespace m64plus::n64;
     Bus bus;
@@ -3262,6 +3301,7 @@ int main() {
     testRdpTextureMemory();
     testRdpTextureLoadCommandFields();
     testLoadTileUpdatesTileSizeAndSetTileSizeOverrides();
+    testLoadTileUsesLoadTileDescriptorSizeForSourceAddressing();
     testLoadTileCopiesTextureImageIntoTmem();
     testLoadTileRejectsInvertedCoordinatesWithoutWrites();
     testLoadTileValidatesEverySourceRowBeforeWritingTmem();

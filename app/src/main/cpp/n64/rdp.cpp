@@ -161,9 +161,13 @@ bool loadTileTexels(Bus& bus, RdpSyncState& state,
     if (!state.hasTextureImage || !state.hasTile[load.tile]) return false;
     const RdpImageState& image = state.textureImage;
     const RdpTileState& tile = state.tiles[load.tile];
-    const unsigned bitsPerTexel = image.size == 0U ? 4U
-        : (image.size == 1U ? 8U : (image.size == 2U ? 16U : 32U));
-    if (bitsPerTexel == 32U) return loadTile32BitTexels(bus, state, load);
+    // LOAD_TILE uses the selected tile descriptor's size to calculate
+    // texel addressing and TMEM layout. SET_TEXTURE_IMAGE supplies the
+    // source image pointer and width; the load tile controls transfer size.
+    if (image.size == 3U) return loadTile32BitTexels(bus, state, load);
+    if (tile.size == 3U) return false;
+    const unsigned bitsPerTexel = tile.size == 0U ? 4U
+        : (tile.size == 1U ? 8U : 16U);
     const std::uint32_t x0 = load.sl >> 2U;
     const std::uint32_t y0 = load.tl >> 2U;
     const std::uint32_t x1 = load.sh >> 2U;
