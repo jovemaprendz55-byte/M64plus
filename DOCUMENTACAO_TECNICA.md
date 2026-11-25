@@ -623,3 +623,37 @@ Foi revisada a cobertura dos comandos de estado em `tests/rdp_tests.cpp`. Esses 
 **Próxima etapa recomendada:** elaborar uma matriz de dependências entre registradores e operações que efetivamente os consomem. Para cada campo, registrar: comando de origem, estrutura de estado, consumidor implementado, teste de efeito observável e lacuna restante. Isso evita confundir suporte de decodificação com suporte funcional e ajuda a escolher o próximo teste de integração sem iniciar prematuramente o rasterizador.
 
 **Limite desta revisão:** somente documentação foi alterada. Não foram modificados código C++, testes executáveis ou o comportamento do processador RDP.
+
+
+### 18.15 Matriz de consumidores reais do estado RDP
+
+A matriz foi conferida diretamente contra `RdpSyncState` em `app/src/main/cpp/n64/rdp.h` e o `switch` de `RdpCommandProcessor::processNext` e a função `fillRectangle` em `app/src/main/cpp/n64/rdp.cpp`. Ela distingue armazenamento/decodificação de consumo efetivo.
+
+| Estado / comando | O que o processador faz hoje | Consumidor funcional identificado |
+|---|---|---|
+| SET_SCISSOR | Decodifica coordenadas e flags, guarda comando bruto e estado | `fillRectangle` aplica limites e seleção de campo quando `hasScissor` está ativo. |
+| SET_COLOR_IMAGE | Decodifica formato, tamanho, largura e endereço | `fillRectangle` usa formato/tamanho/largura/endereço como destino. |
+| SET_FILL_COLOR | Guarda cor de preenchimento e comando bruto | `fillRectangle` usa a cor quando o estado está presente. |
+| SET_OTHER_MODES | Decodifica campos e guarda o comando | `fillRectangle` consulta `cycleType` e só aceita o ciclo FILL (valor 3). |
+| SET_TEXTURE_IMAGE | Guarda formato, tamanho, largura e endereço da imagem de origem | `LOAD_TILE`, `LOAD_BLOCK` e `LOAD_TLUT` consultam os dados da imagem durante a transferência. |
+| SET_TILE | Decodifica e guarda configuração por tile | Rotinas de transferência de textura consultam a configuração do tile selecionado. |
+| SET_TILE_SIZE | Decodifica e guarda coordenadas por tile | A configuração é mantida; a amostragem/rasterização que aplicaria o tile size ainda não está integrada. |
+| LOAD_TILE / LOAD_BLOCK / LOAD_TLUT | Decodifica intervalo e tile e tenta executar a transferência | Rotinas de cópia validam a imagem/tile e escrevem na TMEM; sucesso é observável nos testes de memória. |
+| SET_Z_IMAGE / SET_PRIM_DEPTH | Guarda endereço Z, profundidade primitiva e delta-Z | Nenhum consumidor de comparação/escrita de profundidade está presente no caminho de desenho atual. |
+| SET_COMBINE | Decodifica e guarda seletores dos dois ciclos | Nenhum combiner de pixels está integrado. |
+| SET_FOG_COLOR / SET_BLEND_COLOR / SET_PRIM_COLOR / SET_ENV_COLOR | Decodifica e guarda cores e campos LOD | Nenhum estágio de fog, blender ou interpolação de cores está integrado. |
+| SET_CONVERT / SET_KEY_GB / SET_KEY_R | Decodifica e guarda coeficientes e parâmetros | Nenhum estágio de conversão YUV ou keying está integrado. |
+| SET_OTHER_MODES (campos além do ciclo) | Decodifica e guarda flags e seletores | Não há evidência de consumo geral por rasterização; não inferir suporte a AA, Z, filtragem, blender ou ciclos 1/2. |
+| SYNC_LOAD / SYNC_PIPE / SYNC_TILE / SYNC_FULL | Atualiza contadores; SYNC_FULL sinaliza interrupção DP | Efeito de controle/interruptor validado por teste; não é um estágio de geração de pixels. |
+| Triângulos e retângulos de textura | Decodifica pacote e retém o último comando | Retorna `Unsupported`; não há consumidor rasterizador. |
+
+**Conclusões técnicas:**
+
+- O caminho de escrita de pixels atualmente demonstrado é restrito a FILL_RECTANGLE em ciclo FILL, formatos RGBA16/RGBA32 e estado de destino/cor válido.
+- O caminho de transferência de textura movimenta dados para TMEM, mas isso não equivale a amostrar texturas ou renderizar triângulos/retângulos texturizados.
+- Vários registradores estão corretamente decodificados e preservados para diagnóstico/futuro uso; não devem ser apresentados como funcionalidades gráficas completas.
+- A matriz é uma fotografia do código atual. Ao adicionar consumidores, atualizar a linha correspondente e incluir um teste que observe o efeito, não apenas o valor armazenado.
+
+**Ordem segura sugerida:** (1) manter os testes atuais de FILL_RECTANGLE e transferência TMEM; (2) planejar testes independentes para amostragem de textura isolada; (3) validar edge walker e cobertura com vetores de referência; (4) somente depois conectar interpolação, Z, combiner e blender. Nenhuma implementação de rasterização deve ser iniciada com base apenas nesta matriz.
+
+**Limite desta revisão:** somente documentação foi alterada. Nenhum arquivo C++ ou teste executável foi modificado.
