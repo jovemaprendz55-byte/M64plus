@@ -3452,7 +3452,7 @@ void testFlatFillTriangleFloorsPositiveFractionalXWithSlope() {
                     "read sloped positive-fractional-X triangle output pixel");
             const bool covered = y < 4U && x >= 5U && x <= 6U + y;
             require(pixel == (covered ? fill : sentinel),
-                    "positive fractional major edge advances one pixel per scanline");
+                    "negative major edge retreats one pixel per scanline");
         }
     }
 }
