@@ -86,6 +86,12 @@ bool fillRectangle(Bus& bus, const RdpSyncState& state,
 }
 
 
+std::int64_t floorDivide(std::int64_t value, std::int64_t divisor) noexcept {
+    const std::int64_t quotient = value / divisor;
+    const std::int64_t remainder = value % divisor;
+    return remainder < 0 ? quotient - 1 : quotient;
+}
+
 std::int32_t signExtend14(std::uint16_t value) noexcept {
     const std::int32_t bits = static_cast<std::int32_t>(value & 0x3FFFU);
     return (bits & 0x2000) != 0 ? bits - 0x4000 : bits;
@@ -115,10 +121,10 @@ bool fillTriangle(Bus& bus, const RdpSyncState& state,
     const std::int32_t scissorBottom = static_cast<std::int32_t>(state.scissor.yl) >> 2U;
     if (scissorRight <= scissorLeft || scissorBottom <= scissorTop) return false;
 
-    const std::int32_t startLine = std::max(yh >> 2U, scissorTop);
-    const std::int32_t endLine = std::min((yl - 1) >> 2U, scissorBottom - 1);
+    const std::int32_t startLine = std::max(static_cast<std::int32_t>(floorDivide(yh, 4)), scissorTop);
+    const std::int32_t endLine = std::min(static_cast<std::int32_t>(floorDivide(static_cast<std::int64_t>(yl) - 1, 4)), scissorBottom - 1);
     if (endLine < startLine) return false;
-    const std::int32_t yhBase = yh & ~3;
+    const std::int32_t yhBase = static_cast<std::int32_t>(floorDivide(yh, 4) * 4);
     const std::int32_t width = static_cast<std::int32_t>(image.width);
     const std::int32_t maxX = std::min(scissorRight, width - 1);
     const std::uint32_t bytesPerPixel = image.size == 2U ? 2U : 4U;
@@ -142,8 +148,8 @@ bool fillTriangle(Bus& bus, const RdpSyncState& state,
                     static_cast<std::int64_t>(y - yhBase) * edge.dxMiddleDy
                 : static_cast<std::int64_t>(edge.xLeft) +
                     static_cast<std::int64_t>(y - middle) * edge.dxLeftDy;
-            const std::int32_t majorPixel = static_cast<std::int32_t>(major >> 16U);
-            const std::int32_t minorPixel = static_cast<std::int32_t>(minor >> 16U);
+            const std::int32_t majorPixel = static_cast<std::int32_t>(floorDivide(major, 65536));
+            const std::int32_t minorPixel = static_cast<std::int32_t>(floorDivide(minor, 65536));
             const std::int32_t candidateLeft = flip ? majorPixel : minorPixel;
             const std::int32_t candidateRight = flip ? minorPixel : majorPixel;
             if (candidateLeft > candidateRight) continue;
