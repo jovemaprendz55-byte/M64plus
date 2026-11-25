@@ -3426,8 +3426,8 @@ void testFlatFillTriangleRejectsOutOfBoundsFramebufferAtomically() {
     for (unsigned i = 0U; i < 4U; ++i)
         require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
                 "out-of-bounds triangle setup command is processed");
-    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
-            "out-of-bounds triangle command is consumed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "out-of-bounds triangle is rejected without rasterization");
     for (std::uint32_t offset = 0U; offset < 100U; offset += 4U) {
         std::uint32_t pixel = 0U;
         require(bus.read32(framebuffer + offset, pixel),
