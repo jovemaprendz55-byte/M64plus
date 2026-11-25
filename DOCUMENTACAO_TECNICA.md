@@ -769,3 +769,36 @@ A revisão dos testes executáveis em `tests/rdp_tests.cpp` confirma uma base co
 **Próxima etapa segura:** construir primeiro uma especificação curta e revisável para RGBA16/32 com point sample e coordenadas inteiras, anexando vetores dourados independentes. Só depois dessa especificação e de autorização explícita deve haver alteração de C++.
 
 **Limite desta revisão:** somente documentação foi alterada. Nenhum código C++, teste executável ou comportamento do emulador foi modificado.
+
+
+### 18.19 Primeiro vetor dourado proposto: conversão RGBA16/RGBA32
+
+A tabela de formatação de texels do *Nintendo 64 Programming Manual* define RGBA16 como R5/G5/B5/A1 e RGBA32 como R8/G8/B8/A8. Para RGBA16, os cinco bits de cada canal são expandidos para oito pela repetição dos bits mais significativos; o alpha de um bit vira 0 ou 255. Para RGBA32, os quatro bytes já correspondem diretamente aos canais RGBA. Este vetor valida somente a decodificação de um texel, não coordenadas, TMEM, filtragem ou rasterização.
+
+**Vetor RGBA16 (palavras de 16 bits):**
+
+| Palavra | R5/G5/B5/A1 | RGBA8 esperado |
+|---|---|---|
+| `0xF801` | 31 / 0 / 0 / 1 | `FF 00 00 FF` |
+| `0x07C1` | 0 / 31 / 0 / 1 | `00 FF 00 FF` |
+| `0x003F` | 0 / 0 / 31 / 1 | `00 00 FF FF` |
+| `0x0000` | 0 / 0 / 0 / 0 | `00 00 00 00` |
+| `0xFFFF` | 31 / 31 / 31 / 1 | `FF FF FF FF` |
+
+A expansão dos canais de cinco bits é `(v << 3) | (v >> 2)`. O teste deve comparar cada canal separadamente e incluir valores intermediários, por exemplo 1, 15 e 16, para detectar expansão incorreta por simples deslocamento.
+
+**Vetor RGBA32:**
+
+| Bytes do texel em ordem RGBA | RGBA8 esperado |
+|---|---|
+| `12 34 56 78` | `12 34 56 78` |
+| `00 80 FF 01` | `00 80 FF 01` |
+| `FF 00 7F 00` | `FF 00 7F 00` |
+
+**Escopo e pré-condições:** os vetores acima são casos de decodificação isolada, com a palavra RGBA16 já interpretada como valor de 16 bits e os bytes RGBA32 apresentados na ordem lógica dos canais. Um teste futuro de integração com TMEM ainda precisará fixar a ordem de bytes, endereçamento, bancos de 32 bits e stride conforme o caminho de carga correspondente. Não assumir que o resultado deste teste valida sozinho a disposição física da TMEM.
+
+**Separação recomendada dos testes:** (a) função pura de expansão/decodificação RGBA16 e RGBA32; (b) leitor de texel que calcula endereço a partir de tile/TMEM; (c) transformação de coordenadas; (d) integração com o sampler. A etapa (a) pode ser testada sem implementar as demais, mas sua adição ao C++ depende de autorização explícita para alterar código.
+
+**Fonte normativa:** Nintendo 64 Programming Manual, seção Texture Mapping, tabela “Texel Output Formatting” (no PDF completo, capítulo 14, tabela 14-9), que especifica os campos de entrada e saída para I, IA, RGBA e demais formatos: https://ultra64.ca/files/documentation/nintendo/Nintendo_64_Programming_Manual_NU6-06-0030-001G_HQ.pdf. A seção 13.4 também documenta os códigos de formato/tamanho dos descritores de tile: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-04.html.
+
+**Limite desta revisão:** somente documentação foi alterada. Nenhum código C++ ou teste executável foi modificado; os vetores são uma proposta documentada, ainda não executada pelo projeto.
