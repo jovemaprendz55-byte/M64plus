@@ -866,3 +866,21 @@ Para IA4, a expansão de intensidade de três bits proposta é `(v << 5) | (v <<
 
 **Limite desta revisão:** somente documentação foi alterada. Nenhum código C++ ou teste executável foi modificado. Esta seção não declara que I/IA ou o sampler estejam implementados.
 
+### 18.21 Registro de validação de CI das especificações de texel
+
+Em 25/11/2026, foram verificadas as execuções de CI associadas aos três commits que documentaram os primeiros vetores de decodificação:
+
+| Conteúdo | Commit | Execução do GitHub Actions | Resultado |
+|---|---|---|---|
+| Vetores iniciais RGBA16/RGBA32 (18.19) | `2bbd7908195cbc33ded9e07dbc7a80c4ace7b2fd` | [45580827796](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45580827796) | Sucesso |
+| Vetores I4/I8/IA4/IA8/IA16 (18.20) | `2534b16ae3ac299cbfb4fb723ff9c68c34c99259` | [45581263039](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45581263039) | Sucesso |
+| Correção do vetor IA4 (intensidade `0x92`) | `3c350d2fc60d78534aac7a4fa196f3b20ef61d1c` | [45581282239](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45581282239) | Sucesso |
+
+**O que esse resultado comprova:** os workflows configurados para o repositório terminaram com sucesso nesses commits. A execução inclui o job de testes nativos e a montagem Android Debug.
+
+**O que não comprova:** os vetores das seções 18.19 e 18.20 ainda são especificações documentadas, não testes executáveis do decodificador. O CI verde não significa que RGBA/I/IA já sejam lidos pelo sampler, nem que exista renderização de triângulos ou texturas.
+
+**Próximo passo técnico:** transformar os vetores de conversão isolada em testes C++ somente após autorização explícita para modificar código. Depois, adicionar testes separados para leitura de TMEM, mantendo a ordem: extração do texel, decodificação do formato e integração com o sampler.
+
+**Limite desta revisão:** esta seção registra evidência do CI e não altera a avaliação de funcionalidades implementadas. Nenhum código C++ ou teste executável foi modificado.
+
