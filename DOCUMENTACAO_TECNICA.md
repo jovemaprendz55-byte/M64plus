@@ -1457,3 +1457,37 @@ Na versão examinada de `rdp.cpp`, a única chamada a `state.tmem.readByte` est�
 **Conclusão:** a investigação não está bloqueada por falta de mais casos de carga CI4. O próximo componente ausente é a leitura de texel do sampler. Até ele existir, a validação da macro deve parar no estado/bytes de TMEM e declarar explicitamente que o resultado de amostragem não é exercitado.
 
 **Status:** auditoria somente de documentação e código existente; nenhum arquivo C++ ou teste executável foi alterado ou executado.
+
+
+### 18.40 Estado de comandos disponível antes da implementação do sampler
+
+A leitura de `RdpCommandProcessor::processNext` confirma que o projeto já decodifica e armazena boa parte do estado necessário para uma futura amostragem CI4. É importante separar esse estado configurado da execução de renderização.
+
+**Comandos que já atualizam estado:**
+
+| Comando RDP | Estado mantido pelo projeto | Limite observado |
+|---|---|---|
+| `SET_TEXTURE_IMAGE` (0x3D) | Formato, tamanho, largura e endereço da imagem fonte | Não busca texels por si só |
+| `SET_TILE` (0x35) | Formato, tamanho, line, TMEM, palette, clamp, mirror, mask e shift de S/T | Configura descritor; não amostra |
+| `SET_TILE_SIZE` (0x32) | SL, TL, SH e TH por tile | Guarda limites; não transforma coordenadas de rasterização |
+| `LOAD_TILE` (0x34) | Estado da carga e bytes transferidos para TMEM | Transfere dados; não produz cor |
+| `LOAD_TLUT` (0x30) | Carrega entradas de imagem 16-bit para a região TLUT da TMEM | Não consulta a TLUT durante uma amostra CI |
+| `SET_OTHER_MODES` (0x2F) | Inclui flags de texture LUT, tipo de LUT, sample type e modos de filtragem | Guarda configuração; não executa filtragem |
+| `TEXTURE_RECTANGLE` (0x24/0x25) | Decodifica e guarda tile, S/T e derivadas | Retorna `Unsupported`; comentário do código confirma que sampling/rasterização estão pendentes |
+| Comandos de triângulo (0x08–0x0F) | Decodificam e guardam coeficientes e arestas | Retornam `Unsupported`; rasterização não implementada |
+
+**Observação sobre a TLUT:** o caminho `loadTlutEntries` valida imagem fonte 16-bit, tile e faixa de TMEM; lê as entradas da RDRAM e as replica na região de destino. Isso demonstra que existe uma etapa de transferência da paleta. Não demonstra que o índice CI4 é convertido em cor durante o desenho.
+
+**Implicação para a arquitetura:** não precisamos começar do zero na decodificação de comandos nem no armazenamento de descritores. O estado de imagem, tile, tile-size, modos e TMEM já fornece uma base. A lacuna está na ligação entre esse estado e uma rotina de amostragem chamada pelo rasterizador: transformar S/T para o espaço do tile, aplicar clamp/mirror/mask/shift conforme suportado, localizar o texel na TMEM, selecionar o nibble CI4, consultar TLUT e devolver o valor de cor ao pipeline.
+
+**Ordem recomendada para a próxima implementação, ainda não executada:**
+
+1. Definir a interface de amostragem independente do rasterizador, recebendo estado, índice do tile e coordenadas S/T.
+2. Implementar e testar primeiro o endereço/seleção de nibble CI4, sem misturar conversão de cor.
+3. Adicionar consulta TLUT e conversão do formato da entrada.
+4. Integrar a amostra ao caminho de rasterização; só então testar retângulos e triângulos com textura.
+5. Manter explícito o que ainda não for suportado, em vez de retornar uma cor aproximada como se fosse resultado correto.
+
+**Conclusão:** o estado de configuração e as transferências de textura já estão parcialmente implementados; o consumo desse estado durante a renderização continua ausente. Isso refina a seção 18.39: o próximo trabalho pode reutilizar os descritores e a TMEM existentes, sem confundir a carga de dados com a amostragem.
+
+**Status:** auditoria somente documental do código existente; nenhum arquivo C++ ou teste executável foi alterado ou executado.
