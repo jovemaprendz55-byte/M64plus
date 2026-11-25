@@ -3280,8 +3280,8 @@ void testFlatFillTriangleUsesLowerEdgeAfterMiddleY() {
         // The minor edge switches at Y=2: it is vertical above YM,
         // then advances one pixel per scanline below YM.
         (0x08ULL << 56U) | (8ULL << 16U) | 16ULL,
-        (2ULL * 65536ULL << 32U) | 0x00040000ULL,
-        (2ULL * 65536ULL) << 32U,
+        (2ULL * 65536ULL << 32U) | 0x00010000ULL,
+        (6ULL * 65536ULL) << 32U,
         (2ULL * 65536ULL) << 32U
     };
     for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
