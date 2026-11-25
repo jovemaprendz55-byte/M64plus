@@ -49,6 +49,8 @@ public final class MainActivity extends Activity {
     private static native boolean nativeLoadCartridge(long handle, byte[] romData);
     private static native boolean nativeBootCartridgeHle(long handle);
     private static native int nativeRunCpuSlice(long handle, int instructionBudget);
+    private static native int nativeRunRspSlice(long handle, int instructionBudget);
+    private static native int nativeRunRdpSlice(long handle, int commandBudget);
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         boolean memoryPassed = nativeRdramSelfTest();
@@ -181,6 +183,10 @@ public final class MainActivity extends Activity {
                 synchronized (nativeMachineLock) {
                     if (!cpuExecutionRequested || nativeMachineHandle == 0L) break;
                     executed = nativeRunCpuSlice(nativeMachineHandle, CPU_INSTRUCTIONS_PER_SLICE);
+                    if (executed > 0) {
+                        nativeRunRspSlice(nativeMachineHandle, 1024);
+                        nativeRunRdpSlice(nativeMachineHandle, 256);
+                    }
                     pc = nativeMachineCpuPc(nativeMachineHandle);
                     exceptionInfo = nativeMachineCpuExceptionInfo(nativeMachineHandle);
                 }
