@@ -1256,3 +1256,30 @@ Esta seção deriva um vetor de sub-retângulo diretamente das expressões da ma
 **Fonte primária:** cabeçalho GBI oficial, macros `gDPLoadTextureTile_4b` e `gsDPLoadTextureTile_4b`, especialmente as conversões de largura e coordenadas: https://ultra64.ca/files/documentation/online-manuals/man/header/gbi.htm (linhas 3984–4009 e 4042–4064).
 
 **Status:** vetor documental CI4-MAC-04 para S inicial não zero e par. Nenhum teste executável foi criado ou executado; nenhum código C++ foi alterado.
+
+### 18.31 Auditoria aritmética do sub-retângulo CI4 com S ímpar
+
+A leitura literal da macro oficial revela um caso que precisa permanecer como discrepância documentada, não como comportamento já validado.
+
+**Vetor de análise:** imagem CI4 com bytes da primeira linha `A1 B2 C3 D4 E5 F6 G7 H8`; região lógica S=1 até S=6, inclusive (seis texels), T=0.
+
+**Conversão das coordenadas em `gDPLoadTextureTile_4b`:**
+
+- A macro envia S para `LOAD_TILE` como `S << (G_TEXTURE_IMAGE_FRAC - 1)`. Com fração 2, S=1 vira 2 e S=6 vira 12 em coordenadas fixas.
+- O caminho LOAD_TILE 8b atual interpreta coordenadas fixas em unidades de byte após `>> 2`. Portanto os limites inteiros aparentes são byte 0 até byte 3, inclusive: quatro bytes (`A1 B2 C3 D4`).
+- Ao mesmo tempo, o cálculo de line da macro é `(((((lrs)-(uls)+1)>>1)+7)>>3)`. Para seis texels, `((6>>1)+7)>>3 = 1` palavra de 8 bytes. O campo line é uma quantidade em palavras de 64 bits; ele não descreve diretamente o número de bytes efetivamente atravessados dentro da linha.
+- A macro usa a mesma expressão de largura para o tile de carga e o tile de renderização. A expressão calcula três bytes úteis arredondados para uma palavra, enquanto os limites S convertidos abrangem quatro posições de byte quando S inicial é ímpar.
+
+**Conclusão segura:** a coordenada de carga inclui o byte que contém o nibble inicial ímpar. Porém, a aritmética da largura declarada não deve ser tratada como prova de que o alinhamento e o acesso ficam corretos para esse caso. O efeito final depende também da interpretação de `LOAD_TILE`, do estado do tile e do sampler CI4. A macro oficial, isoladamente, não permite afirmar qual nibble será apresentado como primeiro texel visível.
+
+**Casos que uma futura fixture deve separar:**
+
+1. S=1..6: início ímpar e seis texels; observar se o byte inicial e o limite final são tratados sem perda ou leitura excedente.
+2. S=1..7: início ímpar e sete texels; comparar com a largura arredondada da macro.
+3. S=2..7: início par e seis texels, vetor da seção 18.30 como controle.
+
+Para cada caso, registrar bytes de origem, coordenadas fixas emitidas, bytes efetivamente gravados em TMEM, bytes de sentinela preservados e sequência de índices CI4 consumida pelo sampler. Não misturar uma divergência na expansão da macro com um defeito no ramo bruto 4b de `loadTileTexels`.
+
+**Fonte primária:** cabeçalho GBI oficial, `gDPLoadTextureTile_4b` e `gsDPLoadTextureTile_4b`, linhas 3984–4009 e 4042–4064: https://ultra64.ca/files/documentation/online-manuals/man/header/gbi.htm.
+
+**Status:** análise documental de risco CI4-MAC-05. Não cria teste executável, não declara equivalência com hardware e não altera código C++.
