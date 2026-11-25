@@ -802,3 +802,67 @@ A expansão dos canais de cinco bits é `(v << 3) | (v >> 2)`. O teste deve comp
 **Fonte normativa:** Nintendo 64 Programming Manual, seção Texture Mapping, tabela “Texel Output Formatting” (no PDF completo, capítulo 14, tabela 14-9), que especifica os campos de entrada e saída para I, IA, RGBA e demais formatos: https://ultra64.ca/files/documentation/nintendo/Nintendo_64_Programming_Manual_NU6-06-0030-001G_HQ.pdf. A seção 13.4 também documenta os códigos de formato/tamanho dos descritores de tile: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-04.html.
 
 **Limite desta revisão:** somente documentação foi alterada. Nenhum código C++ ou teste executável foi modificado; os vetores são uma proposta documentada, ainda não executada pelo projeto.
+
+### 18.20 Vetores dourados propostos: decodificação I4/I8 e IA4/IA8/IA16
+
+Esta seção amplia a etapa de decodificação isolada iniciada em 18.19. O escopo é transformar um valor lógico de texel já extraído em intensidade/alpha de 8 bits. Não valida endereço TMEM, ordem física de bytes/nibbles, TLUT, coordenadas, filtragem ou rasterização.
+
+**Regras de formato a validar:**
+
+| Formato | Campos lógicos | Conversão para 8 bits |
+|---|---|---|
+| I4 | I[3:0] | Replicar o nibble: `(I << 4) | I`. |
+| I8 | I[7:0] | Valor direto. |
+| IA4 | I[3:1], A[0] | Expandir I3 para 8 bits; A1 vira 0 ou 255. |
+| IA8 | I[7:4], A[3:0] | Expandir cada nibble: `(v << 4) | v`. |
+| IA16 | I[15:8], A[7:0] | Os dois bytes são intensidade e alpha, sem expansão. |
+
+Para IA4, a expansão de intensidade de três bits proposta é `(v << 5) | (v << 2) | (v >> 1)`. Isso replica os bits disponíveis para preencher oito bits: 0→0, 1→36, 2→73, 3→109, 4→146, 5→182, 6→219 e 7→255. O bit de alpha é independente da intensidade.
+
+**Vetores I:**
+
+| Formato e valor lógico | Intensidade esperada |
+|---|---|
+| I4 `0x0` | `0x00` |
+| I4 `0x1` | `0x11` |
+| I4 `0x7` | `0x77` |
+| I4 `0x8` | `0x88` |
+| I4 `0xF` | `0xFF` |
+| I8 `0x00` | `0x00` |
+| I8 `0x01` | `0x01` |
+| I8 `0x7F` | `0x7F` |
+| I8 `0x80` | `0x80` |
+| I8 `0xFF` | `0xFF` |
+
+**Vetores IA:**
+
+| Formato e valor lógico | I esperado | A esperado |
+|---|---:|---:|
+| IA4 `0b0000` | `0x00` | `0x00` |
+| IA4 `0b0011` | `0x24` | `0xFF` |
+| IA4 `0b0110` | `0x49` | `0x00` |
+| IA4 `0b1001` | `0x6D` | `0xFF` |
+| IA4 `0b1111` | `0xFF` | `0xFF` |
+| IA8 `0x00` | `0x00` | `0x00` |
+| IA8 `0x1F` | `0x11` | `0xFF` |
+| IA8 `0x80` | `0x88` | `0x00` |
+| IA8 `0xAF` | `0xAA` | `0xFF` |
+| IA8 `0xFF` | `0xFF` | `0xFF` |
+| IA16 `0x0000` | `0x00` | `0x00` |
+| IA16 `0x1280` | `0x12` | `0x80` |
+| IA16 `0x7FFF` | `0x7F` | `0xFF` |
+| IA16 `0xFF00` | `0xFF` | `0x00` |
+| IA16 `0xFFFF` | `0xFF` | `0xFF` |
+
+**Cuidados para a implementação futura:**
+
+1. Os valores acima são campos lógicos já extraídos. Em I4/IA4, o teste de leitura da TMEM deverá especificar separadamente qual nibble corresponde ao texel par/ímpar; não inferir essa ordem a partir desta tabela.
+2. Em IA4, os três bits mais significativos são intensidade e o bit menos significativo é alpha. Em IA8, o nibble alto é intensidade e o baixo é alpha. Em IA16, o byte alto é intensidade e o baixo é alpha.
+3. Não aplicar a expansão de nibble de IA8/I4 a I8/IA16: esses formatos já carregam canais de oito bits.
+4. O resultado de IA é um par intensidade/alpha. A conversão posterior para RGBA (por exemplo, replicar I nos canais RGB) deve ser testada em uma camada separada, para não misturar decodificação do formato com convenções do consumidor.
+5. Cada teste deve comparar canais individualmente e incluir mínimos, máximos e valores intermediários. Os vetores não substituem testes de endereçamento, alinhamento, TMEM banks ou swizzle.
+
+**Fonte normativa consultada:** Nintendo 64 Programming Manual, capítulo 14, tabela 14-9 “Texel Output Formatting”, no [PDF completo](https://ultra64.ca/files/documentation/nintendo/Nintendo_64_Programming_Manual_NU6-06-0030-001G_HQ.pdf). Os vetores são derivados dos campos de bits descritos nessa tabela e das expansões de bits indicadas; ainda precisam ser implementados e executados no projeto.
+
+**Limite desta revisão:** somente documentação foi alterada. Nenhum código C++ ou teste executável foi modificado. Esta seção não declara que I/IA ou o sampler estejam implementados.
+
