@@ -28,7 +28,7 @@ void testSingleWordCommands() {
         require(decoded.lengthWords == 1U, "single-word command length");
         const bool documented = (opcode >= 0x08U && opcode <= 0x0FU) ||
             opcode == 0x24U || opcode == 0x25U ||
-            (opcode >= 0x26U && opcode <= 0x30U) ||
+            (opcode >= 0x26U && opcode <= 0x30U) || opcode == 0x32U ||
             (opcode >= 0x33U && opcode <= 0x3FU);
         require(decoded.knownOpcode == documented, "documented opcode classification");
     }
