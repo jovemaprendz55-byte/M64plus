@@ -1338,3 +1338,33 @@ Esses pontos explicam por que a carga pode incluir o byte que contém um nibble 
 **Próxima verificação útil:** registrar num teste de integração (ainda não implementado) a sequência de comandos expandida para S=1..6 e S=2..7, conferir bytes/padding em TMEM e, separadamente, consultar um vetor de referência de amostragem CI4 para o nibble inicial. Até existir esse vetor ou um teste independente, não classificar o resultado do sampler como correto ou incorreto.
 
 **Status:** documentação atualizada com fontes oficiais; nenhum código C++ ou teste executável foi alterado ou executado.
+
+
+### 18.34 Alinhamento de tile CI4: o que a regra oficial cobre
+
+A seção 13.11.2 (*Alignment*) do manual de programação N64 estabelece duas regras relevantes:
+
+- O ponteiro da imagem de textura deve estar alinhado a 8 bytes.
+- Tiles 4-bit são uma exceção à regra de alinhamento por tamanho de texel: devem ser acessados em limites de byte (8 bits).
+
+A regra confirma o alinhamento físico mínimo de um tile CI4, mas **não especifica explicitamente a seleção do nibble inicial para um retângulo de renderização cujo S lógico seja ímpar**. Portanto, não se deve interpretar “byte-aligned” como prova de que S ímpar é inválido, nem como prova de que o nibble baixo será automaticamente selecionado.
+
+A seção 13.3 (*Texture Image Space*) descreve a conversão de coordenadas de imagem para coordenadas do tile: o RDP subtrai SL/TL das coordenadas do pixel. Isso explica a função de SL/TL como origem lógica do tile. A macro CI4, porém, carrega bytes com um tile temporário 8b e depois configura um tile de renderização 4b; para concluir como essa sequência se comporta em S ímpar, ainda é necessário acompanhar a coordenada final no tile de renderização e a regra de acesso ao nibble.
+
+**Matriz de evidência atualizada:**
+
+| Pergunta | O que a fonte permite afirmar | O que permanece aberto |
+|---|---|---|
+| Qual alinhamento físico é exigido para CI4? | Tile 4b acessado em limite de byte | Como uma coordenada lógica S ímpar seleciona o nibble |
+| O que SL/TL fazem? | Definem origem do tile; são subtraídos das coordenadas de imagem para obter coordenadas do tile | Resultado exato do sampler para a sequência CI4 específica |
+| O que line define? | Palavras de 64 bits por linha; LOAD_TILE preenche até limites de 64 bits | Não determina o nibble inicial |
+| O que o LOAD_TILE atual faz neste emulador? | Copia a extensão definida pelos limites convertidos; stride de destino é separado | Equivalência do resultado com RDP real |
+
+**Conclusão:** a documentação oficial oferece regras de alinhamento e transformação de coordenadas, mas não fornece, nas seções consultadas, um exemplo direto que resolva o nibble inicial para S ímpar na sequência gDPLoadTextureTile_4b. A questão continua sendo um caso de validação do tile/sampler, não um bug confirmado na macro nem no caminho de cópia.
+
+**Fontes oficiais:**
+- Manual N64, seção 13.11.2, *Alignment*: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-11.html
+- Manual N64, seção 13.3, *Texture Image Space*: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-03.html
+- Manual N64, seção 13.4, *Tile Attributes*: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-04.html
+
+**Status:** documentação de evidência e limites; nenhum código C++ ou teste executável foi alterado ou executado.
