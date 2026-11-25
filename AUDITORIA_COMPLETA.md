@@ -1446,3 +1446,14 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 
 **Limitação:** o teste cobre a ausência de color image numa fixture sintética. Não valida o pipeline completo de pixels do RDP nem compatibilidade com jogos comerciais.
 
+
+
+### 17.33 — Rejeição de FILL_RECTANGLE sem SET_OTHER_MODES (25/11/2026)
+
+- Adicionado o teste `testFillRectangleRejectsMissingOtherModesWithoutWrites`, que configura a color image e a cor de preenchimento, mas não envia `SET_OTHER_MODES` antes de `FILL_RECTANGLE`.
+- O teste confirma que o comando retorna `Unsupported` e que os valores sentinela da framebuffer permanecem inalterados.
+- A alteração amplia a cobertura de rejeição segura para uma dependência de estado ausente; não adiciona suporte de rasterização nem altera o pipeline de produção.
+- Commit do teste: `f5d1c58596909b37f7dfc36ac9741927f0e8ad72`.
+- **CI aprovada:** workflow [45573753755](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45573753755); `native-host-tests` e `assemble-debug` concluíram com `success`.
+
+**Limitação:** o teste cobre a ausência de `SET_OTHER_MODES` numa sequência sintética. Não valida o pipeline completo de pixels do RDP nem compatibilidade com jogos comerciais.
