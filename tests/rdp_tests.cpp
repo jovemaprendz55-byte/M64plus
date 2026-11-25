@@ -844,7 +844,7 @@ void testLoadTileHonorsTileLineStrideAcrossOddRows() {
         (0x3DULL << 56U) | (1ULL << 51U) | (1ULL << 32U) | 0x17C0ULL;
     // A line value of two reserves 16 bytes between successive tile rows.
     const std::uint64_t setTile =
-        (0x35ULL << 56U) | (2ULL << 41U);
+        (0x35ULL << 56U) | (1ULL << 51U) | (2ULL << 41U);
     const std::uint64_t loadTile =
         (0x34ULL << 56U) | (4ULL << 12U) | 4ULL;
     require(bus.write64(0xAE0U, setImage) &&
