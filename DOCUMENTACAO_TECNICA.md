@@ -731,3 +731,41 @@ Cada fixture deve guardar estado do tile, bytes da TMEM, coordenadas fixas, modo
 - Themaister/parallel-rdp, [shader de textura](https://github.com/Themaister/parallel-rdp/blob/master/parallel-rdp/shaders/texture.h). Consultado como implementação independente para estudar a separação de etapas e casos de borda, não como substituto do manual ou de vetores dourados.
 
 **Limite desta revisão:** somente documentação foi alterada. Nenhum código C++ ou teste executável foi modificado. O sampler continua não implementado; esta seção não declara suporte de renderização de textura.
+
+
+### 18.18 Inventário de fixtures para iniciar um sampler isolado
+
+A revisão dos testes executáveis em `tests/rdp_tests.cpp` confirma uma base consistente para transferências, mas não encontrou testes de leitura/amostragem de texels. Os testes existentes verificam efeitos observáveis em TMEM para `LOAD_TILE`, `LOAD_BLOCK` e `LOAD_TLUT`; isso não valida a interpretação posterior desses bytes pelo sampler.
+
+**Cobertura já existente que pode servir de preparação:**
+
+- `LOAD_TILE`: cópia de 4/8/16 bits, nibble inicial ímpar, stride, swizzle de linhas ímpares, wrap de TMEM, RGBA32 em bancos separados e validação prévia de todas as linhas.
+- `LOAD_BLOCK`: cópia de 8/16 bits, DXT com carries e frações, mudança de linha, wrap e rejeição de tamanhos não suportados.
+- `LOAD_TLUT`: replicação de entradas de 16 bits na região alta da TMEM, coordenadas não nulas e rejeição de origem/destino fora dos limites.
+- A função `main()` registra explicitamente os testes. Qualquer novo teste C++ precisa também ser chamado ali, pois o build trata avisos como erros.
+
+**Fixtures mínimas propostas para o primeiro módulo independente (sem rasterizador):**
+
+| Fixture | Estado e dados controlados | Resultado que deve ser fixado por oráculo externo |
+|---|---|---|
+| RGBA16 direto | TMEM com dois padrões distintos, tile RGBA/16, coordenada S/T inteira | Conversão exata do texel para os canais de saída, incluindo expansão dos bits e alpha. |
+| RGBA32 direto | Bytes conhecidos nos bancos inferior/superior, tile RGBA/32 | Reconstrução exata dos quatro canais e endereço físico consultado. |
+| I4/I8 e IA4/IA8/IA16 | Padrões com valores mínimos, máximos e intermediários | Decodificação de intensidade/alpha, ordem de nibbles e escala de cada componente. |
+| CI4/CI8 + TLUT | Índices repetidos e distintos; paleta RGBA16 e IA16 | Índice selecionado, entrada da paleta e conversão final, inclusive limites de palette CI4. |
+| Coordenadas por eixo | Mesma TMEM e texel de cores únicas em cada posição | Resultado para shift, subtração do limite inferior, clamp, mask, mirror e wrap, testados separadamente. |
+| Borda e filtro | Textura 2×2 com quatro cores diferentes | Texel escolhido no point sample e contribuição de cada vizinho nos modos filtrados; casos de borda precisam atravessar wrap/mirror/clamp. |
+
+**Regras para que os testes sejam realmente independentes:**
+
+1. Separar a transformação S/T, o cálculo de endereço TMEM, a decodificação do texel e a filtragem em funções testáveis; não misturar interpolação de triângulos neste primeiro estágio.
+2. Cada fixture deve declarar explicitamente formato, tamanho, line, TMEM base, palette, SL/TL/SH/TH, parâmetros S/T e modos relevantes. O padrão da TMEM deve ser pequeno e legível manualmente.
+3. Guardar o resultado esperado e a fonte que o fundamenta. Não derivar o esperado da mesma rotina sob teste, nem copiar uma saída gerada pelo próprio emulador.
+4. Começar com amostragem pontual e coordenadas inteiras. Adicionar coordenadas fracionárias e filtro somente após os endereços e a decodificação básica passarem.
+5. Manter casos negativos para tile/formato inválido e acessos que excedam os limites físicos de TMEM; falhas não devem produzir leituras fora do buffer.
+6. Registrar cada função de teste em `main()` e executar ambos os jobs de CI antes de considerar a camada validada.
+
+**Lacunas ainda não resolvidas:** os testes atuais não constituem oráculo de amostragem; a semântica completa de filtragem RDP, arredondamento, precisão intermediária e casos de borda ainda precisa ser respaldada por documentação técnica e vetores independentes. O shader de `parallel-rdp` continua sendo referência de comparação, não prova normativa isolada.
+
+**Próxima etapa segura:** construir primeiro uma especificação curta e revisável para RGBA16/32 com point sample e coordenadas inteiras, anexando vetores dourados independentes. Só depois dessa especificação e de autorização explícita deve haver alteração de C++.
+
+**Limite desta revisão:** somente documentação foi alterada. Nenhum código C++, teste executável ou comportamento do emulador foi modificado.
