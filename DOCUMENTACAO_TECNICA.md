@@ -1084,3 +1084,46 @@ A macro `gDPLoadMultiTile_4b` usa a mesma estratégia e permite especificar TMEM
 - Referência de macros de textura, incluindo o uso obrigatório do sufixo `_4b`: https://ultra64.ca/files/documentation/online-manuals/functions_reference_manual_2.0i/gdp/gDPLoadTexture.html.
 
 **Conclusão desta investigação:** a divergência está explicada no nível da macro GBI: a macro 4-bit carrega bytes como 8b e configura a interpretação 4b depois. Ainda não concluímos se o caminho bruto 4b aceito pelo M64plus deve ser rejeitado, mantido como comportamento permissivo ou tratado como uma sequência não usada pelas macros padrão. Essa decisão depende de testes de comandos brutos e de referência independente. Nenhum código C++ ou teste executável foi alterado.
+
+
+
+### 18.26 Auditoria do caminho LOAD_TILE CI4 no código atual
+
+Esta seção compara a expansão GBI documentada na seção 18.25 com o caminho efetivamente implementado em `app/src/main/cpp/n64/rdp.cpp`. É uma auditoria estática do código; não altera nem afirma validar o comportamento em hardware.
+
+**Comportamento observado em `loadTileTexels`:**
+
+1. A profundidade usada para ler a origem é derivada de `textureImage.size`: 4, 8, 16 ou 32 bits por texel. O tamanho configurado no descritor `tile.size` não escolhe a largura da leitura de origem.
+2. O endereço de origem usa as coordenadas absolutas da imagem: `(y * image.width + x)`, convertido em bits e bytes conforme `textureImage.size`.
+3. A base e o stride de destino vêm de `tile.tmem * 8` e `tile.line * 8`.
+4. No caminho bruto de 4 bits, a rotina lê o nibble alto/baixo conforme a paridade do índice absoluto do texel de origem, mas posiciona o nibble de destino conforme a paridade da coluna local da região carregada.
+5. Para linhas de destino ímpares, o endereço de destino recebe XOR 4. A gravação preserva o nibble vizinho do mesmo byte.
+6. A validação de origem ocorre antes da primeira escrita na TMEM; depois da validação, a rotina faz as leituras e gravações por texel.
+
+**Consequência para a sequência GBI expandida de CI4:**
+
+Na sequência descrita em 18.25, `SET_TEXTURE_IMAGE` e o tile de carga usam 8 bits. Portanto, o `LOAD_TILE` entra no caminho de 8 bits do código atual e copia bytes inteiros para a TMEM. A mudança posterior do descritor de renderização para 4 bits não retroage sobre a carga já executada: ela define como os dados carregados serão interpretados durante a amostragem.
+
+Isso significa que a sequência padrão expandida pela macro não depende do ramo `bitsPerTexel == 4` de `loadTileTexels`. O ramo bruto 4-bit continua sendo uma extensão/caminho distinto que precisa de evidência própria antes de ser considerado equivalente ao fluxo GBI.
+
+**Matriz de fixtures para a sequência expandida:**
+
+| Fixture | Estado antes de LOAD_TILE | Estado após LOAD_TILE | Estado de renderização posterior |
+|---|---|---|---|
+| CI4 linha única | imagem 8b, largura em bytes, tile de carga 8b | bytes empacotados na TMEM | tile 4b e palette definidos depois |
+| CI4 duas linhas | imagem 8b e stride de origem conhecido | segunda linha armazenada com regra de linha ímpar | leitura CI4 deve recuperar a sequência de nibbles esperada |
+| CI4 sub-retângulo | S inicial/final convertidos pela macro para unidades de byte | somente os bytes da região são carregados | coordenadas de amostragem continuam em unidades de texel |
+| CI4 palette 0/15 | mesma carga física de bytes | TMEM idêntica nos dois casos | somente o descritor de renderização/palette muda |
+| Comparação com ramo bruto 4b | carga bruta de 4b com fonte empacotada | comparar byte a byte com a sequência macro 8b | diferenças devem ser explicadas, não normalizadas por suposição |
+
+**Invariantes para testes futuros:**
+
+- O valor de `textureImage.size` determina a interpretação da origem durante LOAD_TILE.
+- O tamanho do tile de renderização configurado depois da carga não deve modificar os bytes que já foram escritos na TMEM.
+- A palette CI4 pertence ao descritor usado na amostragem, não à operação de cópia dos bytes.
+- A largura em bytes da imagem 8b e a largura lógica em texels CI4 são unidades diferentes; os testes devem registrar ambas explicitamente.
+- A comparação entre caminho macro 8b e caminho bruto 4b deve comparar o estado final da TMEM e a interpretação posterior, não apenas o número de comandos.
+
+**Limites desta auditoria:** não foi executado um teste novo, não foi alterado nenhum teste C++, e não foi modificada a implementação. Ainda falta validar a sequência com vetores independentes e confirmar os detalhes de coordenadas/stride para sub-retângulos e linhas ímpares diretamente contra a macro oficial e uma implementação de referência. Esta seção descreve o código existente, não declara que o ramo bruto 4b seja compatível com hardware.
+
+**Arquivos inspecionados:** `app/src/main/cpp/n64/rdp.cpp`, em especial `loadTileTexels`, e `tests/rdp_tests.cpp`, que registra os testes existentes de LOAD_TILE 4-bit no `main()`.
