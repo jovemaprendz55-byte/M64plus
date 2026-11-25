@@ -997,3 +997,53 @@ Esta seção aproxima os índices lógicos da seção 18.22 da organização fí
 - Moria, “Nintendo 64 Part 20: TMEM Format and Mip Maps”, explicação complementar do swizzle de linhas ímpares: https://www.moria.us/blog/2020/11/n64-part20-tmem-format-and-mip-maps. Usar como análise técnica secundária, não como substituto do manual.
 
 **Próxima etapa:** montar uma matriz de endereços para CI4/CI8 que relacione (S,T), `line`, `tmem`, nibble e banco, usando diagramas e casos independentes. A implementação do sampler continua bloqueada até essa matriz e seus vetores serem revisados. Nenhum código C++ ou teste executável foi alterado nesta revisão.
+
+
+### 18.24 Matriz de endereçamento CI4/CI8 para coordenadas inteiras
+
+Esta matriz fixa uma primeira referência de leitura de texel, antes de shift, clamp, mask, mirror, wrap ou filtragem. As coordenadas S/T desta seção já são inteiras e não estão em formato 10.2. O endereço abaixo é o byte lógico na TMEM; a seleção do banco físico e a consulta paralela dos quatro texels são uma etapa distinta.
+
+**Fórmulas de referência:**
+
+Defina `base = tile.tmem + tile.line * T`, em palavras de 64 bits, e `rowByteBase = base * 8`.
+
+| Formato | Byte do texel antes do swizzle | Nibble |
+|---|---|---|
+| CI4 | `rowByteBase + floor(S / 2)` | S par: alto; S ímpar: baixo |
+| CI8 | `rowByteBase + S` | Não se aplica |
+
+Para linha T ímpar, a organização de bancos troca os dois grupos de quatro bytes de cada palavra de 64 bits. Na representação de bytes canônica usada pelo projeto, isso corresponde a aplicar XOR 4 ao endereço de byte. O endereço de leitura de CI4/CI8 fica, portanto, `byteAddress = (rowByteBase + horizontalOffset) XOR (T ímpar ? 4 : 0)`. O endereço de texel CI deve permanecer na metade baixa da TMEM (0x000–0x7FF); a metade alta é a região da TLUT.
+
+As mesmas fórmulas podem ser expressas diretamente a partir do campo em palavras: CI4 `((base << 4) + S) >> 1`; CI8 `(base << 3) + S`. O endereço final de byte é ajustado pelo swizzle de linha ímpar. A fonte de implementação secundária Angrylion documenta essas expressões em seu caminho de fetch; o manual da Nintendo fundamenta a organização em bancos e a partição CI/TLUT. Não copiar constantes de XOR específicas de host: Angrylion pode compilar com byte-swaps adicionais por armazenar TMEM em palavras nativas little-endian. O projeto usa uma matriz de bytes canônica e deve validar XOR 4 contra seus próprios vetores.
+
+**Exemplo numérico fixo:** `tile.tmem = 0x10`, `tile.line = 2`. Logo, T=0 tem base de linha em `0x80`; T=1 tem base nominal `0x90`, com swizzle XOR 4; T=2 tem base `0xA0`.
+
+| T | S | CI4 byte | CI4 nibble | CI8 byte |
+|---:|---:|---:|---|---:|
+| 0 | 0 | `0x080` | alto | `0x080` |
+| 0 | 1 | `0x080` | baixo | `0x081` |
+| 0 | 2 | `0x081` | alto | `0x082` |
+| 0 | 3 | `0x081` | baixo | `0x083` |
+| 0 | 7 | `0x083` | baixo | `0x087` |
+| 1 | 0 | `0x094` | alto | `0x094` |
+| 1 | 1 | `0x094` | baixo | `0x095` |
+| 1 | 2 | `0x095` | alto | `0x096` |
+| 1 | 3 | `0x095` | baixo | `0x097` |
+| 1 | 7 | `0x097` | baixo | `0x09B` |
+| 2 | 0 | `0x0A0` | alto | `0x0A0` |
+| 2 | 1 | `0x0A0` | baixo | `0x0A1` |
+| 2 | 7 | `0x0A3` | baixo | `0x0A7` |
+
+**Padrão de bytes para a fixture:** inicializar os bytes 0x080–0x087 com `0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0`. Em CI4, a linha T=0 deve produzir a sequência de índices `1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,0` ao percorrer os nibbles alto/baixo. Em CI8, os oito primeiros texels são `0x12,0x34,0x56,0x78,0x9A,0xBC,0xDE,0xF0`. Para T=1, usar bytes distintos nos offsets 0x090–0x09F e confirmar que o endereço lógico 0x090 é lido fisicamente em 0x094 após o swizzle, sem alterar a seleção de nibble pelo valor de S.
+
+**Paleta:** depois da extração do índice, CI4 forma `index = (tile.palette << 4) | nibble`; CI8 usa `index = texelByte`. Só então ocorre a consulta TLUT. O teste deve comparar índice, entrada selecionada e RGBA resultante em etapas separadas. A tabela de endereço lógico não tenta substituir o mapeamento de quatro bancos da TLUT.
+
+**Divergência importante a resolver antes do sampler:** o código atual de `loadTileTexels` aceita `image.size == 4 bits` e copia nibbles diretamente, enquanto uma referência técnica secundária recente descreve que o fluxo normal de hardware para texturas de 4 bits pode carregar os bytes empacotados usando imagem/LOAD_TILE de 8 bits e interpretar os nibbles no tile de 4 bits. Isso sugere que aceitar diretamente LOAD_TILE com imagem 4-bit pode estar incorreto ou, no mínimo, precisa de prova documental. Não mudar a rotina nem os testes existentes nesta etapa; abrir uma investigação separada sobre as regras de LOAD_TILE/LOAD_BLOCK para 4-bit, usando manual e vetores de hardware/oráculo.
+
+**Fontes:**
+- Nintendo 64 Programming Manual, capítulo 12.4, bancos paralelos e partição de TMEM para CI/TLUT: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro12/12-04.html.
+- Nintendo 64 Programming Manual, capítulo 13.8, diagramas de organização física da TMEM: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-08.html.
+- Angrylion RDP Comments, seção “Texture Fetching”, fórmulas de fetch CI4/CI8 e palette; fonte secundária de análise de implementação, não especificação normativa: https://emudev.org/2021/09/21/Angrylion_RDP_Comments.
+- RustyN64 RDP progress notes, observação sobre a carga de texturas 4-bit; pista secundária que precisa ser confrontada com documentação/hardware: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md.
+
+**Critério de saída desta etapa:** antes de escrever o sampler, ter testes independentes para CI4 par/ímpar, CI8, linha par/ímpar, stride maior que a largura, limite 0x7FF, palette 0/15 e leitura das quatro cópias TLUT. A transformação S/T e filtragem permanecem fora do escopo. Nenhum código C++ ou teste executável foi alterado.
