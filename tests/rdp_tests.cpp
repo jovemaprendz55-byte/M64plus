@@ -65,6 +65,16 @@ void testTriangleEdgeHeaderDecoding() {
             edge.xMiddle == -32768 && edge.dxMiddleDy == 32768,
             "triangle edge X fields sign-extend from 28 bits and slopes from 30 bits then scale to quarter-pixel steps");
 
+    const std::array<std::uint64_t, 4> negativeSlopes = {
+        0ULL, 0x000000003FFFFFFDULL, 0x000000003FFFFFFFULL,
+        0x000000003FFFFFFCULL
+    };
+    RdpTriangleEdgeState negative{};
+    require(RdpCommandDecoder::decodeTriangleEdge(negativeSlopes, negative) &&
+            negative.dxLeftDy == -1 && negative.dxHighDy == -1 &&
+            negative.dxMiddleDy == -1,
+            "negative edge slopes use floor division when scaled to quarter-pixel steps");
+
     RdpTriangleEdgeState zero{};
     const std::array<std::uint64_t, 4> empty{};
     require(RdpCommandDecoder::decodeTriangleEdge(empty, zero) &&
