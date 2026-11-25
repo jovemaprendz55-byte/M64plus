@@ -2274,7 +2274,7 @@ void testFillRectangleRgba16ScissorPreservesPixelParity() {
         (0x3FULL << 56U) | (2ULL << 51U) | (3ULL << 32U) | base,
         (0x37ULL << 56U) | 0xF80107C1ULL,
         (0x2FULL << 56U) | (3ULL << 52U),
-        (0x2DULL << 56U) | (4ULL << 44U) | (12ULL << 32U) | 4ULL,
+        (0x2DULL << 56U) | (12ULL << 44U) | (4ULL << 32U) | (4ULL << 12U),
         (0x36ULL << 56U) | (12ULL << 44U)
     };
     constexpr std::uint32_t start = 0xDA0U;
