@@ -1168,3 +1168,24 @@ Esses testes são chamados pelo `main()`, portanto não são apenas funções au
 **Regra de aprovação:** cada teste deve especificar explicitamente formato e tamanho da imagem de origem, largura da imagem, coordenadas LOAD_TILE, formato/tamanho do tile, `tmem`, `line`, bytes iniciais da TMEM e bytes finais esperados. Não comparar apenas o resultado visual nem assumir equivalência entre os dois caminhos.
 
 **Estado atual:** inventário e plano documentados; nenhum teste novo foi criado ou executado nesta alteração. A implementação C++ permanece inalterada.
+
+### 18.28 Vetor mínimo de referência para LOAD_TILE da macro CI4
+
+Para reduzir ambiguidades na futura implementação dos testes CI4-MAC, fica definido um primeiro vetor físico pequeno. Ele valida somente a expansão da carga para bytes de 8 bits e a independência da palette posterior; não valida ainda o sampler.
+
+**Fixture de uma linha:**
+
+- Oito texels CI4 lógicos: índices `1, 2, 3, 4, 5, 6, 7, 8`.
+- Representação empacotada na origem: quatro bytes `12 34 56 78` (hexadecimal), com nibble alto primeiro.
+- `SET_TEXTURE_IMAGE`: tamanho 8b e largura de imagem de 4 bytes.
+- Tile de carga: tamanho 8b, `tmem = 0x10` (base física `0x80` em bytes) e `line = 1` (stride de 8 bytes).
+- `LOAD_TILE`: uma linha, cobrindo exatamente os quatro bytes da origem.
+- Estado inicial da TMEM: preencher a região de destino e seus vizinhos com sentinela `EE`.
+- Resultado esperado após a carga: `TMEM[0x80..0x83] = 12 34 56 78`; `TMEM[0x84..0x87]` e a região imediatamente anterior permanecem `EE`.
+- Depois da carga, configurar o tile de renderização como 4b e variar `palette` de 0 para 15. A TMEM deve continuar byte a byte idêntica nas duas configurações.
+
+**O que esse vetor prova quando convertido em teste:** a sequência de carga 8b preserva os quatro bytes empacotados na TMEM e a configuração posterior do tile de renderização não reescreve a memória. Ele não prova que a palette está sendo aplicada corretamente pelo sampler, pois essa etapa ainda não está implementada.
+
+**Extensões necessárias antes de considerar a macro CI4 validada:** adicionar vetores de duas linhas para swizzle, sub-retângulo com S inicial não zero, largura lógica ímpar, fim de RDRAM e wrap de TMEM. Para cada caso, os bytes esperados devem ser calculados independentemente da rotina de produção; não reutilizar `loadTileTexels` como oráculo.
+
+**Status:** especificação de fixture documental. Nenhum teste C++ foi criado ou executado e nenhum comportamento do emulador foi alterado.
