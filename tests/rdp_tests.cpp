@@ -3260,6 +3260,57 @@ void testFlatFillTriangleRasterizesRightTriangle() {
 }
 
 
+void testFlatFillTriangleUsesLowerEdgeAfterMiddleY() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x1900U;
+    constexpr std::uint32_t stream = 0x1A00U;
+    constexpr std::uint32_t sentinel = 0xDEADBEEFU;
+    constexpr std::uint32_t fill = 0x89ABCDEFU;
+    for (std::uint32_t i = 0U; i < 8U * 8U; ++i)
+        require(bus.write32(framebuffer + i * 4U, sentinel),
+                "seed middle-Y transition triangle framebuffer");
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (7ULL << 32U) | framebuffer,
+        (0x37ULL << 56U) | fill,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x2DULL << 56U) | (32ULL << 12U) | 32ULL,
+        // The minor edge switches at Y=2: it is vertical above YM,
+        // then advances one pixel per scanline below YM.
+        (0x08ULL << 56U) | (8ULL << 16U) | 16ULL,
+        (2ULL * 65536ULL << 32U) | 0x00010000ULL,
+        (2ULL * 65536ULL) << 32U,
+        (6ULL * 65536ULL) << 32U
+    };
+    for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
+        require(bus.write64(stream + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "write middle-Y transition triangle command stream");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 64U),
+            "publish middle-Y transition triangle command stream");
+
+    for (unsigned i = 0U; i < 4U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "middle-Y transition triangle setup command is processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "middle-Y transition flat-fill triangle is rasterized");
+
+    for (std::uint32_t y = 0U; y < 8U; ++y) {
+        for (std::uint32_t x = 0U; x < 8U; ++x) {
+            std::uint32_t pixel = 0U;
+            require(bus.read32(framebuffer + (y * 8U + x) * 4U, pixel),
+                    "read middle-Y transition triangle output pixel");
+            const std::uint32_t left = y < 2U ? 2U : y;
+            const bool covered = y < 4U && x >= left && x <= 6U;
+            require(pixel == (covered ? fill : sentinel),
+                    "triangle switches from upper to lower minor edge at middle Y");
+        }
+    }
+}
+
+
 void testFlatFillTriangleClipsNegativeFractionalX() {
     using namespace m64plus::n64;
     Bus bus;
@@ -3823,6 +3874,7 @@ int main() {
     testMaximumTriangleCommandWaitsForAllWords();
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testFlatFillTriangleRasterizesRightTriangle();
+    testFlatFillTriangleUsesLowerEdgeAfterMiddleY();
     testFlatFillTriangleClipsNegativeFractionalX();
     testFlatFillTriangleEdgeFlipClipsNegativeFractionalX();
     testFlatFillTriangleRasterizesOppositeEdgeOrientation();
