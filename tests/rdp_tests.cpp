@@ -2224,6 +2224,40 @@ void testFillRectangleRejectsUnsupportedCycleTypeWithoutWrites() {
     }
 }
 
+void testFillRectangleRejectsMissingColorImageWithoutWrites() {
+    using namespace m64plus::n64;
+    constexpr std::uint32_t base = 0x3D80U;
+    constexpr std::uint32_t sentinel = 0xAABBCCDDU;
+    Bus bus;
+    RdpSyncState state{};
+    require(bus.write32(base, sentinel) && bus.write32(base + 4U, sentinel),
+            "seed missing-color-image framebuffer sentinels");
+
+    const std::uint64_t commands[] = {
+        (0x37ULL << 56U) | 0x55667788U,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x36ULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
+            (4ULL << 12U) | 4ULL
+    };
+    for (std::size_t i = 0; i < 3U; ++i)
+        require(bus.write64(0xE80U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed missing-color-image FILL_RECTANGLE stream");
+    require(bus.write32(Bus::kDpStart, 0xE80U) &&
+            bus.write32(Bus::kDpEnd, 0xE98U),
+            "publish missing-color-image fill stream");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
+            RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "missing-color-image setup commands are processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "FILL_RECTANGLE rejects missing color image state");
+
+    std::uint32_t pixel = 0U;
+    require(bus.read32(base, pixel) && pixel == sentinel,
+            "missing color image leaves framebuffer unchanged");
+    require(bus.read32(base + 4U, pixel) && pixel == sentinel,
+            "missing color image preserves second sentinel");
+}
+
 void testFillRectangleRejectsUnsupportedColorImageFormatsWithoutWrites() {
     using namespace m64plus::n64;
     constexpr std::uint32_t base = 0x3D40U;
@@ -3042,6 +3076,7 @@ int main() {
     testLoadTlutHonorsTextureImageCoordinatesAndRange();
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
     testFillRectangleRejectsUnsupportedCycleTypeWithoutWrites();
+    testFillRectangleRejectsMissingColorImageWithoutWrites();
     testFillRectangleRejectsUnsupportedColorImageFormatsWithoutWrites();
     testFillRectangleWritesSinglePixelForDegenerateBounds();
     testFillRectangleClipsAllEdgesAgainstScissor();
