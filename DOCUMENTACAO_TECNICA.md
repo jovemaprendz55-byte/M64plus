@@ -1047,3 +1047,40 @@ As mesmas fórmulas podem ser expressas diretamente a partir do campo em palavra
 - RustyN64 RDP progress notes, observação sobre a carga de texturas 4-bit; pista secundária que precisa ser confrontada com documentação/hardware: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md.
 
 **Critério de saída desta etapa:** antes de escrever o sampler, ter testes independentes para CI4 par/ímpar, CI8, linha par/ímpar, stride maior que a largura, limite 0x7FF, palette 0/15 e leitura das quatro cópias TLUT. A transformação S/T e filtragem permanecem fora do escopo. Nenhum código C++ ou teste executável foi alterado.
+
+
+### 18.25 Expansão real das macros de carga CI4/4b
+
+A investigação da divergência de 4 bits encontrou uma explicação concreta no próprio cabeçalho GBI oficial publicado com o manual da Nintendo: as macros de conveniência para carregar uma textura de 4 bits não enviam simplesmente um `SET_TEXTURE_IMAGE` de 4 bits seguido de `LOAD_TILE` de 4 bits. Elas convertem a operação em uma carga de 8 bits e só depois configuram o tile de renderização como 4 bits.
+
+**Sequência de `gDPLoadTextureTile_4b` / `gsDPLoadTextureTile_4b`:**
+
+1. `SET_TEXTURE_IMAGE`: formato solicitado, tamanho `8b`, largura `width / 2`.
+2. `SET_TILE` para o tile de carga: tamanho `8b`; o stride é calculado com a largura da região dividida por dois e arredondada para palavras TMEM de 64 bits.
+3. `LOAD_SYNC`.
+4. `LOAD_TILE`: coordenadas S de origem são divididas por dois (conversão para bytes); T permanece em coordenadas de linha.
+5. `PIPE_SYNC`.
+6. `SET_TILE` para o tile de renderização: mesmo formato, mas tamanho `4b`, com o campo de palette CI4.
+7. `SET_TILE_SIZE`: coordenadas de renderização voltam a usar unidades de texel de 4 bits.
+
+A macro `gDPLoadMultiTile_4b` usa a mesma estratégia e permite especificar TMEM e tile de renderização. Isso explica por que a documentação genérica recomenda carregar tipos de 4 bits usando uma representação maior e depois renderizar com o tamanho de 4 bits, enquanto a API oferece macros específicas `_4b`: a macro específica realiza a conversão de comandos e coordenadas automaticamente.
+
+**Consequência para o M64plus:** a rotina atual `loadTileTexels` calcula `bitsPerTexel = 4` quando `textureImage.size == 0` e copia nibbles diretamente. Isso é um caminho de comando bruto distinto da sequência produzida pela macro GBI oficial. A existência desse caminho no emulador não prova que ele reproduza o fluxo normal de aplicações N64. Não remover nem alterar o suporte atual sem especificação adicional; primeiro acrescentar fixtures que representem a sequência expandida da macro: imagem 8b/largura pela metade, tile de carga 8b, coordenadas S em bytes, seguida de tile de renderização 4b e palette.
+
+**Casos de teste propostos (sem alteração de código nesta revisão):**
+
+| Caso | Sequência de entrada | Verificação |
+|---|---|---|
+| CI4 macro, largura par | `SET_TEXTURE_IMAGE 8b`, `SET_TILE 8b`, `LOAD_TILE`, `SET_TILE 4b` | Bytes empacotados chegam à TMEM sem expansão indevida |
+| CI4 sub-retângulo | S inicial/final em texels convertidos para metade em bytes | Primeiro e último nibble da região corretos |
+| CI4 linha ímpar | Duas linhas com bytes diferentes | Swizzle de linha ímpar ocorre na carga e é desfeito/interpretado pelo sampler de forma consistente |
+| CI4 palette | Tile de renderização com palette 0 e depois 15 | Palette pertence ao tile de renderização, não ao tile de carga |
+| Comparação de caminhos | Macro expandida versus sequência bruta de 4b já aceita pelo código | Documentar se produzem o mesmo estado TMEM para entradas equivalentes; não presumir equivalência |
+
+**Fontes primárias:**
+- Cabeçalho GBI do manual Nintendo 64, expansão explícita de `gDPLoadTextureTile_4b` e `gDPLoadMultiTile_4b`: https://ultra64.ca/files/documentation/online-manuals/man/header/gbi.htm.
+- Referência oficial da macro `gDPLoadTextureTile_4b`, descrição de carga de textura 4-bit: https://ultra64.ca/files/documentation/online-manuals/man/n64man/gdp/gDPLoadTextureTile_4b.html.
+- Manual Nintendo 64, seção 13.9, sequência de carga, padding de linhas e nota sobre tipos 4-bit: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-09.html.
+- Referência de macros de textura, incluindo o uso obrigatório do sufixo `_4b`: https://ultra64.ca/files/documentation/online-manuals/functions_reference_manual_2.0i/gdp/gDPLoadTexture.html.
+
+**Conclusão desta investigação:** a divergência está explicada no nível da macro GBI: a macro 4-bit carrega bytes como 8b e configura a interpretação 4b depois. Ainda não concluímos se o caminho bruto 4b aceito pelo M64plus deve ser rejeitado, mantido como comportamento permissivo ou tratado como uma sequência não usada pelas macros padrão. Essa decisão depende de testes de comandos brutos e de referência independente. Nenhum código C++ ou teste executável foi alterado.
