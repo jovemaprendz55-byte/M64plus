@@ -884,7 +884,8 @@ void testLoadTileWrapsDestinationAcrossTmemEnd() {
     const std::uint64_t image =
         (0x3DULL << 56U) | (1ULL << 51U) | (1ULL << 32U) | 0x17E0ULL;
     const std::uint64_t tile =
-        (0x35ULL << 56U) | (1ULL << 41U) | (511ULL << 32U);
+        (0x35ULL << 56U) | (1ULL << 51U) | (1ULL << 41U) |
+        (511ULL << 32U);
     const std::uint64_t load = (0x34ULL << 56U) | (4ULL << 12U) | 4ULL;
     require(bus.write64(0xB80U, image) && bus.write64(0xB88U, tile) &&
             bus.write64(0xB90U, load),
