@@ -482,3 +482,34 @@ Foi revisado `tests/rdp_tests.cpp`, especialmente `testFillRectangleWritesRgba32
 Esse fixture deve ser transcrito para o schema versionado somente quando o executor for desenhado. A validação futura precisa comparar também os 12 pixels sentinela que não podem mudar; verificar somente os quatro pixels escritos não detectaria escritas indevidas fora do retângulo.
 
 **Rastreabilidade:** o caso deriva de um teste nativo já presente no repositório e não de uma saída independente do hardware/oráculo. Portanto, é adequado para testar serialização e regressão do comportamento implementado, mas não deve ser rotulado como prova independente de conformidade do RDP. Nenhum código de produção ou teste executável foi alterado nesta etapa.
+
+
+### 18.10 Vetor de clipping com seleção de campo (interlace)
+
+Foi analisado o teste existente `testFillRectangleHonorsScissorFieldParity` em `tests/rdp_tests.cpp`. Ele executa o mesmo retângulo duas vezes, alternando o campo selecionado, e verifica todos os 16 pixels de um framebuffer 4×4.
+
+**Estado e entrada:**
+
+- Framebuffer RGBA32, largura 4, endereço `0x3800`; todos os 16 pixels começam em `0xAABBCCDD`.
+- Cor de preenchimento: `0x10203040`; ciclo FILL.
+- Scissor: X de 0 até 3 (borda direita exclusiva), Y de 0 até 4; seleção de campo habilitada.
+- Retângulo de preenchimento cobre a área 4×4; o scissor reduz a largura efetiva para 3 pixels.
+- Fluxo comum:
+  - `0x3F18000300003800` — SET_COLOR_IMAGE.
+  - `0x3700000010203040` — SET_FILL_COLOR.
+  - `0x2F30000000000000` — SET_OTHER_MODES (FILL).
+  - `0x3600C00C00000000` — FILL_RECTANGLE.
+- Quarto comando (SET_SCISSOR) varia para selecionar cada campo:
+  - Campo par: `0x2D0000000200C010`.
+  - Campo ímpar: `0x2D0000000300C010`.
+
+**Resultado esperado:**
+
+| Campo selecionado | Linhas que recebem a cor | Pixels coloridos por linha |
+|---|---|---|
+| Par | y=0 e y=2 | x=0, 1 e 2 |
+| Ímpar | y=1 e y=3 | x=0, 1 e 2 |
+
+Todos os demais pixels devem permanecer em `0xAABBCCDD`. A coordenada x=3 deve permanecer intacta em todas as linhas, confirmando a borda direita exclusiva do scissor. Esse caso cobre simultaneamente seleção de campo e clipping horizontal, mas não substitui testes separados para cada borda do scissor.
+
+**Rastreabilidade e limite:** o resultado é derivado de um teste de regressão interno existente, não de uma medição independente de hardware. É útil como fixture de regressão/serialização, não como oráculo externo de conformidade. Nenhum código de produção ou teste executável foi alterado.
