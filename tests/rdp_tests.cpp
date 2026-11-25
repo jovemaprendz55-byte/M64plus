@@ -3351,7 +3351,8 @@ void testFlatFillTriangleEdgeFlipClipsNegativeFractionalX() {
             std::uint32_t pixel = 0U;
             require(bus.read32(framebuffer + (y * 8U + x) * 4U, pixel),
                     "read edge-flip negative-X triangle output pixel");
-            const bool covered = y < 4U && x <= 3U &&\n                x >= (y > 1U ? y - 1U : 0U);
+            const bool covered = y < 4U && x <= 3U &&
+                x >= (y > 1U ? y - 1U : 0U);
             require(pixel == (covered ? fill : sentinel),
                     "edge-flip keeps the negative fractional major edge on the left and clips at framebuffer X zero");
         }
