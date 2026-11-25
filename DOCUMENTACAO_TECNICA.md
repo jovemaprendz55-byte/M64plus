@@ -1579,3 +1579,53 @@ O estado atual guarda `textureLut` e `textureLutType` como booleanos. A document
 **Conclusão:** a regra de composição do índice CI4 está documentada e pode orientar o contrato do sampler. A carga TLUT existente já replica entradas no espaçamento esperado; a lacuna comprovada continua sendo a consulta da entrada e a conversão para cor durante a renderização. Nenhuma alteração de implementação foi feita nesta etapa.
 
 **Status:** auditoria documental com comparação ao manual; nenhum código C++ ou teste executável foi alterado ou executado.
+
+
+### 18.43 Conversão de entradas TLUT RGBA16 e IA16 para RGBA de 8 bits
+
+A tabela 14-9 do *Nintendo 64 Programming Manual*, capítulo 14, especifica que o resultado da consulta de textura é convertido para componentes RGBA de 8 bits. Para as entradas de TLUT de 16 bits, a interpretação depende do modo configurado: RGBA16 ou IA16.
+
+Fonte normativa principal:
+- Nintendo 64 Programming Manual, capítulo 14, seção 14.3, “Texel Formatting” e tabela 14-9: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro14/14-03.html
+- Cópia integral do manual, tabela 14-9: https://ultra64.ca/files/documentation/nintendo/Nintendo_64_Programming_Manual_NU6-06-0030-001G_HQ.pdf
+- Capítulo 12, tabela de formatos e modos de amostragem: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro12/12-04.html
+
+**Modo RGBA16**
+
+A palavra de 16 bits tem os campos R[15:11], G[10:6], B[5:1] e A[0]. Cada canal de cor de 5 bits é expandido para 8 bits repetindo os três bits mais significativos no final:
+
+- r5 = (entry >> 11) & 0x1F
+- g5 = (entry >> 6) & 0x1F
+- b5 = (entry >> 1) & 0x1F
+- R8 = (r5 << 3) | (r5 >> 2); aplicar a mesma expansão a G e B.
+- A8 = (entry & 1) ? 255 : 0.
+
+A expansão por repetição é importante: apenas deslocar os valores 5-bit três posições à esquerda deixa os três bits inferiores zerados e não reproduz a tabela de saída do manual.
+
+**Modo IA16**
+
+A palavra tem I[15:8] e A[7:0]. O valor de intensidade é copiado para os três canais RGB, e o byte inferior é o alpha:
+
+- i8 = (entry >> 8) & 0xFF
+- a8 = entry & 0xFF
+- saída: R8 = G8 = B8 = i8, A8 = a8.
+
+A interpretação IA16 não é uma conversão de RGBA16: os mesmos 16 bits têm significado completamente diferente conforme o modo TLUT.
+
+**Relação com o código atual**
+
+A auditoria de loadTlutEntries em app/src/main/cpp/n64/rdp.cpp confirma que a rotina lê cada entrada com bus.read16, replica o valor de 16 bits quatro vezes em uma palavra de 64 bits e grava essa palavra na TMEM. A função não decodifica componentes de cor. Também não foi encontrada, no caminho de amostragem atual, uma consulta TLUT CI4 que selecione a entrada e aplique uma das duas conversões. Portanto, as fórmulas acima especificam o contrato de decodificação futuro; não descrevem comportamento já implementado.
+
+**Vetores aritméticos de referência para testes futuros**
+
+- RGBA16 0xF801: R=31, G=0, B=0, A=1; saída esperada (255, 0, 0, 255).
+- RGBA16 0x07C0: R=0, G=31, B=0, A=0; saída esperada (0, 255, 0, 0).
+- RGBA16 0x003F: R=0, G=1, B=31, A=1; saída esperada (0, 8, 255, 255).
+- IA16 0x8040: I=128, A=64; saída esperada (128, 128, 128, 64).
+- IA16 0x00FF: I=0, A=255; saída esperada (0, 0, 0, 255).
+
+Esses vetores testam somente a interpretação/expansão da palavra já selecionada. Eles não substituem testes de endereço CI4, seleção de palette, replicação TLUT, ordenação dos bytes na leitura de RDRAM ou integração com o sampler.
+
+**Conclusão e limite da auditoria:** a especificação de saída para RGBA16 e IA16 está suficientemente determinada para definir uma futura rotina pura de decodificação de 16 bits em RGBA8. Ainda é necessário implementar e testar a consulta TLUT no caminho de amostragem antes de validar a renderização CI4 ponta a ponta.
+
+**Status:** somente documentação e auditoria. Nenhum código C++ ou teste executável foi alterado ou executado nesta etapa.
