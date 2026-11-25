@@ -3574,8 +3574,8 @@ void testFlatFillTriangleEdgeFlipFloorsNegativeMajorSlope() {
         (0x2DULL << 56U) | (32ULL << 12U) | 32ULL,
         (0x08ULL << 56U) | (1ULL << 55U) | (16ULL << 16U) | 16ULL,
         (0x00018000ULL << 32U),
-        (0x00058000ULL << 32U) | 0x3FFF0000ULL,
-        (0x00018000ULL << 32U)
+        (0x00048000ULL << 32U) | 0x3FFF0000ULL,
+        (0x00058000ULL << 32U)
     };
     for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
         require(bus.write64(stream + static_cast<std::uint32_t>(i * 8U), commands[i]),
@@ -3595,7 +3595,7 @@ void testFlatFillTriangleEdgeFlipFloorsNegativeMajorSlope() {
             std::uint32_t pixel = 0U;
             require(bus.read32(framebuffer + (y * 8U + x) * 4U, pixel),
                     "read edge-flip negative-major-slope triangle output pixel");
-            const bool covered = y < 4U && x >= 1U && x <= 5U - y;
+            const bool covered = y < 4U && x >= 3U - y && x <= 5U;
             require(pixel == (covered ? fill : sentinel),
                     "edge-flip negative major edge retreats one pixel per scanline");
         }
