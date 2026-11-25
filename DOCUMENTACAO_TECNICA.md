@@ -1491,3 +1491,40 @@ A leitura de `RdpCommandProcessor::processNext` confirma que o projeto já decod
 **Conclusão:** o estado de configuração e as transferências de textura já estão parcialmente implementados; o consumo desse estado durante a renderização continua ausente. Isso refina a seção 18.39: o próximo trabalho pode reutilizar os descritores e a TMEM existentes, sem confundir a carga de dados com a amostragem.
 
 **Status:** auditoria somente documental do código existente; nenhum arquivo C++ ou teste executável foi alterado ou executado.
+
+
+### 18.41 Auditoria da transferência TLUT e contrato pendente de consulta CI4
+
+A inspeção de `loadTlutEntries`, de `RdpSyncState` e de `RdpOtherModesState` separa três operações que não devem ser confundidas: configurar o modo LUT, transferir entradas para TMEM e consultar uma entrada durante a amostragem.
+
+**Estado disponível para a futura consulta:**
+
+- `RdpTileState::palette` armazena o campo palette do descritor de tile.
+- `RdpOtherModesState::textureLut` e `textureLutType` armazenam os dois controles relacionados à LUT em `SET_OTHER_MODES`.
+- `RdpSyncState::tmem` oferece leitura de bytes e palavras de 64 bits em 4 KiB.
+- `loadTlutEntries` usa a imagem fonte configurada, exige tamanho 16-bit, obtém o intervalo horizontal de LOAD_TLUT e escreve cada entrada de 16 bits replicada quatro vezes em uma palavra de 64 bits.
+- O caminho atual limita a carga a no máximo 256 entradas e exige `tile.tmem >= 256`; também impede que o intervalo em unidades de palavras ultrapasse 512.
+
+**O que a função realmente prova:** existe uma transferência de entradas de paleta de RDRAM para a região superior da TMEM. A replicação observada é uma característica do formato de armazenamento adotado pelo código atual. Ela não prova, por si só, que o futuro sampler esteja calculando corretamente o endereço de uma entrada, interpretando RGBA16/IA16, ou respeitando a seleção de modo LUT.
+
+**Pontos que ainda precisam ser especificados antes de implementar o sampler:**
+
+1. A fórmula exata de endereço da entrada TLUT para CI4, incluindo a contribuição do campo palette de 4 bits e do índice do texel.
+2. A distinção entre LUT RGBA e LUT IA controlada por `textureLutType`, com a interpretação correta dos 16 bits carregados.
+3. A relação entre o endereço lógico da entrada e a palavra replicada de 64 bits na TMEM, sem assumir que a replicação equivale à consulta final.
+4. O comportamento quando a LUT está desabilitada, além dos limites e do wrap aplicáveis à TMEM.
+5. A validação de palette/índice com vetores que diferenciem paletas adjacentes e entradas consecutivas.
+
+**Contrato de interface sugerido, ainda conceitual:** uma rotina de amostragem deve receber o estado RDP, o índice do tile e coordenadas S/T já convertidas para o espaço do tile; primeiro resolver as regras de coordenadas e o endereço do texel; depois extrair o índice CI4; se o formato e o modo LUT solicitarem TLUT, resolver palette + índice e decodificar o formato da entrada; por fim devolver uma cor com formato explícito ou um resultado de erro/não suportado. A rotina não deve esconder estados inválidos retornando silenciosamente uma cor arbitrária.
+
+**Vetores mínimos para uma futura bateria de testes:**
+
+- Duas paletas CI4 adjacentes contendo cores distintas no mesmo índice, para provar que o campo palette participa do endereço.
+- Uma única paleta com índices consecutivos diferentes, para provar o deslocamento do índice CI4.
+- Entradas com padrões de bits que distingam claramente RGBA16 de IA16.
+- LUT desabilitada versus LUT habilitada, para comprovar que o modo altera o caminho de interpretação.
+- Entrada no último índice permitido e tentativa de acesso além do intervalo carregado, para testar limites sem ler bytes não inicializados.
+
+**Conclusão:** o projeto já conserva os campos de configuração necessários e possui uma operação de transferência TLUT para TMEM. Ainda não há consulta TLUT integrada a uma amostra CI4, e esta auditoria não fixa uma fórmula de endereço sem uma verificação normativa adicional. O próximo passo documental é confrontar a organização da TLUT e os modos RGBA/IA com a especificação do RDP antes de transformar o contrato sugerido em código ou testes executáveis.
+
+**Status:** somente auditoria e documentação; nenhum código C++ ou teste executável foi alterado ou executado.
