@@ -2184,6 +2184,44 @@ void testFillRectangleWritesRgba32PixelsAndHonorsScissor() {
     }
 }
 
+
+void testFillRectangleWritesSinglePixelForDegenerateBounds() {
+    using namespace m64plus::n64;
+    constexpr std::uint32_t base = 0x3C00U;
+    constexpr std::uint32_t sentinel = 0xAABBCCDDU;
+    constexpr std::uint32_t color = 0x55667788U;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0; i < 16U; ++i)
+        require(bus.write32(base + i * 4U, sentinel),
+                "seed degenerate-bounds framebuffer sentinels");
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | base,
+        (0x37ULL << 56U) | color,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x36ULL << 56U) | (8ULL << 44U) | (8ULL << 32U) |
+            (8ULL << 12U) | 8ULL
+    };
+    for (std::size_t i = 0; i < 4U; ++i)
+        require(bus.write64(0xE00U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed single-pixel FILL_RECTANGLE command stream");
+    require(bus.write32(Bus::kDpStart, 0xE00U) &&
+            bus.write32(Bus::kDpEnd, 0xE20U),
+            "publish single-pixel fill stream");
+    for (unsigned i = 0; i < 4U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "single-pixel FILL_RECTANGLE setup and draw are processed");
+
+    for (std::uint32_t i = 0; i < 16U; ++i) {
+        std::uint32_t pixel = 0U;
+        require(bus.read32(base + i * 4U, pixel),
+                "read degenerate-bounds framebuffer pixel");
+        require(pixel == (i == 5U ? color : sentinel),
+                "equal inclusive bounds fill exactly one pixel");
+    }
+}
+
 void testFillRectangleClipsAllEdgesAgainstScissor() {
     using namespace m64plus::n64;
     constexpr std::uint32_t base = 0x3600U;
@@ -2906,6 +2944,7 @@ int main() {
     testLoadTlutRejectsDestinationBelowPaletteRegionWithoutWrites();
     testLoadTlutHonorsTextureImageCoordinatesAndRange();
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
+    testFillRectangleWritesSinglePixelForDegenerateBounds();
     testFillRectangleClipsAllEdgesAgainstScissor();
     testFillRectangleWritesRgba16AlternatingHalfwords();
     testFillRectangleRgba16ScissorPreservesPixelParity();
