@@ -453,3 +453,32 @@ O trecho é ilustrativo: os campos e a codificação final dos comandos precisam
 **Ordem sugerida:** começar pelos comandos já suportados e testáveis, como FILL_RECTANGLE, para validar serialização, estado inicial, execução e comparação de memória. Em seguida, criar vetores de decodificação de triângulos que validem apenas o pacote decodificado; isso não deve ser confundido com validação de cobertura ou pixels. Vetores de framebuffer para triângulos só entram quando houver um oráculo independente e licença/condições de uso verificadas.
 
 **Critério de conclusão desta etapa:** pelo menos um vetor fixo deve ser carregado pelo executor, produzir o mesmo resultado em execuções repetidas e apontar uma divergência artificial injetada no endereço correto. Isso valida a infraestrutura de teste, não a precisão geral do RDP. Nenhum código de produção foi alterado nesta etapa.
+
+
+### 18.9 Primeiro caso de referência extraído dos testes existentes
+
+Foi revisado `tests/rdp_tests.cpp`, especialmente `testFillRectangleWritesRgba32PixelsAndHonorsScissor`. O teste já existente permite definir um primeiro fixture concreto para validar futuramente o formato descrito na seção 18.8. Este registro documenta a entrada e o resultado observados no teste atual; ainda não é um arquivo JSON consumido por um executor independente.
+
+**Caso:** `fill-rectangle-rgba32-4x4-center`
+
+- RDRAM: 8 MiB; framebuffer RGBA32 na base `0x3000`, largura de 4 pixels.
+- Inicialização: 16 pixels com sentinela `0xAABBCCDD`.
+- Comandos RDP, na ordem:
+  - `0x3F18000300003000` — SET_COLOR_IMAGE, RGBA32, largura 4, endereço `0x3000`.
+  - `0x3700000011223344` — SET_FILL_COLOR.
+  - `0x2F30000000000000` — SET_OTHER_MODES, ciclo FILL.
+  - `0x3600800800004004` — FILL_RECTANGLE, região de (1,1) a (2,2), inclusiva.
+- Resultado esperado: apenas os pixels de índices lineares 5, 6, 9 e 10 mudam para `0x11223344`. Todos os demais permanecem `0xAABBCCDD`.
+
+**Bytes esperados nas quatro posições alteradas (big-endian):**
+
+| Endereço | Pixel (x,y) | Bytes |
+|---|---|---|
+| `0x3014` | (1,1) | `11 22 33 44` |
+| `0x3018` | (2,1) | `11 22 33 44` |
+| `0x3024` | (1,2) | `11 22 33 44` |
+| `0x3028` | (2,2) | `11 22 33 44` |
+
+Esse fixture deve ser transcrito para o schema versionado somente quando o executor for desenhado. A validação futura precisa comparar também os 12 pixels sentinela que não podem mudar; verificar somente os quatro pixels escritos não detectaria escritas indevidas fora do retângulo.
+
+**Rastreabilidade:** o caso deriva de um teste nativo já presente no repositório e não de uma saída independente do hardware/oráculo. Portanto, é adequado para testar serialização e regressão do comportamento implementado, mas não deve ser rotulado como prova independente de conformidade do RDP. Nenhum código de produção ou teste executável foi alterado nesta etapa.
