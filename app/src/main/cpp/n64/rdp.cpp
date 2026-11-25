@@ -146,7 +146,7 @@ bool fillTriangle(Bus& bus, const RdpSyncState& state,
             left = std::min(left, candidateLeft);
             right = std::max(right, candidateRight);
         }
-        left = std::max({left, scissorLeft, 0});
+        left = std::max(std::max(left, scissorLeft), 0);
         right = std::min(right, maxX);
         return left <= right;
     };
