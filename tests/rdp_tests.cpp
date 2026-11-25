@@ -26,7 +26,10 @@ void testSingleWordCommands() {
         const auto decoded = m64plus::n64::RdpCommandDecoder::decode(header(opcode));
         require(decoded.opcode == opcode, "opcode extraction");
         require(decoded.lengthWords == 1U, "single-word command length");
-        const bool documented = (opcode >= 0x08U && opcode <= 0x0FU) || opcode >= 0x24U;
+        const bool documented = (opcode >= 0x08U && opcode <= 0x0FU) ||
+            opcode == 0x24U || opcode == 0x25U ||
+            (opcode >= 0x26U && opcode <= 0x30U) ||
+            (opcode >= 0x33U && opcode <= 0x3FU);
         require(decoded.knownOpcode == documented, "documented opcode classification");
     }
 }

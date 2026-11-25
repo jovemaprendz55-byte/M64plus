@@ -611,7 +611,9 @@ RdpCommandInfo RdpCommandDecoder::decode(std::uint64_t header) noexcept {
     // encodings; unknown commands still consume their one-word header.
     const bool known =
         (opcode >= 0x08U && opcode <= 0x0FU) ||
-        (opcode >= 0x24U && opcode <= 0x3FU);
+        opcode == 0x24U || opcode == 0x25U ||
+        (opcode >= 0x26U && opcode <= 0x30U) ||
+        (opcode >= 0x33U && opcode <= 0x3FU);
     return {opcode, words, known};
 }
 
