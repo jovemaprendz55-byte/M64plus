@@ -3282,7 +3282,7 @@ void testFlatFillTriangleRasterizesOppositeEdgeOrientation() {
         (0x08ULL << 56U) | (16ULL << 16U) | 16ULL,
         (2ULL * 65536ULL << 32U) | 0x00010000ULL,
         (6ULL * 65536ULL) << 32U,
-        (2ULL * 65536ULL) << 32U
+        ((2ULL * 65536ULL) << 32U) | 0x00010000ULL
     };
     for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
         require(bus.write64(stream + static_cast<std::uint32_t>(i * 8U), commands[i]),
