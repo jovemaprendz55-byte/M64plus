@@ -1435,3 +1435,14 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - **CI aprovada após a correção:** workflow [45570480994](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45570480994); `native-host-tests` e `assemble-debug` concluíram com `success`.
 
 **Limitação:** a validação cobre apenas as configurações sintéticas incluídas no teste. Não comprova suporte geral a formatos de color image, nem o pipeline completo de pixels ou renderização de jogos comerciais.
+
+### 17.32 — Rejeição de FILL_RECTANGLE sem color image configurada (25/11/2026)
+
+- Adicionado o teste `testFillRectangleRejectsMissingColorImageWithoutWrites`, que envia `FILL_RECTANGLE` com cor de preenchimento e ciclo FILL, mas sem configurar `SET_COLOR_IMAGE`.
+- O teste confirma que o comando retorna `Unsupported` e que a memória de vídeo preserva os valores sentinela, sem escrita parcial.
+- A alteração amplia apenas a cobertura de rejeição segura; não altera a implementação de produção nem adiciona suporte de rasterização.
+- Commit do teste: `5b3bf624018352ad4f6183e4fafc5bf7ac3fbe28`.
+- **CI aprovada:** workflow [45570926779](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45570926779); `native-host-tests` e `assemble-debug` concluíram com `success`.
+
+**Limitação:** o teste cobre a ausência de color image numa fixture sintética. Não valida o pipeline completo de pixels do RDP nem compatibilidade com jogos comerciais.
+
