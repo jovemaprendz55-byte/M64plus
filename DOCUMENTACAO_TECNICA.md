@@ -1189,3 +1189,34 @@ Para reduzir ambiguidades na futura implementação dos testes CI4-MAC, fica def
 **Extensões necessárias antes de considerar a macro CI4 validada:** adicionar vetores de duas linhas para swizzle, sub-retângulo com S inicial não zero, largura lógica ímpar, fim de RDRAM e wrap de TMEM. Para cada caso, os bytes esperados devem ser calculados independentemente da rotina de produção; não reutilizar `loadTileTexels` como oráculo.
 
 **Status:** especificação de fixture documental. Nenhum teste C++ foi criado ou executado e nenhum comportamento do emulador foi alterado.
+
+### 18.29 Vetor de duas linhas e swizzle para a macro CI4
+
+Este vetor estende o caso de uma linha da seção 18.28. A origem continua sendo uma imagem de bytes 8b, cada linha contendo quatro bytes que representam oito texels CI4 empacotados.
+
+**Fixture proposta:**
+
+- Largura da imagem de origem: 4 bytes por linha; altura: 2 linhas.
+- Bytes da origem na linha 0: `12 34 56 78`.
+- Bytes da origem na linha 1: `9A BC DE F0`.
+- `SET_TEXTURE_IMAGE` e tile de carga permanecem em 8b.
+- Tile de carga: `tmem = 0x10`, `line = 1`; portanto base byte `0x80` e stride nominal de 8 bytes.
+- A região carregada cobre as duas linhas completas, sem deslocamento horizontal.
+- TMEM inteira da região de teste começa preenchida com `EE`.
+
+**Resultado esperado conforme o endereço de destino atualmente implementado:**
+
+| Endereço TMEM | Valor esperado | Motivo |
+|---|---:|---|
+| `0x80..0x83` | `12 34 56 78` | Linha 0, sem swizzle |
+| `0x84..0x8B` | `EE` | Padding e bytes não escritos preservados |
+| `0x8C..0x8F` | `9A BC DE F0` | Linha 1: base `0x88` mais XOR `4` no endereço |
+| `0x90..` | `EE` | Região posterior não tocada |
+
+A fórmula que produz a segunda linha é `destinationBase + row * destinationStride`, seguida de XOR `4` quando `row` é ímpar. Para este vetor: `0x80 + 1 * 8 = 0x88`; `0x88 XOR 4 = 0x8C`. O XOR é aplicado ao endereço de destino já calculado, não ao `tmem` nem ao stride isoladamente.
+
+**Interpretação:** este vetor verifica o layout físico escrito pelo caminho atual de LOAD_TILE 8b usado pela macro CI4. Ele não valida a leitura CI4 por sampler, a filtragem, nem a equivalência do caminho bruto de origem 4b. A expectativa deve ser comparada com bytes sentinela e um vetor independente; não deve ser gerada chamando a própria rotina de produção.
+
+**Nota sobre escopo:** o teste existente `testLoadTileHonorsTileLineStrideAcrossOddRows` já verifica stride e XOR 4 em carga 8b, mas usa outro tamanho de linha e outro endereço inicial. O novo vetor CI4-MAC deve manter a representação empacotada CI4 e a sequência completa de configuração da macro, para cobrir a combinação que ainda não está testada.
+
+**Status:** vetor documental candidato a CI4-MAC-02. Nenhum teste executável foi criado ou executado nesta alteração; nenhum código C++ foi modificado.
