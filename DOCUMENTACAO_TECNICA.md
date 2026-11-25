@@ -841,7 +841,7 @@ Para IA4, a expansão de intensidade de três bits proposta é `(v << 5) | (v <<
 | IA4 `0b0000` | `0x00` | `0x00` |
 | IA4 `0b0011` | `0x24` | `0xFF` |
 | IA4 `0b0110` | `0x49` | `0x00` |
-| IA4 `0b1001` | `0x6D` | `0xFF` |
+| IA4 `0b1001` | `0x92` | `0xFF` |
 | IA4 `0b1111` | `0xFF` | `0xFF` |
 | IA8 `0x00` | `0x00` | `0x00` |
 | IA8 `0x1F` | `0x11` | `0xFF` |
