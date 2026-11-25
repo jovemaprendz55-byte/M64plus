@@ -1528,3 +1528,54 @@ A inspeção de `loadTlutEntries`, de `RdpSyncState` e de `RdpOtherModesState` s
 **Conclusão:** o projeto já conserva os campos de configuração necessários e possui uma operação de transferência TLUT para TMEM. Ainda não há consulta TLUT integrada a uma amostra CI4, e esta auditoria não fixa uma fórmula de endereço sem uma verificação normativa adicional. O próximo passo documental é confrontar a organização da TLUT e os modos RGBA/IA com a especificação do RDP antes de transformar o contrato sugerido em código ou testes executáveis.
 
 **Status:** somente auditoria e documentação; nenhum código C++ ou teste executável foi alterado ou executado.
+
+
+### 18.42 Mapeamento normativo da TLUT CI4 e cobertura real dos testes
+
+A consulta ao manual de programação do Nintendo 64 esclarece como a paleta CI4 é endereçada e permite comparar a regra normativa com a transferência atualmente implementada.
+
+**Regra de indexação CI4 documentada pela Nintendo:**
+
+- O descritor de tile contém um campo `palette` de 4 bits.
+- Para CI4, o índice de 8 bits é formado com `palette` nos quatro bits mais significativos e o texel CI4 nos quatro bits menos significativos: `index = (palette << 4) | texel`.
+- O índice resultante seleciona uma entrada da TLUT na metade superior da TMEM.
+- A metade superior contém 256 palavras de 64 bits. Cada entrada de paleta de 16 bits é replicada quatro vezes para permitir as consultas paralelas dos bancos da TMEM.
+
+Fontes técnicas consultadas:
+- Manual Nintendo 64, seção 13.4, Tile Attributes: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-04.html
+- Manual Nintendo 64, seção 12.4, Texture Memory e Texture-Sampling Modes: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro12/12-04.html
+- Referência oficial de `gDPLoadTLUT_pal16` e `gDPLoadTLUT_pal256`: https://ultra64.ca/files/documentation/online-manuals/man/n64man/gdp/gDPLoadTLUT_pal.html
+- Referência oficial de `gDPSetTextureLUT`: https://ultra64.ca/files/documentation/online-manuals/man/n64man/gdp/gDPSetTextureLUT.html
+
+**Relação com a implementação existente:**
+
+O código atual grava a entrada `i` em `tile.tmem * 8 + i * 8`, replicando o valor de 16 bits nos quatro slots da palavra de 64 bits. Isso corresponde à organização de armazenamento descrita no manual. Para uma paleta CI4, o endereço lógico esperado para a entrada é representável como:
+
+`TMEM_byte = 0x800 + (((palette << 4) | texel) * 8)`
+
+Essa expressão descreve o endereço lógico da entrada na região superior, considerando o início da região em byte `0x800`; não substitui as regras de seleção de banco que o sampler real precisará reproduzir.
+
+**Interpretação do modo TLUT:**
+
+O estado atual guarda `textureLut` e `textureLutType` como booleanos. A documentação do GBI define três modos: sem TLUT, TLUT RGBA16 e TLUT IA16. O bit de habilitação distingue uso/não uso; o bit de tipo distingue RGBA16 de IA16 quando a TLUT está habilitada. Portanto, o par de booleanos é suficiente para representar esses três modos válidos, desde que o consumidor respeite a habilitação antes de interpretar o tipo.
+
+**Cobertura dos testes atuais, verificada em `tests/rdp_tests.cpp`:**
+
+- `testLoadTlutReplicatesEntriesIntoHighTmem` verifica a replicação de três entradas consecutivas.
+- Testes de faixa verificam origem fora da RDRAM, fim além da largura, destino além da TMEM e destino abaixo da metade superior.
+- `testLoadTlutHonorsTextureImageCoordinatesAndRange` verifica coordenadas de origem não nulas e contagem inclusiva derivada de SH-SL.
+- Nenhum desses testes executa uma amostra CI4, combina `tile.palette` com o nibble do texel, consulta a TLUT por esse índice ou decodifica RGBA16/IA16 para uma cor.
+
+**Limite de conformidade que deve permanecer explícito:** o teste que rejeita um destino abaixo da metade superior valida a política defensiva implementada pelo projeto. O manual descreve a TLUT como localizada na metade superior e as macros oficiais a posicionam ali; esse teste não demonstra, isoladamente, como o hardware real se comportaria diante de uma lista de comandos deliberadamente malformada. Não devemos converter uma regra de uso normal em uma afirmação não comprovada sobre o comportamento elétrico do RDP.
+
+**Plano objetivo para o sampler futuro:**
+
+1. Criar vetores com duas palettes diferentes e o mesmo nibble CI4, garantindo que a saída aponte para entradas distintas.
+2. Criar vetores com a mesma palette e nibbles consecutivos, verificando o incremento de uma entrada por texel.
+3. Verificar separadamente os modos RGBA16 e IA16, além do modo TLUT desabilitado.
+4. Testar a conversão dos 5 bits de cada canal RGB para 8 bits e o bit de alpha em RGBA16, e a divisão intensidade/alpha em IA16.
+5. Só depois integrar essa consulta ao caminho de rasterização.
+
+**Conclusão:** a regra de composição do índice CI4 está documentada e pode orientar o contrato do sampler. A carga TLUT existente já replica entradas no espaçamento esperado; a lacuna comprovada continua sendo a consulta da entrada e a conversão para cor durante a renderização. Nenhuma alteração de implementação foi feita nesta etapa.
+
+**Status:** auditoria documental com comparação ao manual; nenhum código C++ ou teste executável foi alterado ou executado.
