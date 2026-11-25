@@ -1412,3 +1412,14 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - **CI aprovada:** workflow [45516485872](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45516485872); `native-host-tests` e `assemble-debug` concluíram com `success`.
 
 **Limitação:** o teste cobre um caso sintético de preenchimento de um único pixel. Não implementa nem valida a rasterização de triângulos, o pipeline completo de pixels do RDP ou compatibilidade com jogos comerciais.
+
+
+### 17.30 — Rejeição de FILL_RECTANGLE em ciclo não suportado (24/11/2026)
+
+- Adicionado o teste `testFillRectangleRejectsUnsupportedCycleTypeWithoutWrites`, configurando o RDP em um tipo de ciclo diferente de FILL antes de enviar o comando `FILL_RECTANGLE`.
+- O teste confirma o retorno `Unsupported` e verifica que os pixels sentinela permanecem intactos, evitando escrita parcial quando o modo de ciclo não é compatível com a operação.
+- A alteração adiciona cobertura de teste; não amplia os modos de ciclo implementados nem altera a rasterização de produção.
+- Commit: `6923be8a573f642493b2fb1d9152a12dc83e474a`.
+- **CI aprovada:** workflow [45517620888](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45517620888); os jobs `native-host-tests` e `assemble-debug` concluíram com `success`.
+
+**Limitação:** o teste valida a rejeição segura de um modo não suportado. Não implementa outros ciclos do RDP nem comprova renderização de jogos comerciais.
