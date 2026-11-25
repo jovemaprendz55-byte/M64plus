@@ -375,3 +375,16 @@ A classe `Bus` oferece acessos de 8, 16, 32 e 64 bits, valida que cada acesso pe
 A revisão documental desta investigação foi registrada no commit `8cddc068488e9f7b2892cedcaabe5fef07fb4611`. A execução do GitHub Actions nº 754 terminou com sucesso: `native-host-tests` e `assemble-debug` passaram. Como esse commit alterou apenas documentação, esse resultado confirma que o repositório continuou compilando e que os testes existentes passaram; não valida um rasterizador, que ainda não foi implementado.
 
 Execução: https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45574781578
+
+### 18.6 Descoberta de uma referência de conformidade independente
+
+Foi examinada a documentação pública do projeto [Themaister/parallel-rdp](https://github.com/Themaister/parallel-rdp):
+
+- O README descreve um conjunto `rdp-conformance` com aproximadamente 150 testes de fuzzing e comparação bit a bit contra Angrylion-Plus.
+- O projeto informa que usa um gerador próprio de comandos RDP de nível mais alto e que Angrylion-Plus é a referência para validar os resultados.
+- O repositório declara licença MIT para o código do paraLLEl-RDP. Isso **não** concede automaticamente direitos sobre Angrylion-Plus nem sobre outros componentes referenciados; cada dependência precisa de análise de licença separada.
+- A arquitetura principal do paraLLEl-RDP é baseada em Vulkan compute e não é apropriada para copiar diretamente para o backend Android/C++ atual. O valor imediato aqui é metodológico: comparar saídas com um oráculo independente, em vez de validar o rasterizador apenas contra seus próprios testes.
+
+**Próximo passo seguro:** estudar o formato e a organização dos testes de conformidade, sem copiar código. Para o M64plus, priorizar pequenos vetores próprios de comandos RDP e framebuffers esperados, gerados por uma referência cuja licença e condições de uso tenham sido verificadas. Começar por triângulos planos e cobertura; só depois avançar para shade, Z, textura e blending. Nenhuma alteração de código de produção foi feita nesta investigação.
+
+Referências: [README do paraLLEl-RDP](https://github.com/Themaister/parallel-rdp) · [LICENSE do paraLLEl-RDP](https://github.com/Themaister/parallel-rdp/blob/master/LICENSE) · [Artigo técnico sobre cobertura no RDP](https://emudev.org/2021/09/21/Angrylion_RDP_Comments).
