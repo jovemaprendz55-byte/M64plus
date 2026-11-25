@@ -388,3 +388,25 @@ Foi examinada a documentação pública do projeto [Themaister/parallel-rdp](htt
 **Próximo passo seguro:** estudar o formato e a organização dos testes de conformidade, sem copiar código. Para o M64plus, priorizar pequenos vetores próprios de comandos RDP e framebuffers esperados, gerados por uma referência cuja licença e condições de uso tenham sido verificadas. Começar por triângulos planos e cobertura; só depois avançar para shade, Z, textura e blending. Nenhuma alteração de código de produção foi feita nesta investigação.
 
 Referências: [README do paraLLEl-RDP](https://github.com/Themaister/parallel-rdp) · [LICENSE do paraLLEl-RDP](https://github.com/Themaister/parallel-rdp/blob/master/LICENSE) · [Artigo técnico sobre cobertura no RDP](https://emudev.org/2021/09/21/Angrylion_RDP_Comments).
+
+### 18.7 Como o harness de conformidade organiza os testes
+
+Leitura estática do arquivo público `rdp_conformance.cpp` e de `conformance_utils.hpp` do paraLLEl-RDP (sem copiar ou incorporar código):
+
+- O mesmo `CommandBuilder` alimenta dois drivers: a implementação de referência Angrylion e o backend paraLLEl-RDP. Isso reduz o risco de os dois lados receberem comandos diferentes.
+- A memória é limpa antes de cada caso; em casos específicos, RDRAM e TMEM são inicializadas com dados pseudoaleatórios. O gerador usa uma semente fixa (1337), tornando a sequência reproduzível.
+- A validação compara a RDRAM inteira, a RDRAM oculta e a imagem final. A comparação de imagem percorre os pixels e informa a primeira divergência de RGB com coordenadas.
+- Os casos são organizados em suítes nomeadas e selecionáveis pela linha de comando. As variantes combinam opções como ciclo 1/2, AA, profundidade, scissor, interlace, formatos de textura, TLUT, filtragem e conversão.
+- O arquivo inclui geradores de primitivas com posições, Z, W, UV e cores variáveis; há também opções para forçar geometrias invertidas e retângulos de preenchimento/textura.
+
+**O que podemos aproveitar conceitualmente no M64plus:**
+
+1. Usar uma entrada serializada idêntica para o processador sob teste e para o oráculo externo.
+2. Fixar sementes e registrar cada entrada que falhar, para permitir reprodução exata.
+3. Comparar framebuffer byte a byte e apontar o primeiro endereço/pixel divergente.
+4. Separar suítes pequenas por recurso: geometria/cobertura, shade, Z, textura/TMEM, combiner e blender.
+5. Manter os testes determinísticos de casos-limite separados dos testes aleatórios; fuzzing amplia cobertura, mas não substitui vetores mínimos legíveis.
+
+**Limite importante:** o harness observado compara duas implementações completas (Angrylion e GPU/Vulkan), não fornece automaticamente vetores dourados independentes prontos para o nosso decodificador. Para o M64plus, o primeiro marco deve ser um formato mínimo de caso de teste (estado inicial + fluxo de comandos + RDRAM inicial + framebuffer esperado), antes de qualquer edge walker. Isso é uma proposta de desenho; nenhum código de produção foi alterado.
+
+Referências de leitura: [rdp_conformance.cpp](https://github.com/Themaister/parallel-rdp/blob/master/rdp_conformance.cpp) · [conformance_utils.hpp](https://github.com/Themaister/parallel-rdp/blob/master/conformance_utils.hpp).
