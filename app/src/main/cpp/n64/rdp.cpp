@@ -97,7 +97,8 @@ bool fillTriangle(Bus& bus, const RdpSyncState& state,
     if (triangle.layout.hasShade || triangle.layout.hasTexture ||
         triangle.layout.hasZ || !state.hasColorImage ||
         !state.hasFillColor || !state.hasOtherModes ||
-        state.otherModes.cycleType != 3U || !state.hasScissor) return false;
+        (state.otherModes.cycleType != 2U &&
+         state.otherModes.cycleType != 3U) || !state.hasScissor) return false;
     const RdpImageState& image = state.colorImage;
     if (image.format != 0U || (image.size != 2U && image.size != 3U) ||
         image.width == 0U) return false;
