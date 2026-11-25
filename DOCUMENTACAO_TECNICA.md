@@ -410,3 +410,46 @@ Leitura estática do arquivo público `rdp_conformance.cpp` e de `conformance_ut
 **Limite importante:** o harness observado compara duas implementações completas (Angrylion e GPU/Vulkan), não fornece automaticamente vetores dourados independentes prontos para o nosso decodificador. Para o M64plus, o primeiro marco deve ser um formato mínimo de caso de teste (estado inicial + fluxo de comandos + RDRAM inicial + framebuffer esperado), antes de qualquer edge walker. Isso é uma proposta de desenho; nenhum código de produção foi alterado.
 
 Referências de leitura: [rdp_conformance.cpp](https://github.com/Themaister/parallel-rdp/blob/master/rdp_conformance.cpp) · [conformance_utils.hpp](https://github.com/Themaister/parallel-rdp/blob/master/conformance_utils.hpp).
+
+
+### 18.8 Formato mínimo proposto para vetores RDP do M64plus
+
+Antes de criar um executor de testes, cada caso deve ser capaz de descrever a entrada e o resultado esperado sem depender do estado deixado por outro caso. O formato inicial pode ser JSON legível, versionado e independente da implementação:
+
+```json
+{
+  "schema_version": 1,
+  "case_id": "fill-rectangle-rgba16-basic",
+  "feature": "fill_rectangle",
+  "initial_state": {
+    "rdram_size": 8388608,
+    "color_image": {"format": "rgba", "size": 16, "width": 8, "address": 4096},
+    "scissor": {"left": 0, "top": 0, "right": 8, "bottom": 8},
+    "fill_color": "0xF80107C1",
+    "other_modes": {"cycle_type": "fill"}
+  },
+  "commands": ["0x..."],
+  "expected": {
+    "status": "success",
+    "memory_regions": [
+      {"address": 4096, "hex": "F80107C1"}
+    ]
+  }
+}
+```
+
+O trecho é ilustrativo: os campos e a codificação final dos comandos precisam acompanhar as estruturas reais do M64plus; não é ainda um arquivo de teste executável. Para triângulos, o caso deverá declarar os words exatos do comando e os bytes esperados do framebuffer, além de inicializar explicitamente todos os estados que influenciam o resultado.
+
+**Regras para o primeiro executor:**
+
+1. Recriar o estado inicial para cada caso, sem compartilhar RDRAM, registradores ou TMEM entre testes.
+2. Validar versão do schema, tamanhos, endereços e comprimentos antes de executar; entradas inválidas devem falhar claramente, sem escrita parcial.
+3. Registrar o identificador do caso, semente (quando houver aleatoriedade), fluxo bruto de comandos e configuração do teste.
+4. Comparar somente regiões explicitamente declaradas na primeira versão; ampliar depois para framebuffer completo, RDRAM oculta e TMEM quando esses caminhos estiverem implementados.
+5. Ao divergir, informar primeiro endereço ou pixel, valor esperado e observado, formato e coordenadas quando aplicável.
+6. Manter vetores determinísticos e pequenos como testes obrigatórios. Casos aleatórios devem ser reproduzíveis por semente e exportar o caso que falhou para um vetor fixo.
+7. Não usar a saída do próprio M64plus como resultado esperado. Cada vetor dourado precisa indicar a origem verificável (hardware, documentação com resultado inequívoco ou implementação de referência licenciada e identificada).
+
+**Ordem sugerida:** começar pelos comandos já suportados e testáveis, como FILL_RECTANGLE, para validar serialização, estado inicial, execução e comparação de memória. Em seguida, criar vetores de decodificação de triângulos que validem apenas o pacote decodificado; isso não deve ser confundido com validação de cobertura ou pixels. Vetores de framebuffer para triângulos só entram quando houver um oráculo independente e licença/condições de uso verificadas.
+
+**Critério de conclusão desta etapa:** pelo menos um vetor fixo deve ser carregado pelo executor, produzir o mesmo resultado em execuções repetidas e apontar uma divergência artificial injetada no endereço correto. Isso valida a infraestrutura de teste, não a precisão geral do RDP. Nenhum código de produção foi alterado nesta etapa.
