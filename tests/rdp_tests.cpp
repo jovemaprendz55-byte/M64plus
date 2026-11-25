@@ -2184,7 +2184,7 @@ void testFillRectangleWritesRgba32PixelsAndHonorsScissor() {
     }
 }
 
-void testFillRectangleClipsLeftAndTopAgainstScissor() {
+void testFillRectangleClipsAllEdgesAgainstScissor() {
     using namespace m64plus::n64;
     constexpr std::uint32_t base = 0x3600U;
     constexpr std::uint32_t sentinel = 0xAABBCCDDU;
@@ -2193,7 +2193,7 @@ void testFillRectangleClipsLeftAndTopAgainstScissor() {
     RdpSyncState state{};
     for (std::uint32_t i = 0U; i < 16U; ++i)
         require(bus.write32(base + i * 4U, sentinel),
-                "seed left-top scissor framebuffer sentinels");
+                "seed all-edge scissor framebuffer sentinels");
 
     const std::uint64_t commands[] = {
         (0x3FULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | base,
@@ -2201,27 +2201,27 @@ void testFillRectangleClipsLeftAndTopAgainstScissor() {
         (0x2FULL << 56U) | (3ULL << 52U),
         (0x2DULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
             (12ULL << 12U) | 12ULL,
-        (0x36ULL << 56U) | (12ULL << 44U) | (12ULL << 32U)
+        (0x36ULL << 56U) | (16ULL << 44U) | (16ULL << 32U)
     };
     constexpr std::uint32_t start = 0xD00U;
     for (std::size_t i = 0U; i < 5U; ++i)
         require(bus.write64(start + static_cast<std::uint32_t>(i * 8U), commands[i]),
-                "seed left-top scissor fill command stream");
+                "seed all-edge scissor fill command stream");
     require(bus.write32(Bus::kDpStart, start) &&
             bus.write32(Bus::kDpEnd, start + 40U),
-            "publish left-top scissor fill stream");
+            "publish all-edge scissor fill stream");
     for (unsigned i = 0U; i < 5U; ++i)
         require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
-                "left-top scissored FILL_RECTANGLE setup and draw are processed");
+                "all-edge scissored FILL_RECTANGLE setup and draw are processed");
 
     for (std::uint32_t y = 0U; y < 4U; ++y) {
         for (std::uint32_t x = 0U; x < 4U; ++x) {
             std::uint32_t pixel = 0U;
             require(bus.read32(base + (y * 4U + x) * 4U, pixel),
-                    "read left-top scissored framebuffer pixel");
+                    "read all-edge scissored framebuffer pixel");
             const bool inside = x >= 1U && x < 3U && y >= 1U && y < 3U;
             require(pixel == (inside ? color : sentinel),
-                    "scissor clips the left and top edges without writing outside bounds");
+                    "scissor clips all four edges without writing outside bounds");
         }
     }
 }
@@ -2906,7 +2906,7 @@ int main() {
     testLoadTlutRejectsDestinationBelowPaletteRegionWithoutWrites();
     testLoadTlutHonorsTextureImageCoordinatesAndRange();
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
-    testFillRectangleClipsLeftAndTopAgainstScissor();
+    testFillRectangleClipsAllEdgesAgainstScissor();
     testFillRectangleWritesRgba16AlternatingHalfwords();
     testFillRectangleRgba16ScissorPreservesPixelParity();
     testFillRectangleHonorsScissorFieldParity();
