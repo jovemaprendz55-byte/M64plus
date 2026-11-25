@@ -1983,18 +1983,31 @@ void testLoadTlutAcceptsCanonicalWidthOnePaletteLoad() {
         (0x35ULL << 56U) | (256ULL << 32U);
     const std::uint64_t loadTlut =
         (0x30ULL << 56U) | (60ULL << 12U);
+    const std::uint64_t setTileSize =
+        (0x32ULL << 56U) | (4ULL << 44U) | (8ULL << 32U) |
+        (20ULL << 12U) | 24ULL;
     require(bus.write64(0x920U, setImage) &&
             bus.write64(0x928U, setTile) &&
-            bus.write64(0x930U, loadTlut),
-            "seed canonical width-one TLUT sequence");
+            bus.write64(0x930U, loadTlut) &&
+            bus.write64(0x938U, setTileSize),
+            "seed canonical width-one TLUT and tile-size sequence");
     require(bus.write32(Bus::kDpStart, 0x920U) &&
-            bus.write32(Bus::kDpEnd, 0x938U),
+            bus.write32(Bus::kDpEnd, 0x940U),
             "publish canonical width-one TLUT sequence");
     require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
             RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
             "configure width-one source image and palette destination");
     require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
             "LOAD_TLUT accepts 16 entries although texture image width is one");
+    require(state.hasTileSize[0] && state.tileSizes[0].sl == 0U &&
+            state.tileSizes[0].tl == 0U && state.tileSizes[0].sh == 60U &&
+            state.tileSizes[0].th == 0U,
+            "LOAD_TLUT latches its coordinates into the tile descriptor");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE_SIZE restores render coordinates after LOAD_TLUT");
+    require(state.tileSizes[0].sl == 4U && state.tileSizes[0].tl == 8U &&
+            state.tileSizes[0].sh == 20U && state.tileSizes[0].th == 24U,
+            "SET_TILE_SIZE overwrites the coordinates latched by LOAD_TLUT");
 
     std::uint64_t word = 0U;
     for (std::uint32_t i = 0; i < 16U; ++i) {
