@@ -538,3 +538,26 @@ Foi feita uma leitura do conjunto atual de testes em `tests/rdp_tests.cpp`. O in
 4. O inventário descreve o que os testes internos verificam. Para promover qualquer caso a vetor dourado de conformidade, ainda será necessário confrontar o resultado com uma fonte independente e registrar sua procedência.
 
 **Limite desta revisão:** não foi alterado código C++ nem acrescentado um executor JSON. Esta seção é um mapa de cobertura dos testes já existentes e não amplia o suporte funcional do RDP.
+
+
+
+### 18.12 Inventário dos testes de comandos de triângulo
+
+Foi revisado o conjunto atual de testes de triângulos em `tests/rdp_tests.cpp`. A cobertura existente é de enquadramento, decodificação e consumo seguro dos comandos; ela **não** valida rasterização nem pixels.
+
+| Caso | Verificação |
+|---|---|
+| `testTriangleCommandLengths` | Comprimento dos oito opcodes de triângulo, conforme a presença dos blocos opcionais. |
+| `testTriangleEdgeHeaderDecoding` | Campos LOD/tile/Y, direção left-major e valores X/inclinações com sinal. |
+| `testTriangleCommandPacketDecoding` | Decodificação do pacote completo e preservação dos coeficientes shade, texture e Z. |
+| `testTriangleOptionalBlockLayout` | Ordem e offsets dos blocos edge, shade, texture e Z; falha não altera a saída anterior. |
+| `testMaximumTriangleCommandWaitsForAllWords` | O fluxo DPC aguarda as 22 palavras do comando máximo antes de consumi-lo. |
+| `testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists` | O processador consome o comando completo e reporta suporte ausente, sem fingir que desenhou. |
+
+**O que essa cobertura garante:** os oito formatos de pacote são enquadrados; os campos decodificados são retidos; os blocos opcionais seguem os offsets esperados; e o fluxo não consome um comando incompleto. O estado do processador deixa explícito que o último triângulo foi recebido, mas a execução de desenho ainda não existe.
+
+**O que ela não garante:** interpretação correta do edge walker, regras de inclusão de bordas, cobertura por subpixel, interpolação de atributos, antialiasing, depth compare/update, escrita de framebuffer ou conformidade bit a bit. Um pacote decodificado corretamente pode ainda produzir pixels incorretos quando a rasterização for implementada.
+
+**Próximo passo de validação:** antes de escrever o edge walker, criar fixtures de entrada independentes para triângulos left-major/right-major, YH/YM/YL, inclinações positivas/negativas e casos de uma scanline. Cada fixture precisa ter procedência documentada e resultado esperado independente; testes que apenas repetem a lógica do decoder não podem servir como oráculo.
+
+**Limite desta revisão:** somente documentação foi alterada. Não foi iniciada implementação de rasterização nem mudança no comportamento do processador.
