@@ -3427,9 +3427,9 @@ void testFlatFillTriangleEdgeFlipFloorsPositiveFractionalX() {
         (0x2FULL << 56U) | (3ULL << 52U),
         (0x2DULL << 56U) | (32ULL << 12U) | 32ULL,
         (0x08ULL << 56U) | (1ULL << 55U) | (16ULL << 16U) | 16ULL,
-        (0x00018000ULL << 32U),
         (0x00058000ULL << 32U),
-        (0x00018000ULL << 32U)
+        (0x00018000ULL << 32U),
+        (0x00058000ULL << 32U)
     };
     for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
         require(bus.write64(stream + static_cast<std::uint32_t>(i * 8U), commands[i]),
