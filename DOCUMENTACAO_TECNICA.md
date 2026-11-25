@@ -1409,3 +1409,18 @@ Fontes:
 **Interpretação restrita:** isso reforça que alinhamento de byte e paridade da coordenada são questões diferentes. A documentação permite recortes arbitrários, mas exige alinhamento físico dos cantos; ela não especifica diretamente qual nibble deve ser o primeiro texel útil para o caso de S ímpar após a sequência completa da macro. Não usar essa nota como prova de bug ou como vetor de resultado esperado.
 
 **Status:** evidência oficial registrada; sem alteração em código C++ ou testes executáveis.
+
+
+### 18.38 Separação entre nibble da origem, empacotamento TMEM e leitura do sampler
+
+A auditoria do caminho atual em `app/src/main/cpp/n64/rdp.cpp` identifica três operações distintas que não devem ser tratadas como se fossem uma única regra:
+
+1. **Leitura da origem no ramo 4-bit:** o código calcula `sourceLow` pela paridade de `sourceTexel`. Assim, um índice absoluto de texel par lê o nibble alto do byte de origem; um índice ímpar lê o nibble baixo.
+2. **Empacotamento do destino no ramo 4-bit:** o nibble é escrito conforme a paridade da coluna local (`column`), colocando a primeira coluna no nibble alto do byte de destino. Em linhas ímpares, o endereço de destino recebe o ajuste XOR 4.
+3. **Leitura no sampler CI4:** a referência independente registrada na seção 18.36 seleciona o nibble a partir da coordenada S que chega ao sampler, não a partir do índice absoluto do texel na imagem de origem.
+
+**Distinção importante para a macro oficial:** `gDPLoadTextureTile_4b` usa uma imagem/tile temporário de carga em 8-bit e depois configura um tile de renderização em 4-bit. Portanto, a sequência dessa macro percorre o ramo de carga 8-bit do emulador, e não o ramo de carga direta 4-bit descrito nos itens 1 e 2. Os testes existentes de nibble 4-bit validam a carga direta e o empacotamento; não validam, sozinhos, a expansão 8-bit da macro seguida da leitura CI4 pelo sampler.
+
+**Consequência para a investigação:** não se pode usar o resultado dos testes de carga direta 4-bit como prova do resultado da macro oficial. A validação pendente precisa montar a sequência completa: imagem 8-bit, tile de carga, LOAD_TILE, tile de renderização CI4 com palette e leitura de texels pelo sampler, incluindo recorte com S inicial ímpar.
+
+**Status:** auditoria documental do caminho existente; nenhum código C++ ou teste executável foi alterado.
