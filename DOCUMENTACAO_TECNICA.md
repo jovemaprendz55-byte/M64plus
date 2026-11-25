@@ -1828,3 +1828,48 @@ A rotina Project64 extrai o campo de 10 bits com (cmd1 >> 14) & 0x3FF e calcula 
 - Nintendo 64 Programming Manual, seção 13.5: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-05.html
 
 **Status:** auditoria documental corrigida com expansão de macro e alinhamento da codificação do campo. Nenhum código C++ ou teste executável foi alterado ou executado.
+
+
+### 18.49 Limites de LOAD_TLUT: rejeição local versus truncamento no Project64
+
+A comparação do caminho de limites com o Project64 revelou uma diferença adicional que deve permanecer explícita na auditoria.
+
+**Comportamento do código local**
+
+A rotina loadTlutEntries:
+- calcula a quantidade a partir de SL/SH;
+- rejeita a operação se a quantidade exceder 256 entradas;
+- rejeita a operação se tile.tmem estiver abaixo de 256 ou se tile.tmem + count ultrapassar 512;
+- calcula a faixa completa de origem e valida todos os read16 antes de escrever qualquer entrada na TMEM;
+- em seguida, replica cada entrada de 16 bits em um word de 64 bits.
+
+Isso fornece uma propriedade útil de atomicidade para falha de origem: se qualquer leitura da faixa falhar, a rotina retorna antes de modificar a TMEM.
+
+**Comportamento observado no Project64**
+
+A rotina rdp_loadtlut do Project64 calcula start a partir de t_mem - 256 e count a partir do campo SH + 1. Antes de copiar, reduz count quando a faixa de origem ultrapassaria BMASK e também quando start + count ultrapassaria 256. Portanto, essa implementação trunca a quantidade transferida em vez de rejeitar necessariamente a operação inteira. A rotina então chama load_palette com o intervalo restante.
+
+**O que isso significa — e o que não significa**
+
+- É uma diferença concreta entre o comportamento local e o Project64 para comandos que ultrapassam limites.
+- Não demonstra que o hardware real trunca, nem que a política local de rejeição atômica esteja errada. Um emulador pode optar por rejeitar comandos malformados como política defensiva.
+- O limite de 256 entradas decorre do tamanho da região TLUT, e o manual Nintendo confirma a replicação de cada entrada quatro vezes e a colocação da TLUT na metade superior da TMEM.
+- O manual de carregamento confirma que LOAD_TLUT atualiza SL/TL/SH/TH no tile e que SET_TILE_SIZE deve sobrescrever esses campos quando o tile for reutilizado para renderização.
+- A validação de RDRAM deve continuar usando o tamanho real de RDRAM do projeto; não copiar BMASK do Project64 como constante sem confirmar o mapa de memória local.
+
+**Vetores de comparação recomendados**
+
+1. Carga válida de 16 entradas iniciando no último espaço TLUT capaz de recebê-las: confirmar sucesso e a última posição escrita.
+2. Carga que pede 17 entradas quando só restam 16 posições: registrar explicitamente a política atual de rejeição; não mudar para truncamento sem decisão de compatibilidade.
+3. Carga cuja origem contém 15 entradas válidas e a 16ª ultrapassa a RDRAM: confirmar que a implementação local não escreve nenhuma entrada, preservando atomicidade.
+4. Carga válida de 256 entradas a partir de TMEM word 256: confirmar exatamente 2048 bytes de destino, encerrando no byte 0xFFF.
+5. Conferir o comportamento de estado do tile após falha e após sucesso, separando a atualização de coordenadas da escrita da TMEM.
+
+**Fontes**
+
+- Project64, rdp_loadtlut e load_palette: https://github.com/project64/project64/blob/develop/Source/Project64-video/rdp.cpp
+- Nintendo 64 Programming Manual, capítulo 12.4, Color-Indexed Textures: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro12/12-04.html
+- Nintendo 64 Programming Manual, capítulo 13.5, Tile Descriptor Loading: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-05.html
+- SGI RDP Command Summary, Load Tlut: https://ultra64.ca/files/documentation/silicon-graphics/SGI_RDP_Command_Summary.pdf
+
+**Status:** comparação documental de limites e atomicidade. Nenhum código C++ ou teste executável foi alterado ou executado.
