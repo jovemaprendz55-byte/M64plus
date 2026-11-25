@@ -1670,3 +1670,45 @@ Esses vetores validam ordem de bytes e replicação; não testam interpretação
 **Conclusão:** a leitura TLUT atual usa ordem big-endian coerente com a representação numérica de 16 bits e com o armazenamento serializado na TMEM. A lacuna restante é a leitura da entrada pelo sampler, seleção de lane/banco e conversão para RGBA8. Nenhum código C++ ou teste executável foi alterado ou executado nesta etapa.
 
 **Status:** auditoria documental de fluxo de bytes; sem mudança na implementação.
+
+
+### 18.45 Auditoria do tamanho da imagem de origem em LOAD_TLUT
+
+Esta etapa compara a implementação de LOAD_TLUT com a expansão das macros oficiais. O foco é separar duas grandezas que não devem ser confundidas: a largura declarada em SET_TEXTURE_IMAGE e a quantidade de entradas solicitada pelo campo count do comando LOAD_TLUT.
+
+**Contrato do comando e das macros**
+
+- O GBI define LOAD_TLUT com o campo count de 10 bits em W1[23:14]. O valor codificado representa a quantidade menos um; portanto, a transferência solicita count + 1 entradas.
+- A macro oficial gDPLoadTLUT(count, tmemaddr, dram) configura SET_TEXTURE_IMAGE com formato RGBA, tamanho 16 bits e largura 1; depois configura o tile de carga e emite LOAD_TLUT com count - 1.
+- gDPLoadTLUT_pal16 usa a mesma estrutura, solicitando 16 entradas e posicionando o destino conforme o número da palette. gDPLoadTLUT_pal256 solicita 256 entradas.
+- Assim, largura de imagem igual a 1 é um caso normal e intencional nas macros oficiais; não significa que a transferência esteja limitada a uma única entrada.
+
+Fontes consultadas:
+- GBI oficial, definição de gDPLoadTLUTCmd e gDPLoadTLUT: https://ultra64.ca/files/documentation/online-manuals/man/header/gbi.htm
+- Referência de gDPLoadTLUT_pal16/pal256: https://ultra64.ca/files/documentation/online-manuals/man/n64man/gdp/gDPLoadTLUT_pal.html
+- Implementação pública do cabeçalho GBI, com as macros pal16/pal256 e count - 1: https://github.com/glankk/n64/blob/master/include/n64/gbi.h
+
+**Comportamento encontrado no projeto**
+
+O decodificador extrai SH do comando LOAD_TLUT e loadTlutEntries calcula:
+- firstX = SL >> 2;
+- firstY = TL >> 2;
+- lastX = SH >> 2;
+- count = lastX - firstX + 1.
+
+Em seguida, a função rejeita a carga quando lastX >= image.width. Essa validação trata SH como se fosse sempre uma coordenada horizontal limitada pela largura da imagem. Porém, nas macros oficiais de TLUT, SH carrega o count menos um, enquanto SET_TEXTURE_IMAGE declara largura 1. Para uma palette de 16 entradas, SH representa 15 e image.width é 1; para 256 entradas, SH representa 255 e image.width continua 1.
+
+**Conclusão da comparação**
+
+Há uma incompatibilidade concreta entre a validação atual de loadTlutEntries e a forma normal como as macros oficiais constroem LOAD_TLUT: as cargas padrão de 16 e 256 entradas com largura de origem 1 serão rejeitadas pela condição lastX >= image.width. Os testes existentes usam largura de imagem suficiente para a quantidade solicitada e, por isso, não cobrem esse padrão oficial.
+
+A origem da TLUT nas macros é linear e contígua: SET_TEXTURE_IMAGE usa largura 1, e LOAD_TLUT avança pelas entradas solicitadas. A correção deverá tratar o campo SH como limite de contagem da transferência, e não aplicar a ele a validação horizontal usada por LOAD_TILE. Antes de alterar C++, ainda é necessário definir e testar com vetores específicos o papel de SL/TL e a validação de faixa da RDRAM para esse caminho.
+
+**Vetores de regressão propostos, ainda não implementados**
+
+1. Imagem RGBA16 com width=1, tile.tmem=256 e LOAD_TLUT count codificado como 15: deve transferir 16 entradas contíguas para a região correspondente.
+2. Imagem RGBA16 com width=1, tile.tmem=256 e LOAD_TLUT count codificado como 255: deve transferir 256 entradas, respeitando o limite superior da TMEM.
+3. Mesmo vetor de 16 entradas com origem próxima ao fim da RDRAM: a operação deve falhar sem escrita parcial na TMEM.
+4. Testar explicitamente SL/TL diferentes de zero somente após confirmar sua semântica para LOAD_TLUT; não extrapolar as regras de coordenadas de LOAD_TILE.
+
+**Status:** auditoria documental comparando o código atual com as macros GBI. Nenhum código C++ ou teste executável foi alterado ou executado.
