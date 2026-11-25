@@ -543,11 +543,14 @@ bool RdpCommandDecoder::decodeTriangleEdge(
     candidate.yMiddle = static_cast<std::uint16_t>((words[0] >> 16U) & 0x3FFFU);
     candidate.yHigh = static_cast<std::uint16_t>((words[0] >> 32U) & 0x3FFFU);
     candidate.xLeft = signedField(static_cast<std::uint32_t>(words[1] >> 32U), 28U);
-    candidate.dxLeftDy = signedField(static_cast<std::uint32_t>(words[1]), 30U) >> 2U;
+    candidate.dxLeftDy = static_cast<std::int32_t>(floorDivide(
+        signedField(static_cast<std::uint32_t>(words[1]), 30U), 4));
     candidate.xHigh = signedField(static_cast<std::uint32_t>(words[2] >> 32U), 28U);
-    candidate.dxHighDy = signedField(static_cast<std::uint32_t>(words[2]), 30U) >> 2U;
+    candidate.dxHighDy = static_cast<std::int32_t>(floorDivide(
+        signedField(static_cast<std::uint32_t>(words[2]), 30U), 4));
     candidate.xMiddle = signedField(static_cast<std::uint32_t>(words[3] >> 32U), 28U);
-    candidate.dxMiddleDy = signedField(static_cast<std::uint32_t>(words[3]), 30U) >> 2U;
+    candidate.dxMiddleDy = static_cast<std::int32_t>(floorDivide(
+        signedField(static_cast<std::uint32_t>(words[3]), 30U), 4));
     edge = candidate;
     return true;
 }
