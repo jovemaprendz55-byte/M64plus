@@ -2200,8 +2200,8 @@ void testFillRectangleWritesSinglePixelForDegenerateBounds() {
         (0x3FULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | base,
         (0x37ULL << 56U) | color,
         (0x2FULL << 56U) | (3ULL << 52U),
-        (0x36ULL << 56U) | (8ULL << 44U) | (8ULL << 32U) |
-            (8ULL << 12U) | 8ULL
+        (0x36ULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
+            (4ULL << 12U) | 4ULL
     };
     for (std::size_t i = 0; i < 4U; ++i)
         require(bus.write64(0xE00U + static_cast<std::uint32_t>(i * 8U), commands[i]),
