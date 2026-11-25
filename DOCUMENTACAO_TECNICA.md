@@ -1127,3 +1127,44 @@ Isso significa que a sequência padrão expandida pela macro não depende do ram
 **Limites desta auditoria:** não foi executado um teste novo, não foi alterado nenhum teste C++, e não foi modificada a implementação. Ainda falta validar a sequência com vetores independentes e confirmar os detalhes de coordenadas/stride para sub-retângulos e linhas ímpares diretamente contra a macro oficial e uma implementação de referência. Esta seção descreve o código existente, não declara que o ramo bruto 4b seja compatível com hardware.
 
 **Arquivos inspecionados:** `app/src/main/cpp/n64/rdp.cpp`, em especial `loadTileTexels`, e `tests/rdp_tests.cpp`, que registra os testes existentes de LOAD_TILE 4-bit no `main()`.
+
+
+### 18.27 Inventário de testes existentes e lacunas para CI4 via macro
+
+Esta seção registra a cobertura já presente em `tests/rdp_tests.cpp` e separa o que ela comprova do que ainda não comprova. O inventário foi conferido com as chamadas de teste no `main()`.
+
+**Cobertura CI4 direta já registrada:**
+
+| Teste existente | O que verifica |
+|---|---|
+| `testLoadTile4BitWrapsDestinationAcrossTmemEnd` | Escrita CI4 e retorno circular no fim da TMEM |
+| `testLoadTileFourBitOddSourceNibbleWrapsAcrossTmemEnd` | Início em nibble baixo da origem e wrap do destino |
+| `testLoadTileFourBitRangeStartingAtOddSourceNibble` | Leitura a partir de posição ímpar na origem |
+| `testLoadTileFourBitOddSourceNibbleAcrossSwizzledRows` | Origem em nibble ímpar junto com linha de destino swizzled |
+| `testLoadTilePacksFourBitNibblesAndSwizzlesOddRows` | Empacotamento de nibbles e troca de metades em linhas ímpares |
+
+Esses testes são chamados pelo `main()`, portanto não são apenas funções auxiliares esquecidas fora da suíte.
+
+**O que essa cobertura não demonstra:**
+
+- Não demonstra que a sequência completa emitida por uma macro CI4 oficial produz o mesmo estado TMEM que a carga direta de 4 bits.
+- Não demonstra que os campos de origem, largura e coordenadas usados pela macro foram convertidos corretamente de unidades de texel para unidades de byte.
+- Não demonstra a interpretação do conteúdo carregado por um amostrador CI4, pois o caminho completo de amostragem e rasterização ainda não está implementado.
+- Não demonstra compatibilidade em hardware real nem equivalência bit a bit com uma implementação de referência.
+
+**Matriz de novos testes candidatos (ainda não implementados):**
+
+| ID | Cenário | Verificação exigida |
+|---|---|---|
+| CI4-MAC-01 | Sequência mínima da macro, uma linha | Bytes finais da TMEM comparados com vetor esperado |
+| CI4-MAC-02 | Sequência da macro, duas linhas | Endereço/ordem da segunda linha e swizzle |
+| CI4-MAC-03 | Largura ímpar de texels | Conversão de limites e nibble final |
+| CI4-MAC-04 | Região com S inicial não zero | Offset da origem em bytes e alinhamento do nibble |
+| CI4-MAC-05 | Palette alterada após a carga | TMEM permanece idêntica; somente estado de amostragem muda |
+| CI4-MAC-06 | Macro 8b contra carga direta 4b | Comparação byte a byte, com diferenças explicadas por layout e alinhamento |
+| CI4-MAC-07 | Origem próxima ao fim da RDRAM | Rejeição sem escrita parcial na TMEM |
+| CI4-MAC-08 | Destino próximo ao fim da TMEM | Wrap conforme máscara de endereço e preservação de bytes vizinhos |
+
+**Regra de aprovação:** cada teste deve especificar explicitamente formato e tamanho da imagem de origem, largura da imagem, coordenadas LOAD_TILE, formato/tamanho do tile, `tmem`, `line`, bytes iniciais da TMEM e bytes finais esperados. Não comparar apenas o resultado visual nem assumir equivalência entre os dois caminhos.
+
+**Estado atual:** inventário e plano documentados; nenhum teste novo foi criado ou executado nesta alteração. A implementação C++ permanece inalterada.
