@@ -1381,3 +1381,18 @@ Fonte: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md
 **Próximo passo:** comparar a transformação de coordenadas da macro com a convenção de coordenadas do sampler e, quando houver um vetor independente que cubra a sequência completa, registrar o caso como teste de integração. Nenhum código C++ ou teste executável foi alterado nesta etapa.
 
 **Status:** anotação documental de evidência externa, com escopo limitado.
+
+
+### 18.36 Regra de nibble CI4 observada em implementação independente
+
+A leitura comentada do código Angrylion documenta a operação CI4 do sampler em duas partes: o endereço do byte é calculado a partir de `tbase` e `s`, e a escolha do nibble depende de `s & 1`: S par seleciona os quatro bits altos; S ímpar seleciona os quatro bits baixos. A paleta é então combinada como nibble alto do índice CI4.
+
+Referência: https://emudev.org/2021/09/21/Angrylion_RDP_Comments (seção *Texture Fetching*, linhas 2089–2099 da página).
+
+**O que isso resolve:** a regra de paridade aplicada quando o sampler recebe uma coordenada S CI4. Logo, se a coordenada entregue ao sampler for ímpar, a implementação de referência seleciona o nibble baixo daquele byte.
+
+**O que não resolve:** a fonte é comentário de uma implementação, não uma especificação normativa nem um vetor de teste de hardware. Ela não prova, isoladamente, qual coordenada S final resulta da sequência completa `gDPLoadTextureTile_4b` para um retângulo com S inicial ímpar. Esse ponto depende da transformação das coordenadas e da configuração do tile de renderização.
+
+**Conclusão atual:** a regra de nibble do sampler está corroborada por implementação independente; a equivalência da sequência GBI completa ainda não foi demonstrada por um vetor independente. Não há base para classificar o comportamento atual como bug confirmado.
+
+**Status:** documentação de evidência externa; nenhum código C++ ou teste executável foi alterado.
