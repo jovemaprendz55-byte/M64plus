@@ -3699,6 +3699,53 @@ void testFlatFillTriangleRejectsOutOfBoundsFramebufferAtomically() {
 }
 
 
+void testFlatFillTriangleHonorsFractionalYBounds() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x1700U;
+    constexpr std::uint32_t stream = 0x1800U;
+    constexpr std::uint32_t sentinel = 0xDEADBEEFU;
+    constexpr std::uint32_t fill = 0x89ABCDEFU;
+    for (std::uint32_t i = 0U; i < 8U * 8U; ++i)
+        require(bus.write32(framebuffer + i * 4U, sentinel),
+                "seed fractional-Y triangle framebuffer");
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (7ULL << 32U) | framebuffer,
+        (0x37ULL << 56U) | fill,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x2DULL << 56U) | (32ULL << 12U) | 32ULL,
+        (0x08ULL << 56U) | (1ULL << 55U) |
+            (1ULL << 32U) | (9ULL << 16U) | 17ULL,
+        (2ULL * 65536ULL) << 32U,
+        (2ULL * 65536ULL) << 32U,
+        (2ULL * 65536ULL) << 32U
+    };
+    for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
+        require(bus.write64(stream + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "write fractional-Y triangle command stream");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 64U),
+            "publish fractional-Y triangle command stream");
+    for (unsigned i = 0U; i < 4U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "fractional-Y triangle setup command is processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "fractional-Y flat triangle is rasterized");
+
+    for (std::uint32_t y = 0U; y < 8U; ++y) {
+        for (std::uint32_t x = 0U; x < 8U; ++x) {
+            std::uint32_t pixel = 0U;
+            require(bus.read32(framebuffer + (y * 8U + x) * 4U, pixel),
+                    "read fractional-Y triangle output pixel");
+            const bool covered = y < 5U && x == 2U;
+            require(pixel == (covered ? fill : sentinel),
+                    "fractional triangle Y bounds include intersected scanlines only");
+        }
+    }
+}
+
+
 void testFlatFillTriangleClipsNegativeYToScissorTop() {
     using namespace m64plus::n64;
     Bus bus;
@@ -3933,6 +3980,7 @@ int main() {
     testFlatFillTriangleHonorsInterlacedFieldSelection();
     testFlatFillTriangleUsesFillColorInCopyCycle();
     testFlatFillTriangleRejectsOutOfBoundsFramebufferAtomically();
+    testFlatFillTriangleHonorsFractionalYBounds();
     testFlatFillTriangleClipsNegativeYToScissorTop();
     testFlatFillTriangleClipsNegativeFractionalYToScissorTop();
     testFlatFillTriangleClipsToScissorRectangle();
