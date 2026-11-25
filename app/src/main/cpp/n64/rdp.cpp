@@ -372,11 +372,13 @@ bool loadBlockTexels(Bus& bus, RdpSyncState& state,
         (load.tl & 0x03U) != 0U || (load.sh & 0x03U) != 0U) return false;
     const RdpImageState& image = state.textureImage;
     const RdpTileState& tile = state.tiles[load.tile];
-    // The ordinary LOAD_BLOCK path is defined for 8- and 16-bit source texels.
-    // 4-bit loads are not a valid hardware path; 32-bit loads need the split-bank
-    // transfer handled by the dedicated 32-bit path, which is not implemented yet.
-    if (image.size != 1U && image.size != 2U) return false;
-    const unsigned bitsPerTexel = image.size == 1U ? 8U : 16U;
+    // LOAD_BLOCK supports 8- and 16-bit texels in the linear path. RGBA32
+    // uses the RDP's split TMEM banks and therefore has a dedicated store path.
+    if (image.size != 1U && image.size != 2U && image.size != 3U) return false;
+    if (image.size == 3U &&
+        (image.format != 0U || tile.size != 3U || tile.format != 0U)) return false;
+    const unsigned bitsPerTexel = image.size == 1U ? 8U
+        : (image.size == 2U ? 16U : 32U);
     const std::uint32_t count =
         (static_cast<std::uint32_t>(load.sh - load.sl) >> 2U) + 1U;
     if (count == 0U || count > 2048U) return false;
@@ -435,10 +437,29 @@ bool loadBlockTexels(Bus& bus, RdpSyncState& state,
 
     const std::uint64_t destinationBase =
         static_cast<std::uint64_t>(tile.tmem) * 8U;
-    for (std::uint64_t byte = 0; byte < totalBytes; ++byte) {
-        state.tmem.writeByte(
-            static_cast<std::uint16_t>((destinationBase + byte) & 0x0FFFU),
-            transfer[static_cast<std::size_t>(byte)]);
+    if (image.size == 3U) {
+        // RGBA32 texels are split across TMEM's lower RG and upper BA banks.
+        // DXT has already reordered odd 64-bit words above, so store the
+        // resulting texel stream into corresponding two-byte bank pairs.
+        for (std::uint32_t i = 0U; i < count; ++i) {
+            const std::size_t source = static_cast<std::size_t>(i) * 4U;
+            const std::uint64_t logical = destinationBase +
+                static_cast<std::uint64_t>(i) * 2U;
+            const std::uint16_t lower = static_cast<std::uint16_t>(logical & 0x07FFU);
+            const std::uint16_t upper = static_cast<std::uint16_t>(lower + 0x0800U);
+            state.tmem.writeByte(lower, transfer[source]);
+            state.tmem.writeByte(static_cast<std::uint16_t>((lower + 1U) & 0x07FFU),
+                                 transfer[source + 1U]);
+            state.tmem.writeByte(upper, transfer[source + 2U]);
+            state.tmem.writeByte(static_cast<std::uint16_t>(upper + 1U),
+                                 transfer[source + 3U]);
+        }
+    } else {
+        for (std::uint64_t byte = 0; byte < totalBytes; ++byte) {
+            state.tmem.writeByte(
+                static_cast<std::uint16_t>((destinationBase + byte) & 0x0FFFU),
+                transfer[static_cast<std::size_t>(byte)]);
+        }
     }
     state.tileSizes[load.tile] = {load.sl, load.tl, load.sh, load.th};
     state.hasTileSize[load.tile] = true;
