@@ -3548,6 +3548,53 @@ void testFlatFillTriangleRejectsOutOfBoundsFramebufferAtomically() {
 }
 
 
+void testFlatFillTriangleClipsNegativeYToScissorTop() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x1300U;
+    constexpr std::uint32_t stream = 0x1400U;
+    constexpr std::uint32_t sentinel = 0xDEADBEEFU;
+    constexpr std::uint32_t fill = 0x76543210U;
+    for (std::uint32_t i = 0U; i < 8U * 8U; ++i)
+        require(bus.write32(framebuffer + i * 4U, sentinel),
+                "seed negative-Y triangle framebuffer");
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (7ULL << 32U) | framebuffer,
+        (0x37ULL << 56U) | fill,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x2DULL << 56U) | (32ULL << 12U) | 32ULL,
+        (0x08ULL << 56U) | (1ULL << 55U) |
+            (0x3FFCLL << 32U) | (8ULL << 16U) | 16ULL,
+        (2ULL * 65536ULL) << 32U,
+        (2ULL * 65536ULL) << 32U,
+        (2ULL * 65536ULL) << 32U
+    };
+    for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
+        require(bus.write64(stream + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "write negative-Y triangle command stream");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 64U),
+            "publish negative-Y triangle command stream");
+    for (unsigned i = 0U; i < 4U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "negative-Y triangle setup command is processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "negative-Y flat triangle is clipped and rasterized");
+
+    for (std::uint32_t y = 0U; y < 8U; ++y) {
+        for (std::uint32_t x = 0U; x < 8U; ++x) {
+            std::uint32_t pixel = 0U;
+            require(bus.read32(framebuffer + (y * 8U + x) * 4U, pixel),
+                    "read negative-Y triangle output pixel");
+            const bool covered = y < 4U && x == 2U;
+            require(pixel == (covered ? fill : sentinel),
+                    "negative-Y triangle clips at scissor top without shifting visible scanlines");
+        }
+    }
+}
+
+
 void testFlatFillTriangleClipsToScissorRectangle() {
     using namespace m64plus::n64;
     Bus bus;
@@ -3685,6 +3732,7 @@ int main() {
     testFlatFillTriangleHonorsInterlacedFieldSelection();
     testFlatFillTriangleUsesFillColorInCopyCycle();
     testFlatFillTriangleRejectsOutOfBoundsFramebufferAtomically();
+    testFlatFillTriangleClipsNegativeYToScissorTop();
     testFlatFillTriangleClipsToScissorRectangle();
     testTextureRectangleLengths();
     testTextureRectanglePacketDecoding();
