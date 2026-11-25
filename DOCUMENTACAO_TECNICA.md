@@ -1029,7 +1029,7 @@ As mesmas fórmulas podem ser expressas diretamente a partir do campo em palavra
 | 1 | 1 | `0x094` | baixo | `0x095` |
 | 1 | 2 | `0x095` | alto | `0x096` |
 | 1 | 3 | `0x095` | baixo | `0x097` |
-| 1 | 7 | `0x097` | baixo | `0x09B` |
+| 1 | 7 | `0x097` | baixo | `0x093` |
 | 2 | 0 | `0x0A0` | alto | `0x0A0` |
 | 2 | 1 | `0x0A0` | baixo | `0x0A1` |
 | 2 | 7 | `0x0A3` | baixo | `0x0A7` |
