@@ -3475,7 +3475,7 @@ void testFlatFillTriangleClipsToScissorRectangle() {
             std::uint32_t pixel = 0U;
             require(bus.read32(framebuffer + (y * 8U + x) * 4U, pixel),
                     "read scissor-clipped triangle pixel");
-            const bool covered = y < 4U && x >= 2U && x <= 3U &&
+            const bool covered = y < 4U && x >= 2U && x <= 4U &&
                 x <= 2U + y;
             require(pixel == (covered ? fill : sentinel),
                     "triangle writes only pixels inside scissor bounds");
