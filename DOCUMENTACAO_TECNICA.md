@@ -1220,3 +1220,39 @@ A fórmula que produz a segunda linha é `destinationBase + row * destinationStr
 **Nota sobre escopo:** o teste existente `testLoadTileHonorsTileLineStrideAcrossOddRows` já verifica stride e XOR 4 em carga 8b, mas usa outro tamanho de linha e outro endereço inicial. O novo vetor CI4-MAC deve manter a representação empacotada CI4 e a sequência completa de configuração da macro, para cobrir a combinação que ainda não está testada.
 
 **Status:** vetor documental candidato a CI4-MAC-02. Nenhum teste executável foi criado ou executado nesta alteração; nenhum código C++ foi modificado.
+
+### 18.30 Sub-retângulo CI4 com origem S diferente de zero
+
+Esta seção deriva um vetor de sub-retângulo diretamente das expressões da macro oficial `gDPLoadTextureTile_4b` (cabeçalho GBI, linhas 3984–4009). O caso escolhido começa em S par e tem quantidade par de texels, para que a conversão para bytes não dependa de um nibble parcial.
+
+**Origem e região lógica:**
+
+- Imagem CI4 lógica: 16 texels por linha, armazenados como 8 bytes por linha.
+- Bytes da linha de origem: `A1 B2 C3 D4 E5 F6 G7 H8`.
+- Região solicitada: S=2 até S=7, inclusive; seis texels.
+- Como cada byte contém dois texels CI4, o intervalo de bytes correspondente é 1 até 3, inclusive: `B2 C3 D4`.
+- T=0, uma única linha.
+
+**Conversão executada pela macro:**
+
+1. `SET_TEXTURE_IMAGE` usa tamanho 8b e largura `width >> 1`: 8 bytes por linha.
+2. `LOAD_TILE` recebe S convertido por `G_TEXTURE_IMAGE_FRAC - 1`. Como a fração da coordenada é 2, S=2 e S=7 viram coordenadas fixas 4 e 14.
+3. O caminho atual de LOAD_TILE 8b converte essas coordenadas fixas para unidades inteiras com `>> 2`: byte inicial 1 e byte final 3.
+4. A quantidade carregada é três bytes. O cálculo da macro para o campo line do tile de carga resulta em uma palavra TMEM de 8 bytes: `(((3)+7)>>3) = 1`.
+5. O tile de renderização volta a ser 4b e o `SET_TILE_SIZE` conserva S=2..7 em unidades de texel, não de byte.
+
+**Vetor físico proposto:**
+
+- Tile de carga: 8b, `tmem=0x10` (base byte `0x80`), `line=1`.
+- TMEM inicial: preencher bytes próximos com sentinela `EE`.
+- Após LOAD_TILE, esperado no caminho 8b atual: `TMEM[0x80..0x82] = B2 C3 D4`.
+- `TMEM[0x83..0x87]` e os bytes vizinhos anteriores permanecem `EE`.
+- Tile de renderização: CI4, coordenadas S=2..7. A leitura lógica desses seis texels deve corresponder aos nibbles alto/baixo de `B2 C3 D4`, nessa ordem.
+
+**Limite importante — início S ímpar:** a macro divide as coordenadas S por dois por meio de deslocamento à direita (na expressão fixa, desloca a fração em uma posição). Para S ímpar, isso arredonda o início para o byte que contém o nibble solicitado; a seleção do nibble inicial precisa ser verificada no sampler e não pode ser inferida somente dos bytes copiados. O vetor acima evita esse caso deliberadamente. Uma fixture separada deve cobrir S=1 ou S=3 e verificar se o tile de renderização mantém o alinhamento lógico esperado.
+
+**O que o vetor não prova:** não valida o sampler CI4, o nibble inicial de uma região ímpar, a filtragem, nem a equivalência com hardware. É uma expectativa documental derivada da macro GBI e do caminho 8b atualmente implementado.
+
+**Fonte primária:** cabeçalho GBI oficial, macros `gDPLoadTextureTile_4b` e `gsDPLoadTextureTile_4b`, especialmente as conversões de largura e coordenadas: https://ultra64.ca/files/documentation/online-manuals/man/header/gbi.htm (linhas 3984–4009 e 4042–4064).
+
+**Status:** vetor documental CI4-MAC-04 para S inicial não zero e par. Nenhum teste executável foi criado ou executado; nenhum código C++ foi alterado.
