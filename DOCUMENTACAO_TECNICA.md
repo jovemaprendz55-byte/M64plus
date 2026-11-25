@@ -1712,3 +1712,58 @@ A origem da TLUT nas macros é linear e contígua: SET_TEXTURE_IMAGE usa largura
 4. Testar explicitamente SL/TL diferentes de zero somente após confirmar sua semântica para LOAD_TLUT; não extrapolar as regras de coordenadas de LOAD_TILE.
 
 **Status:** auditoria documental comparando o código atual com as macros GBI. Nenhum código C++ ou teste executável foi alterado ou executado.
+
+### 18.46 Semântica de SL/SH no LOAD_TLUT e revisão da hipótese de largura
+
+Esta seção refina a análise da seção 18.45 com a descrição específica do comando LOAD_TLUT no resumo de comandos RDP e com o manual de carregamento de tile.
+
+**Campos do comando**
+
+O resumo de comandos RDP descreve:
+- SL: índice baixo/inicial da tabela, no formato 10.2; bits fracionários devem ser zero.
+- TL: normalmente zero.
+- SH: índice alto/final da tabela, no formato 10.2; bits fracionários devem ser zero.
+- TH: normalmente zero.
+- Tile: seleciona o descritor cuja configuração de TMEM é usada para o destino.
+
+A quantidade de entradas é inclusiva: (SH >> 2) - (SL >> 2) + 1. O resumo também informa que SET_TEXTURE_IMAGE deve fornecer origem de 16 bits e SET_TILE o endereço TMEM. O endereço TMEM da TLUT deve ficar na metade superior.
+
+Fontes:
+- SGI RDP Command Summary, tabela Load Tlut: https://ultra64.ca/files/documentation/silicon-graphics/SGI_RDP_Command_Summary.pdf
+- Manual Nintendo 64, capítulo 13.5: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-05.html
+- Descrição do comando em implementação de referência Project64: https://github.com/project64/project64/blob/develop/Source/Project64-video/rdp.cpp
+
+**Consequência para a largura da imagem**
+
+A largura da imagem não é o limite horizontal da faixa SL..SH do comando TLUT. O comando usa índices da tabela; TL/TH são normalmente zero. As macros GBI podem declarar imagem com largura 1 e ainda solicitar uma faixa de múltiplas entradas. Portanto, a rejeição lastX >= image.width identificada na seção 18.45 é uma restrição incorreta para o caso normal de LOAD_TLUT.
+
+**Comparação com loadTlutEntries**
+
+O código atual:
+- converte SL, TL e SH de 10.2 para inteiros;
+- calcula count = lastX - firstX + 1;
+- calcula origem como image.address + ((firstY * image.width + firstX) * 2);
+- rejeita lastX >= image.width.
+
+A fórmula inclusiva de count é coerente com o intervalo SL..SH. A validação lastX >= image.width não é coerente com a semântica do LOAD_TLUT e deve ser removida ou substituída por validações próprias do comando. A origem é lida de forma contígua após o primeiro índice; o comportamento com TL não zero merece cautela, pois a documentação descreve TL/TH como normalmente zero, e não como coordenadas de uma imagem retangular convencional.
+
+**Revisão dos testes existentes**
+
+O teste testLoadTlutRejectsRangePastImageWidthWithoutPartialWrites cria uma imagem de largura 1 e pede uma faixa que ultrapassa essa largura, esperando Unsupported. Essa expectativa conflita com a semântica do comando: uma largura 1 pode acompanhar uma faixa TLUT de várias entradas. O teste não deve ser simplesmente apagado; deve ser substituído por um teste positivo com width=1 e intervalo SL=0, SH=8 (nove entradas), verificando os dados contíguos e a replicação na TMEM. Esse novo teste ainda não foi implementado.
+
+O teste testLoadTlutReplicatesEntriesIntoHighTmem cobre três entradas e replicação, mas configura largura 2 e não detecta o caso oficial de largura 1. Os testes de limite de RDRAM e limite de destino TMEM continuam cobrindo restrições independentes e úteis.
+
+**Escopo seguro para a futura correção**
+
+1. Aceitar faixa inclusiva SL..SH sem comparar SH com image.width.
+2. Validar alinhamento dos bits fracionários de SL, TL, SH e TH, conforme o formato 10.2 e as regras do comando.
+3. Manter a validação de tamanho da imagem em 16 bits.
+4. Manter validação integral da faixa de origem na RDRAM antes de qualquer escrita TMEM.
+5. Manter validação da quantidade e do intervalo de destino na TMEM.
+6. Manter a atualização do estado SL/TL/SH/TH do tile, pois o manual informa que LOAD_TLUT atualiza esses campos e que SetTileSize deve sobrescrevê-los quando o tile for usado posteriormente para renderização.
+
+**Limites de certeza**
+
+A semântica de índices e a irrelevância da largura como limite SL..SH estão sustentadas pelo resumo RDP. Não se deve generalizar TL não zero como coordenada de imagem bidimensional sem evidência adicional. O endereço da origem deve ser validado contra vetores e uma implementação de referência antes de ampliar o contrato além do caso usual TL=0.
+
+**Status:** documentação corrigida e plano de regressão. Nenhum código C++ ou teste executável foi alterado ou executado.
