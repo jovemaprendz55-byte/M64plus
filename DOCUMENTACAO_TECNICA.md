@@ -1424,3 +1424,36 @@ A auditoria do caminho atual em `app/src/main/cpp/n64/rdp.cpp` identifica três 
 **Consequência para a investigação:** não se pode usar o resultado dos testes de carga direta 4-bit como prova do resultado da macro oficial. A validação pendente precisa montar a sequência completa: imagem 8-bit, tile de carga, LOAD_TILE, tile de renderização CI4 com palette e leitura de texels pelo sampler, incluindo recorte com S inicial ímpar.
 
 **Status:** auditoria documental do caminho existente; nenhum código C++ ou teste executável foi alterado.
+
+
+### 18.39 Limite atual da integração: não há ainda um sampler CI4 executável
+
+A inspeção conjunta de `app/src/main/cpp/n64/rdp.cpp` e `app/src/main/cpp/n64/rdp.h` mostra que a próxima validação proposta na seção 18.38 depende de uma etapa que ainda não existe neste caminho do RDP.
+
+**O que o código já oferece:**
+
+- `RdpTextureMemory` expõe leitura/escrita de byte e palavra de 64 bits na TMEM de 4 KiB.
+- `loadTileTexels` executa a cópia de RDRAM para TMEM e trata os formatos de origem suportados.
+- O ramo 4-bit usa `tmem.readByte` para preservar o nibble vizinho durante a escrita; essa leitura é parte do empacotamento da carga, não uma busca de texel para renderização.
+- O decodificador mantém os campos de `RdpTextureRectangleCommand`, incluindo tile, S/T e derivadas, e o estado guarda os descritores de tile e os limites do tile.
+
+**O que não foi localizado na implementação examinada:**
+
+- Uma rotina que receba coordenadas S/T de renderização, calcule o endereço TMEM do texel e faça a seleção CI4 alto/baixo conforme a paridade de S.
+- Uma etapa que combine o índice CI4 com a paleta TLUT para produzir a cor amostrada.
+- Um caminho de rasterização que consuma o texel amostrado para validar a sequência de comandos da macro até o resultado visual.
+
+Na versão examinada de `rdp.cpp`, a única chamada a `state.tmem.readByte` está dentro do ramo de carga direta 4-bit, para ler-modificar-escrever o byte de destino. A leitura de entradas TLUT encontrada no arquivo replica a entrada carregada em TMEM; ela também não é a operação de amostragem CI4 durante renderização.
+
+**Consequência para o plano de teste:** ainda não é correto escrever um teste chamado “integração da macro CI4 até o sampler” usando apenas os componentes atuais. Um teste limitado a `LOAD_TILE` pode verificar os bytes de TMEM e o estado dos tiles, mas não pode afirmar qual nibble o sampler consumiria nem qual cor CI4 seria produzida. A ausência dessa etapa é uma lacuna de implementação, não uma falha demonstrada nos testes de carga.
+
+**Próxima sequência técnica, sem alterar o código nesta auditoria:**
+
+1. Manter os testes atuais de carga como testes de TMEM/transferência.
+2. Quando o sampler for implementado, criar uma função de busca CI4 que receba o descritor do tile e coordenadas S/T já transformadas para o espaço do tile.
+3. Cobrir separadamente seleção de nibble alto para S par e baixo para S ímpar, endereço TMEM, wrap de 12 bits e seleção da palette.
+4. Só então montar um teste de integração que execute a sequência expandida de `gDPLoadTextureTile_4b`, carregue TLUT, configure tile CI4 e compare o resultado da amostragem para S inicial par e ímpar.
+
+**Conclusão:** a investigação não está bloqueada por falta de mais casos de carga CI4. O próximo componente ausente é a leitura de texel do sampler. Até ele existir, a validação da macro deve parar no estado/bytes de TMEM e declarar explicitamente que o resultado de amostragem não é exercitado.
+
+**Status:** auditoria somente de documentação e código existente; nenhum arquivo C++ ou teste executável foi alterado ou executado.
