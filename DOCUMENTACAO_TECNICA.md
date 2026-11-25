@@ -884,3 +884,65 @@ Em 25/11/2026, foram verificadas as execuções de CI associadas aos três commi
 
 **Limite desta revisão:** esta seção registra evidência do CI e não altera a avaliação de funcionalidades implementadas. Nenhum código C++ ou teste executável foi modificado.
 
+
+
+### 18.22 Especificação de CI4/CI8 e TLUT antes do sampler
+
+Esta etapa consolida o comportamento documentado de texturas color-indexed (CI) sem declarar que a busca de paleta já esteja implementada. O objetivo é separar três operações que não devem ser confundidas: extrair o índice do texel da metade baixa da TMEM, formar o índice da paleta e decodificar a entrada de 16 bits da TLUT.
+
+**Organização física e regras do índice:**
+
+| Caso | Dados da textura | Formação do índice da TLUT | Limite lógico |
+|---|---|---|---|
+| CI4 | Texel de 4 bits na metade baixa da TMEM | `(palette << 4) | texel` | 16 paletas × 16 entradas |
+| CI8 | Texel de 8 bits na metade baixa da TMEM | O próprio texel de 8 bits | 256 entradas |
+
+A metade alta da TMEM é reservada à TLUT durante o uso de CI. CI4 usa o campo `palette` do descritor de tile como os quatro bits superiores do índice; o texel fornece os quatro bits inferiores. CI8 usa diretamente o índice de oito bits. A TLUT armazena entradas de 16 bits, interpretadas conforme o modo global selecionado: RGBA16 ou IA16.
+
+**Bancos e replicação:** o RDP pode consultar quatro texels em paralelo. Por isso, a organização da TLUT replica cada entrada nos quatro bancos correspondentes. O manual descreve quatro cópias da tabela na metade alta da TMEM; o código atual de `LOAD_TLUT` também grava cada entrada de 16 bits repetida em uma palavra de 64 bits. Isso é uma correspondência estrutural importante, mas ainda não prova que o endereço consultado pelo futuro sampler esteja correto para todos os casos.
+
+**Vetores lógicos propostos para CI4:**
+
+| Palette | Texel | Índice esperado | Entrada TLUT a selecionar |
+|---:|---:|---:|---|
+| 0 | 0 | `0x00` | 0 |
+| 0 | 15 | `0x0F` | 15 |
+| 1 | 0 | `0x10` | 16 |
+| 1 | 5 | `0x15` | 21 |
+| 7 | 9 | `0x79` | 121 |
+| 15 | 15 | `0xFF` | 255 |
+
+**Vetores lógicos propostos para CI8:**
+
+| Texel CI8 | Índice esperado | Entrada TLUT a selecionar |
+|---:|---:|---:|
+| `0x00` | `0x00` | 0 |
+| `0x01` | `0x01` | 1 |
+| `0x7F` | `0x7F` | 127 |
+| `0x80` | `0x80` | 128 |
+| `0xFE` | `0xFE` | 254 |
+| `0xFF` | `0xFF` | 255 |
+
+Esses vetores fixam somente a formação do índice lógico. Não especificam o endereço em bytes da TMEM, o mapeamento de bancos, a ordem física do texel CI4 par/ímpar nem a codificação física da entrada replicada. Esses pontos precisam de fixtures de integração independentes, com padrões distintos por banco para detectar leituras na cópia errada.
+
+**Matriz mínima de fixtures de integração futura:**
+
+1. CI4 com palette 0 e palette 15, usando o mesmo texel para provar que o campo palette altera somente os quatro bits superiores.
+2. CI4 com texel 0 e 15 em cada palette, cobrindo as extremidades de cada tabela de 16 entradas.
+3. CI8 com índices 0, 127, 128 e 255, cobrindo a transição do bit mais significativo e os limites da TLUT.
+4. Cada entrada de paleta deve ter uma cor diferente; repetir a mesma cor em todas as entradas esconderia erros de índice.
+5. Executar os mesmos índices com TLUT RGBA16 e IA16, comparando os canais após a decodificação apropriada.
+6. Fazer fixtures distintas para leitura dos quatro bancos e para texels CI4 em nibbles alto/baixo; não deduzir a ordem do nibble a partir dos vetores lógicos desta seção.
+7. Incluir casos negativos para TLUT ausente/desabilitada e para endereços fora dos limites físicos, sem inventar uma resposta de hardware onde a documentação não a define.
+
+**Observação sobre a implementação atual:** o repositório já possui rotina de carga `LOAD_TLUT` e testes de replicação/limites descritos na seção 18.16. Isso valida a transferência documentada coberta por esses testes; não valida ainda a seleção de índice CI4/CI8 nem a conversão final pelo sampler.
+
+**Fontes consultadas:**
+- Nintendo 64 Programming Manual, seção 13.4, atributos de tile e formação do índice CI4: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-04.html.
+- Nintendo 64 Programming Manual, capítulo 12, organização em duas metades da TMEM, quatro bancos e replicação da TLUT: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro12/12-04.html.
+- Nintendo 64 Programming Manual, capítulo 13.8, organização de memória de textura e TLUT: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-08.html.
+- Referência das macros `gDPLoadTLUT_pal16` e `gDPLoadTLUT_pal256`, que descreve a localização da TLUT na metade alta: https://ultra64.ca/files/documentation/online-manuals/man/n64man/gdp/gDPLoadTLUT_pal.html.
+
+**Próxima etapa segura:** especificar o endereço físico e a leitura de um texel CI4/CI8 a partir da TMEM, com fixtures que diferenciem bancos e nibbles. A filtragem continua fora de escopo. Nenhuma alteração C++ ou teste executável deve ser feita sem autorização explícita.
+
+**Limite desta revisão:** somente documentação foi alterada. Nenhum código C++, teste executável ou comportamento do emulador foi modificado.
