@@ -126,6 +126,9 @@ bool fillTriangle(Bus& bus, const RdpSyncState& state,
 
     const auto spanForLine = [&](std::int32_t line, std::int32_t& left,
                                  std::int32_t& right) noexcept {
+        if (state.scissor.fieldEnable &&
+            (line & 1) != static_cast<std::int32_t>(state.scissor.oddLine))
+            return false;
         left = INT32_MAX;
         right = INT32_MIN;
         for (std::int32_t sub = 0; sub < 4; ++sub) {
