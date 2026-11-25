@@ -700,9 +700,15 @@ RdpProcessResult RdpCommandProcessor::processNext(
         load.rawCommand = command;
         state.lastTextureLoad = load;
         state.hasTextureLoad = true;
-        if (load.kind == RdpTextureLoadKind::Tile &&
-            !loadTileTexels(bus, state, load)) {
-            return RdpProcessResult::Unsupported;
+        if (load.kind == RdpTextureLoadKind::Tile) {
+            if (!loadTileTexels(bus, state, load)) {
+                return RdpProcessResult::Unsupported;
+            }
+            // LOAD_TILE updates the tile's SL/TL/SH/TH registers just like
+            // the other texture-load commands. SET_TILE_SIZE may replace
+            // these coordinates afterward for sampling.
+            state.tileSizes[load.tile] = {load.sl, load.tl, load.sh, load.th};
+            state.hasTileSize[load.tile] = true;
         }
         if (load.kind == RdpTextureLoadKind::Block &&
             !loadBlockTexels(bus, state, load)) {
