@@ -1396,3 +1396,16 @@ Referência: https://emudev.org/2021/09/21/Angrylion_RDP_Comments (seção *Text
 **Conclusão atual:** a regra de nibble do sampler está corroborada por implementação independente; a equivalência da sequência GBI completa ainda não foi demonstrada por um vetor independente. Não há base para classificar o comportamento atual como bug confirmado.
 
 **Status:** documentação de evidência externa; nenhum código C++ ou teste executável foi alterado.
+
+
+### 18.37 Limites documentados para recortes CI4 com coordenada ímpar
+
+A referência oficial da macro `gDPLoadTextureTile_4b` confirma que os limites do recorte são expressos em espaço de texels e que os endereços dos quatro pixels de canto precisam estar alinhados a byte. Ela também alerta que, para dados 4-bit com largura ímpar, é necessário preparar um bit fictício para que o tamanho em bits de cada linha seja múltiplo de 8.
+
+Fontes:
+- Referência oficial `gDPLoadTextureTile_4b`: https://ultra64.ca/files/documentation/online-manuals/man/n64man/gdp/gDPLoadTextureTile_4b.html
+- Descrição geral das macros de carga: https://ultra64.ca/files/documentation/online-manuals/man/n64man/gdp/gDPLoadTexture.html
+
+**Interpretação restrita:** isso reforça que alinhamento de byte e paridade da coordenada são questões diferentes. A documentação permite recortes arbitrários, mas exige alinhamento físico dos cantos; ela não especifica diretamente qual nibble deve ser o primeiro texel útil para o caso de S ímpar após a sequência completa da macro. Não usar essa nota como prova de bug ou como vetor de resultado esperado.
+
+**Status:** evidência oficial registrada; sem alteração em código C++ ou testes executáveis.
