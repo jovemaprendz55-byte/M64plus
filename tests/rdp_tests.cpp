@@ -3311,6 +3311,56 @@ void testFlatFillTriangleUsesLowerEdgeAfterMiddleY() {
 }
 
 
+void testFlatFillTriangleUsesNegativeLowerEdgeSlope() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x1B00U;
+    constexpr std::uint32_t stream = 0x1C00U;
+    constexpr std::uint32_t sentinel = 0xDEADBEEFU;
+    constexpr std::uint32_t fill = 0x76543210U;
+    for (std::uint32_t i = 0U; i < 8U * 8U; ++i)
+        require(bus.write32(framebuffer + i * 4U, sentinel),
+                "seed negative lower-edge slope triangle framebuffer");
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (7ULL << 32U) | framebuffer,
+        (0x37ULL << 56U) | fill,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x2DULL << 56U) | (32ULL << 12U) | 32ULL,
+        // After YM=2, the minor edge moves left by one pixel per scanline.
+        (0x08ULL << 56U) | (8ULL << 16U) | 16ULL,
+        (4ULL * 65536ULL << 32U) | 0x3FFC0000ULL,
+        (6ULL * 65536ULL) << 32U,
+        (2ULL * 65536ULL) << 32U
+    };
+    for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
+        require(bus.write64(stream + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "write negative lower-edge slope triangle command stream");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 64U),
+            "publish negative lower-edge slope triangle command stream");
+
+    for (unsigned i = 0U; i < 4U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "negative lower-edge slope triangle setup command is processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "negative lower-edge slope flat-fill triangle is rasterized");
+
+    for (std::uint32_t y = 0U; y < 8U; ++y) {
+        for (std::uint32_t x = 0U; x < 8U; ++x) {
+            std::uint32_t pixel = 0U;
+            require(bus.read32(framebuffer + (y * 8U + x) * 4U, pixel),
+                    "read negative lower-edge slope triangle output pixel");
+            const std::uint32_t left = y < 2U ? 2U : (y == 2U ? 3U : 2U);
+            const bool covered = y < 4U && x >= left && x <= 6U;
+            require(pixel == (covered ? fill : sentinel),
+                    "negative minor-edge slope moves left after middle Y");
+        }
+    }
+}
+
+
 void testFlatFillTriangleClipsNegativeFractionalX() {
     using namespace m64plus::n64;
     Bus bus;
@@ -3875,6 +3925,7 @@ int main() {
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testFlatFillTriangleRasterizesRightTriangle();
     testFlatFillTriangleUsesLowerEdgeAfterMiddleY();
+    testFlatFillTriangleUsesNegativeLowerEdgeSlope();
     testFlatFillTriangleClipsNegativeFractionalX();
     testFlatFillTriangleEdgeFlipClipsNegativeFractionalX();
     testFlatFillTriangleRasterizesOppositeEdgeOrientation();
