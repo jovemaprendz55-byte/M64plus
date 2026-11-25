@@ -369,3 +369,9 @@ A classe `Bus` oferece acessos de 8, 16, 32 e 64 bits, valida que cada acesso pe
 4. Tratar textura, filtragem, combiner, blender, coverage e interface de memória como etapas separadas; não declarar suporte geral de triângulos a partir de um teste geométrico isolado.
 
 **Limitação e decisão:** a documentação consultada descreve formatos e blocos, mas não constitui por si só uma suíte completa de conformidade bit a bit. Não foi iniciada implementação do rasterizador nesta etapa. Antes de alterar código de produção, é necessário obter vetores de referência reproduzíveis para a cobertura e o edge walker.
+
+### 18.5 Validação documental no CI
+
+A revisão documental desta investigação foi registrada no commit `8cddc068488e9f7b2892cedcaabe5fef07fb4611`. A execução do GitHub Actions nº 754 terminou com sucesso: `native-host-tests` e `assemble-debug` passaram. Como esse commit alterou apenas documentação, esse resultado confirma que o repositório continuou compilando e que os testes existentes passaram; não valida um rasterizador, que ainda não foi implementado.
+
+Execução: https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45574781578
