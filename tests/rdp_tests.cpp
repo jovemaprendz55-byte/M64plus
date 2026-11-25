@@ -2224,6 +2224,41 @@ void testFillRectangleRejectsUnsupportedCycleTypeWithoutWrites() {
     }
 }
 
+void testFillRectangleRejectsMissingOtherModesWithoutWrites() {
+    using namespace m64plus::n64;
+    constexpr std::uint32_t base = 0x3E00U;
+    constexpr std::uint32_t sentinel = 0xAABBCCDDU;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0; i < 4U; ++i)
+        require(bus.write32(base + i * 4U, sentinel),
+                "seed missing-other-modes framebuffer sentinels");
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | base,
+        (0x37ULL << 56U) | 0x55667788U,
+        (0x36ULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
+            (4ULL << 12U) | 4ULL
+    };
+    for (std::size_t i = 0; i < 3U; ++i)
+        require(bus.write64(0xEB0U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed missing-other-modes FILL_RECTANGLE stream");
+    require(bus.write32(Bus::kDpStart, 0xEB0U) &&
+            bus.write32(Bus::kDpEnd, 0xEC8U),
+            "publish missing-other-modes fill stream");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed &&
+            RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "missing-other-modes setup commands are processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "FILL_RECTANGLE rejects missing other-modes state");
+
+    for (std::uint32_t i = 0; i < 4U; ++i) {
+        std::uint32_t pixel = 0U;
+        require(bus.read32(base + i * 4U, pixel) && pixel == sentinel,
+                "missing other-modes leaves framebuffer unchanged");
+    }
+}
+
 void testFillRectangleRejectsMissingFillColorWithoutWrites() {
     using namespace m64plus::n64;
     constexpr std::uint32_t base = 0x3DC0U;
@@ -3111,6 +3146,7 @@ int main() {
     testLoadTlutHonorsTextureImageCoordinatesAndRange();
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
     testFillRectangleRejectsUnsupportedCycleTypeWithoutWrites();
+    testFillRectangleRejectsMissingOtherModesWithoutWrites();
     testFillRectangleRejectsMissingFillColorWithoutWrites();
     testFillRectangleRejectsMissingColorImageWithoutWrites();
     testFillRectangleRejectsUnsupportedColorImageFormatsWithoutWrites();
