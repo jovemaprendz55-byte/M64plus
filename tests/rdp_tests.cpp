@@ -1640,6 +1640,46 @@ void testLoadTileRejectsNonRgba32FormatsWithoutWritingTmem() {
     }
 }
 
+void testLoadBlockUpdatesTileSizeAndSetTileSizeOverrides() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0U; i < 8U; ++i)
+        require(bus.write8(0x1F80U + i, static_cast<std::uint8_t>(0x60U + i)),
+                "seed LOAD_BLOCK tile-size state source");
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (7ULL << 32U) | 0x1F80U;
+    const std::uint64_t setTile = (0x35ULL << 56U);
+    const std::uint64_t loadBlock =
+        (0x33ULL << 56U) | (28ULL << 12U);
+    const std::uint64_t setTileSize =
+        (0x32ULL << 56U) | (12ULL << 44U) | (16ULL << 32U) |
+        (20ULL << 12U) | 24ULL;
+    constexpr std::uint32_t start = 0xBB0U;
+    const std::uint64_t commands[] = {setImage, setTile, loadBlock, setTileSize};
+    for (std::size_t i = 0U; i < 4U; ++i)
+        require(bus.write64(start + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed LOAD_BLOCK and SET_TILE_SIZE sequence");
+    require(bus.write32(Bus::kDpStart, start) &&
+            bus.write32(Bus::kDpEnd, start + 32U),
+            "publish LOAD_BLOCK tile-size sequence");
+
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "LOAD_BLOCK setup and transfer are processed");
+    require(state.hasTileSize[0] &&
+            state.tileSizes[0].sl == 0U && state.tileSizes[0].tl == 0U &&
+            state.tileSizes[0].sh == 28U && state.tileSizes[0].th == 0U,
+            "LOAD_BLOCK records its S/T bounds in tile-size state");
+
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE_SIZE after LOAD_BLOCK is processed");
+    require(state.tileSizes[0].sl == 12U && state.tileSizes[0].tl == 16U &&
+            state.tileSizes[0].sh == 20U && state.tileSizes[0].th == 24U,
+            "SET_TILE_SIZE replaces the bounds written by LOAD_BLOCK");
+}
+
 void testLoadBlockCopiesContiguousTexelsIntoTmem() {
     using namespace m64plus::n64;
     Bus bus;
@@ -3240,6 +3280,7 @@ int main() {
     testLoadTile32BitValidatesWholeSourceBeforeWritingEitherBank();
     testLoadTile32BitValidatesEverySourceRowBeforeWritingBanks();
     testLoadTileRejectsNonRgba32FormatsWithoutWritingTmem();
+    testLoadBlockUpdatesTileSizeAndSetTileSizeOverrides();
     testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadBlockWrapsDestinationAcrossTmemEnd();
     testLoadBlockRejectsSourcePastRdramEndWithoutPartialWrites();
