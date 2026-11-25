@@ -946,3 +946,54 @@ Esses vetores fixam somente a formação do índice lógico. Não especificam o 
 **Próxima etapa segura:** especificar o endereço físico e a leitura de um texel CI4/CI8 a partir da TMEM, com fixtures que diferenciem bancos e nibbles. A filtragem continua fora de escopo. Nenhuma alteração C++ ou teste executável deve ser feita sem autorização explícita.
 
 **Limite desta revisão:** somente documentação foi alterada. Nenhum código C++, teste executável ou comportamento do emulador foi modificado.
+
+
+### 18.23 Endereçamento físico de CI4/CI8 na TMEM: limites e fixtures
+
+Esta seção aproxima os índices lógicos da seção 18.22 da organização física da TMEM. O RDP possui 4 KiB de TMEM, acessada em quatro bancos paralelos; para CI, os texels ficam na metade baixa (2 KiB) e a TLUT na metade alta (2 KiB). As entradas da TLUT são replicadas para permitir as quatro consultas paralelas. A documentação também descreve a reorganização de linhas ímpares para texturas de 4, 8 e 16 bits: em cada bloco de oito bytes, os dois grupos de quatro bytes trocam de posição. Fontes: capítulos 12.4 e 13.8 do manual. (Links ao final.)
+
+**Unidades de endereço:**
+
+- O campo `tile.tmem` é contado em palavras de 64 bits; a base em bytes é `tile.tmem * 8`.
+- O campo `tile.line` também representa palavras de 64 bits por linha; o stride em bytes é `tile.line * 8`.
+- Para CI4, cada byte contém dois índices de 4 bits. A extração lógica precisa distinguir texel par e ímpar; a convenção de nibble usada pelo caminho atual de carga é documentada abaixo, mas ainda precisa de um vetor independente de leitura.
+- Para CI8, cada texel é um byte e o valor inteiro seleciona a entrada da TLUT.
+- A área de texels CI não pode ocupar a metade alta reservada à TLUT durante o modo CI. O descritor pode ter endereços em toda a TMEM para outros formatos, mas os testes CI devem rejeitar ou classificar separadamente combinações que invadam a região da TLUT.
+
+**Comportamento observado no código de carga atual (não é especificação do sampler):**
+
+1. `loadTileTexels` calcula a base de destino como `tile.tmem * 8` e o stride como `tile.line * 8`.
+2. Para fonte de 4 bits, o caminho atual extrai o texel par do nibble alto e o ímpar do nibble baixo. No destino, mantém a mesma convenção de nibble por coluna, combinando os dois texels em um byte.
+3. Para linhas ímpares, o caminho de carga aplica XOR 4 ao endereço de byte antes de escrever, trocando os grupos de quatro bytes dentro do bloco de oito bytes.
+4. `loadTlutEntries` exige imagem de origem de 16 bits, restringe a carga a até 256 entradas e ao intervalo de palavras TMEM 256–511. Cada entrada de 16 bits é replicada quatro vezes em uma palavra de 64 bits.
+5. O fato de a rotina de carga gravar esses bytes não prova que o futuro sampler consulte o mesmo endereço/banco/nibble corretamente. Carga e amostragem devem ter testes separados.
+
+**Fixtures de leitura que devem ser acrescentadas quando houver autorização para código:**
+
+| Fixture | Padrão TMEM | O que deve detectar |
+|---|---|---|
+| CI4, dois texels no mesmo byte | nibble alto = `0x3`, baixo = `0xC` | Ordem par/ímpar sem confundir os índices |
+| CI4, duas palettes | mesmos nibbles, palette 0 e 1 | O palette altera os quatro bits superiores do índice, não o texel |
+| CI8, índices extremos | bytes `00`, `7F`, `80`, `FF` | Índice direto e transição do bit 7 |
+| Linha par/ímpar | bytes distintos nos offsets 0–7 de duas linhas | Troca dos grupos de quatro bytes apenas na linha ímpar |
+| Stride maior que largura | `line` com espaço de preenchimento entre linhas | O endereço da segunda linha usa `line * 8`, não a largura visível |
+| TLUT replicada | quatro cópias com a mesma entrada e padrões vizinhos diferentes | A leitura de cada banco alcança a entrada replicada correta |
+| TLUT com padrões únicos | entrada i contém valor diferente de i+1 | Índice errado, deslocamento de base e erro de limite |
+| Limites CI | tile na palavra 255, tile na palavra 256 e carga de TLUT nos extremos 256/511 | Separação entre região de texel e região de paleta; evitar wrap que esconda overflow |
+
+**Oráculo e critérios de aprovação:**
+
+- A fixture deve inicializar TMEM diretamente com bytes explícitos e registrar o endereço esperado antes de executar a função de leitura.
+- Para CI4, comparar separadamente: endereço do byte, seleção do nibble, palette, índice de oito bits, endereço lógico da TLUT e valor RGBA final.
+- Para CI8, comparar separadamente: endereço do byte do texel, índice de oito bits, endereço lógico da TLUT e valor final.
+- Os quatro bancos devem usar padrões distinguíveis durante o teste; só depois repetir com as quatro cópias idênticas usadas normalmente.
+- Não inferir o endereço físico exato de cada banco apenas pela replicação feita por `LOAD_TLUT`. A fórmula de seleção de banco e o swizzle completo precisam ser confrontados com os diagramas de TMEM do manual e vetores independentes.
+- Manter a transformação S/T e o filtro fora destes testes. O primeiro leitor deve operar com coordenadas inteiras e sem filtragem.
+
+**Fontes técnicas:**
+- Nintendo 64 Programming Manual, capítulo 12.4, quatro bancos acessíveis em paralelo e partição CI/TLUT: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro12/12-04.html.
+- Nintendo 64 Programming Manual, capítulo 13.8, organização física e lógica da TMEM, layouts de 4/8/16/32 bits e TLUT: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-08.html.
+- Nintendo 64 Programming Manual, seção 13.4, `line`, base TMEM em palavras de 64 bits e palette CI4: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-04.html.
+- Moria, “Nintendo 64 Part 20: TMEM Format and Mip Maps”, explicação complementar do swizzle de linhas ímpares: https://www.moria.us/blog/2020/11/n64-part20-tmem-format-and-mip-maps. Usar como análise técnica secundária, não como substituto do manual.
+
+**Próxima etapa:** montar uma matriz de endereços para CI4/CI8 que relacione (S,T), `line`, `tmem`, nibble e banco, usando diagramas e casos independentes. A implementação do sampler continua bloqueada até essa matriz e seus vetores serem revisados. Nenhum código C++ ou teste executável foi alterado nesta revisão.
