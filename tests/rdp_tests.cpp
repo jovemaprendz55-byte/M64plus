@@ -711,6 +711,47 @@ void testRdpTextureLoadCommandFields() {
             "LOAD_TILE coordinate and tile fields are decoded");
 }
 
+void testLoadTileUpdatesTileSizeAndSetTileSizeOverrides() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0U; i < 16U; ++i)
+        require(bus.write8(0x1800U + i, static_cast<std::uint8_t>(i)),
+                "seed LOAD_TILE tile-size state source");
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 51U) | (3ULL << 32U) | 0x1800ULL;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (1ULL << 51U) | (1ULL << 41U);
+    const std::uint64_t loadTile =
+        (0x34ULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
+        (8ULL << 12U) | 8ULL;
+    const std::uint64_t setTileSize =
+        (0x32ULL << 56U) | (12ULL << 44U) | (16ULL << 32U) |
+        (20ULL << 12U) | 24ULL;
+    const std::uint32_t start = 0xB80U;
+    const std::uint64_t commands[] = {setImage, setTile, loadTile, setTileSize};
+    for (std::size_t i = 0U; i < 4U; ++i)
+        require(bus.write64(start + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed LOAD_TILE and SET_TILE_SIZE sequence");
+    require(bus.write32(Bus::kDpStart, start) &&
+            bus.write32(Bus::kDpEnd, start + 32U),
+            "publish LOAD_TILE tile-size sequence");
+
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "LOAD_TILE tile-size setup and transfer are processed");
+    require(state.hasTileSize[0] &&
+            state.tileSizes[0].sl == 4U && state.tileSizes[0].tl == 4U &&
+            state.tileSizes[0].sh == 8U && state.tileSizes[0].th == 8U,
+            "LOAD_TILE records its coordinates in the tile-size registers");
+
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE_SIZE after LOAD_TILE is processed");
+    require(state.tileSizes[0].sl == 12U && state.tileSizes[0].tl == 16U &&
+            state.tileSizes[0].sh == 20U && state.tileSizes[0].th == 24U,
+            "SET_TILE_SIZE replaces the coordinates written by LOAD_TILE");
+}
+
 void testLoadTileCopiesTextureImageIntoTmem() {
     using namespace m64plus::n64;
     Bus bus;
@@ -3122,6 +3163,7 @@ int main() {
     testRdpPrimitiveDepthCommand();
     testRdpTextureMemory();
     testRdpTextureLoadCommandFields();
+    testLoadTileUpdatesTileSizeAndSetTileSizeOverrides();
     testLoadTileCopiesTextureImageIntoTmem();
     testLoadTileRejectsInvertedCoordinatesWithoutWrites();
     testLoadTileValidatesEverySourceRowBeforeWritingTmem();
