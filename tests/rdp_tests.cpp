@@ -2121,6 +2121,61 @@ void testLoadBlockCopiesRgba32IntoSplitTmemBanks() {
     }
 }
 
+void testLoadBlockRgba32DxtFractionalLineCarry() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t source = 0x1D00U;
+    std::uint8_t rgba[32]{};
+    for (std::uint32_t texel = 0U; texel < 8U; ++texel) {
+        rgba[texel * 4U] = static_cast<std::uint8_t>(0x10U + texel);
+        rgba[texel * 4U + 1U] = static_cast<std::uint8_t>(0x20U + texel);
+        rgba[texel * 4U + 2U] = static_cast<std::uint8_t>(0x30U + texel);
+        rgba[texel * 4U + 3U] = static_cast<std::uint8_t>(0x40U + texel);
+    }
+    for (std::size_t i = 0U; i < sizeof(rgba); ++i)
+        require(bus.write8(source + static_cast<std::uint32_t>(i), rgba[i]),
+                "seed RGBA32 fractional-DXT texels");
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (3ULL << 51U) | (7ULL << 32U) | source;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (3ULL << 51U);
+    const std::uint64_t loadBlock =
+        (0x33ULL << 56U) | (28ULL << 12U) | 0x400ULL;
+    require(bus.write64(0xBE0U, setImage) &&
+            bus.write64(0xBE8U, setTile) &&
+            bus.write64(0xBF0U, loadBlock),
+            "seed RGBA32 fractional-DXT command sequence");
+    require(bus.write32(Bus::kDpStart, 0xBE0U) &&
+            bus.write32(Bus::kDpEnd, 0xBF8U),
+            "publish RGBA32 fractional-DXT sequence");
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) ==
+                    RdpProcessResult::Processed,
+                "RGBA32 fractional-DXT LOAD_BLOCK sequence executes");
+
+    // DXT=0x400 carries after every two 64-bit words. The first four
+    // texels remain ordered; the next two words are both on odd line 1.
+    const std::uint8_t expectedTexelOrder[] = {0U, 1U, 2U, 3U, 5U, 4U, 7U, 6U};
+    std::uint8_t value = 0U;
+    for (std::size_t i = 0U; i < 8U; ++i) {
+        const std::uint8_t texel = expectedTexelOrder[i];
+        require(state.tmem.readByte(static_cast<std::uint16_t>(i * 2U), value) &&
+                    value == static_cast<std::uint8_t>(0x10U + texel),
+                "fractional DXT RGBA32 lower bank preserves expected texel order");
+        require(state.tmem.readByte(static_cast<std::uint16_t>(i * 2U + 1U), value) &&
+                    value == static_cast<std::uint8_t>(0x20U + texel),
+                "fractional DXT RGBA32 lower bank preserves green channel");
+        require(state.tmem.readByte(static_cast<std::uint16_t>(0x800U + i * 2U), value) &&
+                    value == static_cast<std::uint8_t>(0x30U + texel),
+                "fractional DXT RGBA32 upper bank preserves blue channel");
+        require(state.tmem.readByte(static_cast<std::uint16_t>(0x801U + i * 2U), value) &&
+                    value == static_cast<std::uint8_t>(0x40U + texel),
+                "fractional DXT RGBA32 upper bank preserves alpha channel");
+    }
+}
+
 void testLoadBlockRgba32DxtSwapsOddLineWords() {
     using namespace m64plus::n64;
     Bus bus;
@@ -4433,6 +4488,7 @@ int main() {
     testLoadBlockRejectsStartOutsideTextureImageWidth();
     testLoadBlockRgba32RejectsSourceOverflowAtomically();
     testLoadBlockCopiesRgba32IntoSplitTmemBanks();
+    testLoadBlockRgba32DxtFractionalLineCarry();
     testLoadBlockRgba32DxtSwapsOddLineWords();
     testLoadBlockRejectsUnsupportedTexelSizes();
     testLoadTlutReplicatesEntriesIntoHighTmem();
