@@ -85,6 +85,113 @@ bool fillRectangle(Bus& bus, const RdpSyncState& state,
     return true;
 }
 
+
+std::int32_t signExtend14(std::uint16_t value) noexcept {
+    const std::int32_t bits = static_cast<std::int32_t>(value & 0x3FFFU);
+    return (bits & 0x2000) != 0 ? bits - 0x4000 : bits;
+}
+
+bool fillTriangle(Bus& bus, const RdpSyncState& state,
+                  const RdpTriangleCommand& triangle) noexcept {
+    // First rasterizer slice: unshaded, untextured, un-Z triangles in FILL mode.
+    if (triangle.layout.hasShade || triangle.layout.hasTexture ||
+        triangle.layout.hasZ || !state.hasColorImage ||
+        !state.hasFillColor || !state.hasOtherModes ||
+        state.otherModes.cycleType != 3U || !state.hasScissor) return false;
+    const RdpImageState& image = state.colorImage;
+    if (image.format != 0U || (image.size != 2U && image.size != 3U) ||
+        image.width == 0U) return false;
+
+    const RdpTriangleEdgeState& edge = triangle.edge;
+    const std::int32_t yh = signExtend14(edge.yHigh);
+    const std::int32_t ym = signExtend14(edge.yMiddle);
+    const std::int32_t yl = signExtend14(edge.yLow);
+    if (yl <= yh) return false;
+    const std::int32_t middle = ym < yh ? yh : (ym > yl ? yl : ym);
+    const std::int32_t scissorLeft = static_cast<std::int32_t>(state.scissor.xh) >> 2U;
+    const std::int32_t scissorRight = static_cast<std::int32_t>(state.scissor.xl) >> 2U;
+    const std::int32_t scissorTop = static_cast<std::int32_t>(state.scissor.yh) >> 2U;
+    const std::int32_t scissorBottom = static_cast<std::int32_t>(state.scissor.yl) >> 2U;
+    if (scissorRight <= scissorLeft || scissorBottom <= scissorTop) return false;
+
+    const std::int32_t startLine = std::max(yh >> 2U, scissorTop);
+    const std::int32_t endLine = std::min((yl - 1) >> 2U, scissorBottom - 1);
+    if (endLine < startLine) return false;
+    const std::int32_t yhBase = yh & ~3;
+    const std::int32_t width = static_cast<std::int32_t>(image.width);
+    const std::int32_t maxX = std::min(scissorRight, width - 1);
+    const std::uint32_t bytesPerPixel = image.size == 2U ? 2U : 4U;
+    const std::uint64_t memorySize = bus.rdram().size();
+    const bool flip = !edge.leftMajor;
+
+    const auto spanForLine = [&](std::int32_t line, std::int32_t& left,
+                                 std::int32_t& right) noexcept {
+        left = INT32_MAX;
+        right = INT32_MIN;
+        for (std::int32_t sub = 0; sub < 4; ++sub) {
+            const std::int32_t y = line * 4 + sub;
+            if (y < yh || y >= yl) continue;
+            const std::int64_t major = static_cast<std::int64_t>(edge.xHigh) +
+                static_cast<std::int64_t>(y - yhBase) * edge.dxHighDy;
+            const std::int64_t minor = y < middle
+                ? static_cast<std::int64_t>(edge.xMiddle) +
+                    static_cast<std::int64_t>(y - yhBase) * edge.dxMiddleDy
+                : static_cast<std::int64_t>(edge.xLeft) +
+                    static_cast<std::int64_t>(y - middle) * edge.dxLeftDy;
+            const std::int32_t majorPixel = static_cast<std::int32_t>(major >> 16U);
+            const std::int32_t minorPixel = static_cast<std::int32_t>(minor >> 16U);
+            const std::int32_t candidateLeft = flip ? majorPixel : minorPixel;
+            const std::int32_t candidateRight = flip ? minorPixel : majorPixel;
+            if (candidateLeft > candidateRight) continue;
+            left = std::min(left, candidateLeft);
+            right = std::max(right, candidateRight);
+        }
+        left = std::max({left, scissorLeft, 0});
+        right = std::min(right, maxX);
+        return left <= right;
+    };
+
+    // Validate every destination before the first write. This mirrors the
+    // rectangle path's all-or-nothing behavior for framebuffer bounds errors.
+    for (std::int32_t y = startLine; y <= endLine; ++y) {
+        std::int32_t left = 0;
+        std::int32_t right = -1;
+        if (!spanForLine(y, left, right)) continue;
+        for (std::int32_t x = left; x <= right; ++x) {
+            const std::uint64_t pixel =
+                static_cast<std::uint64_t>(y) * image.width +
+                static_cast<std::uint32_t>(x);
+            const std::uint64_t address =
+                static_cast<std::uint64_t>(image.address) + pixel * bytesPerPixel;
+            if (address + bytesPerPixel > memorySize) return false;
+        }
+    }
+    for (std::int32_t y = startLine; y <= endLine; ++y) {
+        std::int32_t left = 0;
+        std::int32_t right = -1;
+        if (!spanForLine(y, left, right)) continue;
+        for (std::int32_t x = left; x <= right; ++x) {
+            const std::uint64_t pixel =
+                static_cast<std::uint64_t>(y) * image.width +
+                static_cast<std::uint32_t>(x);
+            const std::uint32_t address = static_cast<std::uint32_t>(
+                static_cast<std::uint64_t>(image.address) + pixel * bytesPerPixel);
+            if (bytesPerPixel == 2U) {
+                const std::uint16_t value = (pixel & 1U) == 0U
+                    ? static_cast<std::uint16_t>(state.fillColor >> 16U)
+                    : static_cast<std::uint16_t>(state.fillColor);
+                if (!bus.write16(address, value)) return false;
+            } else if (!bus.write8(address, static_cast<std::uint8_t>(state.fillColor >> 24U)) ||
+                       !bus.write8(address + 1U, static_cast<std::uint8_t>(state.fillColor >> 16U)) ||
+                       !bus.write8(address + 2U, static_cast<std::uint8_t>(state.fillColor >> 8U)) ||
+                       !bus.write8(address + 3U, static_cast<std::uint8_t>(state.fillColor))) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 bool loadTile32BitTexels(Bus& bus, RdpSyncState& state,
                            const RdpTextureLoadState& load) noexcept {
     if (!state.hasTextureImage || !state.hasTile[load.tile]) return false;
@@ -671,8 +778,11 @@ RdpProcessResult RdpCommandProcessor::processNext(
             return RdpProcessResult::Unsupported;
         state.lastTriangle = triangle;
         state.hasTriangle = true;
-        // Parsing is integrated; rasterization is deliberately not claimed yet.
-        return RdpProcessResult::Unsupported;
+        // The initial flat-fill path is deliberately limited to opcode 0x08.
+        // Shading, texturing and Z-buffer variants remain explicitly unsupported.
+        if (packet.info.opcode != 0x08U) return RdpProcessResult::Unsupported;
+        return fillTriangle(bus, state, triangle)
+            ? RdpProcessResult::Processed : RdpProcessResult::Unsupported;
     }
     case 0x26U: // SYNC_LOAD
         ++state.syncLoadCount;
