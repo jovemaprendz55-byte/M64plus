@@ -3330,7 +3330,7 @@ void testFlatFillTriangleUsesNegativeLowerEdgeSlope() {
         (0x2DULL << 56U) | (32ULL << 12U) | 32ULL,
         // After YM=2, the minor edge moves left by one pixel per scanline.
         (0x08ULL << 56U) | (8ULL << 16U) | 16ULL,
-        (4ULL * 65536ULL << 32U) | 0x3FFC0000ULL,
+        (4ULL * 65536ULL << 32U) | 0x3FFF0000ULL,
         (6ULL * 65536ULL) << 32U,
         (2ULL * 65536ULL) << 32U
     };
