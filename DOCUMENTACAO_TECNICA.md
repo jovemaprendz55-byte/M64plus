@@ -1798,3 +1798,33 @@ Fontes:
 - Nintendo 64 Programming Manual, seção 13.5: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-05.html
 
 **Status:** refinamento documental baseado em comparação de implementação. Nenhum código C++ ou teste executável foi alterado ou executado.
+
+
+### 18.48 Reconciliação do campo SH com a macro GBI e o Project64
+
+A leitura conjunta da macro oficial GBI e da rotina Project64 resolve a aparente diferença de escala observada na seção 18.47.
+
+**Codificação da macro oficial**
+
+A macro gDPLoadTLUT_pal16 configura SET_TEXTURE_IMAGE com tamanho 16 bits e width=1, configura o tile de carga e chama gDPLoadTLUTCmd(tile, 15). A macro de 256 entradas chama gDPLoadTLUTCmd(tile, 255). A definição de gDPLoadTLUTCmd grava count diretamente no campo de 10 bits do segundo word, deslocado 14 posições. Portanto, para as macros oficiais usuais, SL=0 e o valor inteiro obtido de SH após remover os dois bits fracionários equivale a count-1.
+
+**Reconciliação com Project64**
+
+A rotina Project64 extrai o campo de 10 bits com (cmd1 >> 14) & 0x3FF e calcula count = campo + 1. No comando codificado pela macro GBI, esse campo é exatamente o count-1 fornecido à macro. Isso coincide com o cálculo local para o caso canônico SL=0: (SH >> 2) - (SL >> 2) + 1, pois SL é zero. A diferença entre as implementações só aparece em comandos não usuais com SL diferente de zero: Project64 ignora SL para a contagem e usa SH+1, enquanto o código local subtrai SL.
+
+**Conclusão corrigida**
+
+1. Para as macros oficiais padrão, a contagem local baseada em SH, com SL=0, é coerente com a macro GBI e com Project64.
+2. A validação lastX >= image.width continua incompatível com as macros oficiais padrão, porque a origem declara width=1 enquanto SH pode representar 15 ou 255. A quantidade TLUT não deve ser limitada pela largura horizontal declarada da imagem.
+3. A divergência para SL não zero permanece em aberto. Não alterar a fórmula local para imitar Project64 sem vetor normativo ou evidência de hardware para esse caso.
+4. TL e TH são normalmente zero segundo o resumo RDP; não usar TL não zero para inferir uma coordenada Y de imagem retangular.
+5. O teste local chamado testLoadTlutRejectsRangePastImageWidthWithoutPartialWrites não é uma reprodução fiel da macro GBI: ele combina TL não zero com uma largura de imagem 1. Deve ser substituído por um caso canônico com SL=TL=0, width=1 e SH=15 (16 entradas), verificando as 16 entradas contíguas e a replicação na TMEM. Um segundo vetor com SH=255 cobre a tabela completa.
+
+**Fontes primárias e comparação**
+
+- GBI oficial: gDPLoadTLUT_pal16, gDPLoadTLUT_pal256, gDPLoadTLUT e gDPLoadTLUTCmd: https://ultra64.ca/files/documentation/online-manuals/man/header/gbi.htm (linhas 3329–3340 e 4100–4161; macro genérica em 4200–4208).
+- SGI RDP Command Summary, tabela Load Tlut: https://ultra64.ca/files/documentation/silicon-graphics/SGI_RDP_Command_Summary.pdf
+- Project64, rdp_loadtlut: https://github.com/project64/project64/blob/develop/Source/Project64-video/rdp.cpp
+- Nintendo 64 Programming Manual, seção 13.5: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-05.html
+
+**Status:** auditoria documental corrigida com expansão de macro e alinhamento da codificação do campo. Nenhum código C++ ou teste executável foi alterado ou executado.
