@@ -1368,3 +1368,16 @@ A seção 13.3 (*Texture Image Space*) descreve a conversão de coordenadas de i
 - Manual N64, seção 13.4, *Tile Attributes*: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-04.html
 
 **Status:** documentação de evidência e limites; nenhum código C++ ou teste executável foi alterado ou executado.
+
+
+### 18.35 Evidência externa para a paridade do nibble no sampler CI4
+
+Foi localizada uma referência de implementação independente, a documentação técnica do projeto RustyN64. Ela registra que, ao buscar texels de 4 bits, o sampler seleciona o nibble alto para S par e o nibble baixo para S ímpar.
+
+Fonte: https://github.com/doublegate/RustyN64/blob/main/docs/rdp.md
+
+**Limite da evidência:** essa regra descreve a seleção do nibble durante a busca do texel; ela não é, por si só, um vetor de referência para a sequência GBI `gDPLoadTextureTile_4b` com S ímpar. Ainda falta verificar a coordenada S efetivamente entregue ao sampler depois da carga e da configuração do tile. Assim, a referência corrobora a regra de paridade do sampler, mas não encerra a questão do primeiro texel na sequência específica.
+
+**Próximo passo:** comparar a transformação de coordenadas da macro com a convenção de coordenadas do sampler e, quando houver um vetor independente que cubra a sequência completa, registrar o caso como teste de integração. Nenhum código C++ ou teste executável foi alterado nesta etapa.
+
+**Status:** anotação documental de evidência externa, com escopo limitado.
