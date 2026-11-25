@@ -719,6 +719,32 @@ Java_com_jsr_m64plus_MainActivity_nativeRunCpuSlice(
     return static_cast<jint>(executed);
 }
 
+extern "C" JNIEXPORT jint JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeRunRspSlice(
+        JNIEnv*, jclass, jlong handle, jint instructionBudget) {
+    auto* machine = reinterpret_cast<m64plus::n64::N64Machine*>(
+            static_cast<std::uintptr_t>(handle));
+    if (machine == nullptr || instructionBudget <= 0) return 0;
+    constexpr jint kMaximumSlice = 4096;
+    const jint boundedBudget = instructionBudget > kMaximumSlice
+            ? kMaximumSlice : instructionBudget;
+    return static_cast<jint>(machine->runRsp(
+            static_cast<std::size_t>(boundedBudget)));
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_jsr_m64plus_MainActivity_nativeRunRdpSlice(
+        JNIEnv*, jclass, jlong handle, jint commandBudget) {
+    auto* machine = reinterpret_cast<m64plus::n64::N64Machine*>(
+            static_cast<std::uintptr_t>(handle));
+    if (machine == nullptr || commandBudget <= 0) return 0;
+    constexpr jint kMaximumSlice = 1024;
+    const jint boundedBudget = commandBudget > kMaximumSlice
+            ? kMaximumSlice : commandBudget;
+    return static_cast<jint>(machine->runRdp(
+            static_cast<std::size_t>(boundedBudget)));
+}
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_jsr_m64plus_MainActivity_nativeBootCartridgeHle(
         JNIEnv*, jclass, jlong handle) {
