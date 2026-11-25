@@ -339,3 +339,33 @@ Commit inicial desta etapa: o barramento foi separado da RDRAM e possui decodifi
 A classe `Bus` oferece acessos de 8, 16, 32 e 64 bits, valida que cada acesso permaneça dentro de uma única região e expõe a RDRAM para inspeção/testes. O autoteste JNI valida decodificação, big-endian, independência DMEM/IMEM, limites e reset.
 
 **Limite desta entrega:** a CPU ainda executa diretamente sobre `Rdram`; esta classe é uma fundação isolada e ainda não substitui o caminho de memória do processador. Também não existem ainda registradores MMIO do SP, MI, VI, AI, PI, RI ou SI, interrupções por dispositivos, DMA ou mapeamento de cartucho. O próximo passo é implementar os blocos de registradores e então migrar a CPU para o barramento sem quebrar os testes existentes.
+
+
+## 18. Investigação do rasterizador RDP — referências e escopo (25/11/2026)
+
+### 18.1 Referências consultadas
+
+- [Nintendo Ultra64 RDP Command Summary, versão 2.0 (SGI, 11/04/1996)](https://hcs64.com/files/RDP_COMMANDS.pdf), especialmente páginas 12–24: composição dos comandos de triângulo, coeficientes de borda, shade, texture e Z.
+- [Nintendo 64 Programming Manual — capítulo 12, RDP Programming](https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro12/12-01.html): blocos lógicos do pipeline, modos de ciclo e funções de rasterização, textura, filtro, combiner, blender e interface de memória.
+
+### 18.2 Fatos extraídos das referências
+
+- Os comandos de triângulo são compostos por blocos concatenados nesta ordem: edge, shade opcional, texture opcional e Z opcional. O resumo de comandos especifica quatro palavras de 64 bits para edge; oito para shade; oito para texture; duas para Z.
+- O bloco edge carrega YH/YM/YL em coordenadas subpixel 11.2, além de X e inclinações inversas das três bordas. O documento também descreve que os valores X são amostrados em pontos específicos da malha de scanlines; portanto, não basta tratar o triângulo como três vértices geométricos comuns.
+- O rasterizador produz coordenadas e atributos como RGBA, Z, S/W, T/W, 1/W, L e cobertura.
+- O manual divide o pipeline em seis blocos lógicos: RS (rasterização), TX (texturização), TF (filtro), CC (combinação de cor), BL (blending) e MI (acesso à memória de pixels). Os modos 1-cycle, 2-cycle, copy e fill alteram a configuração do pipeline.
+
+### 18.3 Comparação com o estado atual do repositório
+
+- `RdpCommandDecoder` já separa o layout dos oito opcodes de triângulo e decodifica os blocos edge, shade, texture e Z, preservando os coeficientes e os dados brutos.
+- `RdpCommandProcessor` retém o último triângulo e consome o pacote completo, mas reporta `Unsupported`; não há ainda edge walker, geração de cobertura ou escrita de pixels para triângulos.
+- `FILL_RECTANGLE` é um caminho separado e limitado ao ciclo FILL. Ele não implementa o pipeline geral RS/TX/TF/CC/BL/MI.
+
+### 18.4 Sequência recomendada antes de implementar
+
+1. Construir vetores de referência para edge walking: triângulo left-major e right-major, vértice horizontal, altura de uma scanline, coordenadas subpixel e limites YH/YM/YL.
+2. Definir e testar a regra de cobertura por pixel e as regras de inclusão/exclusão das bordas, comparando resultados com uma implementação de referência independente ou hardware.
+3. Só depois adicionar interpolação shade e Z, com vetores que validem precisão, sinais, frações e acumulação.
+4. Tratar textura, filtragem, combiner, blender, coverage e interface de memória como etapas separadas; não declarar suporte geral de triângulos a partir de um teste geométrico isolado.
+
+**Limitação e decisão:** a documentação consultada descreve formatos e blocos, mas não constitui por si só uma suíte completa de conformidade bit a bit. Não foi iniciada implementação do rasterizador nesta etapa. Antes de alterar código de produção, é necessário obter vetores de referência reproduzíveis para a cobertura e o edge walker.
