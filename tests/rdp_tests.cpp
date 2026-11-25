@@ -2260,6 +2260,45 @@ void testFillRectangleWritesRgba16AlternatingHalfwords() {
     }
 }
 
+void testFillRectangleRgba16ScissorPreservesPixelParity() {
+    using namespace m64plus::n64;
+    constexpr std::uint32_t base = 0x3A00U;
+    constexpr std::uint16_t sentinel = 0x55AAU;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0U; i < 8U; ++i)
+        require(bus.write16(base + i * 2U, sentinel),
+                "seed RGBA16 scissor parity sentinels");
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (2ULL << 51U) | (3ULL << 32U) | base,
+        (0x37ULL << 56U) | 0xF80107C1ULL,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x2DULL << 56U) | (4ULL << 44U) | (12ULL << 32U) | 4ULL,
+        (0x36ULL << 56U) | (12ULL << 44U)
+    };
+    constexpr std::uint32_t start = 0xDA0U;
+    for (std::size_t i = 0U; i < 5U; ++i)
+        require(bus.write64(start + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed RGBA16 scissor parity command stream");
+    require(bus.write32(Bus::kDpStart, start) &&
+            bus.write32(Bus::kDpEnd, start + 40U),
+            "publish RGBA16 scissor parity stream");
+    for (unsigned i = 0U; i < 5U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "RGBA16 scissored fill setup and draw are processed");
+
+    for (std::uint32_t x = 0U; x < 4U; ++x) {
+        std::uint16_t pixel = 0U;
+        require(bus.read16(base + x * 2U, pixel),
+                "read RGBA16 scissor parity pixel");
+        const std::uint16_t expected = x == 1U ? 0x07C1U
+            : (x == 2U ? 0xF801U : sentinel);
+        require(pixel == expected,
+                "RGBA16 scissor keeps absolute framebuffer halfword parity");
+    }
+}
+
 void testFillRectangleHonorsScissorFieldParity() {
     using namespace m64plus::n64;
     constexpr std::uint32_t base = 0x3800U;
@@ -2869,6 +2908,7 @@ int main() {
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
     testFillRectangleClipsLeftAndTopAgainstScissor();
     testFillRectangleWritesRgba16AlternatingHalfwords();
+    testFillRectangleRgba16ScissorPreservesPixelParity();
     testFillRectangleHonorsScissorFieldParity();
     testFillRectangleWritesFinalRdramPixelAtExactBoundary();
     testFillRectangleWritesFinalRdramHalfwordAtExactBoundary();
