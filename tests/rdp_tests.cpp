@@ -1295,6 +1295,16 @@ void testLoadTileSplits32BitRgbaAcrossTmemBanks() {
         require(bus.write8(0x1A00U + i, source[i]),
                 "seed two-row RGBA32 LOAD_TILE source");
 
+    // Fill both TMEM banks with sentinels so the line-stride gap can
+    // be checked independently of the loaded RGBA32 texels.
+    for (std::uint16_t i = 20U; i < 28U; ++i) {
+        require(state.tmem.writeByte(i, 0xA5U),
+                "seed lower-bank RGBA32 row padding sentinel");
+        require(state.tmem.writeByte(static_cast<std::uint16_t>(0x800U + i),
+                                     0x5AU),
+                "seed upper-bank RGBA32 row padding sentinel");
+    }
+
     const std::uint64_t setImage =
         (0x3DULL << 56U) | (3ULL << 51U) | (1ULL << 32U) | 0x1A00ULL;
     const std::uint64_t setTile =
@@ -1333,6 +1343,13 @@ void testLoadTileSplits32BitRgbaAcrossTmemBanks() {
             state.tmem.readByte(0x81EU, value) && value == 0xF0U &&
             state.tmem.readByte(0x81FU, value) && value == 0x0FU,
             "RGBA32 LOAD_TILE applies odd-row halfword swap in upper bank");
+    for (std::uint16_t i = 20U; i < 28U; ++i) {
+        require(state.tmem.readByte(i, value) && value == 0xA5U,
+                "RGBA32 LOAD_TILE preserves lower-bank line padding");
+        require(state.tmem.readByte(static_cast<std::uint16_t>(0x800U + i), value) &&
+                value == 0x5AU,
+                "RGBA32 LOAD_TILE preserves upper-bank line padding");
+    }
 }
 
 void testLoadTileRgba32UpperBankStaysAlignedAcrossBankWrap() {
