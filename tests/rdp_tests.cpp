@@ -2224,6 +2224,58 @@ void testFillRectangleRejectsUnsupportedCycleTypeWithoutWrites() {
     }
 }
 
+void testFillRectangleRejectsUnsupportedColorImageFormatsWithoutWrites() {
+    using namespace m64plus::n64;
+    constexpr std::uint32_t base = 0x3D40U;
+    constexpr std::uint32_t sentinel = 0xAABBCCDDU;
+    const std::array<std::uint64_t, 3> unsupportedImages = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (1ULL << 53U) |
+            (3ULL << 32U) | base,
+        (0x3FULL << 56U) | (1ULL << 51U) |
+            (3ULL << 32U) | base,
+        (0x3FULL << 56U) | (0ULL << 51U) |
+            (3ULL << 32U) | base
+    };
+
+    for (std::size_t mode = 0; mode < unsupportedImages.size(); ++mode) {
+        Bus bus;
+        RdpSyncState state{};
+        for (std::uint32_t i = 0; i < 4U; ++i)
+            require(bus.write32(base + i * 4U, sentinel),
+                    "seed unsupported-image framebuffer sentinels");
+
+        const std::uint64_t commands[] = {
+            unsupportedImages[mode],
+            (0x37ULL << 56U) | 0x55667788U,
+            (0x2FULL << 56U) | (3ULL << 52U),
+            (0x36ULL << 56U) | (4ULL << 44U) | (4ULL << 32U) |
+                (4ULL << 12U) | 4ULL
+        };
+        const std::uint32_t stream = 0xE80U + static_cast<std::uint32_t>(mode * 0x40U);
+        for (std::size_t i = 0; i < 4U; ++i)
+            require(bus.write64(stream + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                    "seed unsupported-image FILL_RECTANGLE command stream");
+        require(bus.write32(Bus::kDpStart, stream) &&
+                bus.write32(Bus::kDpEnd, stream + 0x20U),
+                "publish unsupported-image fill stream");
+        for (unsigned i = 0; i < 3U; ++i)
+            require(RdpCommandProcessor::processNext(bus, state) ==
+                        RdpProcessResult::Processed,
+                    "unsupported-image fill setup commands are processed");
+        require(RdpCommandProcessor::processNext(bus, state) ==
+                    RdpProcessResult::Unsupported,
+                "FILL_RECTANGLE rejects unsupported color image format or size");
+
+        for (std::uint32_t i = 0; i < 4U; ++i) {
+            std::uint32_t pixel = 0U;
+            require(bus.read32(base + i * 4U, pixel),
+                    "read unsupported-image framebuffer pixel");
+            require(pixel == sentinel,
+                    "unsupported color image leaves framebuffer unchanged");
+        }
+    }
+}
+
 void testFillRectangleWritesSinglePixelForDegenerateBounds() {
     using namespace m64plus::n64;
     constexpr std::uint32_t base = 0x3C00U;
