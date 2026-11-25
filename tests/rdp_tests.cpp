@@ -3437,6 +3437,52 @@ void testFlatFillTriangleRejectsOutOfBoundsFramebufferAtomically() {
     }
 }
 
+
+void testFlatFillTriangleClipsToScissorRectangle() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x1100U;
+    constexpr std::uint32_t stream = 0x1200U;
+    constexpr std::uint32_t sentinel = 0xDEADBEEFU;
+    constexpr std::uint32_t fill = 0x55667788U;
+    for (std::uint32_t i = 0U; i < 8U * 8U; ++i)
+        require(bus.write32(framebuffer + i * 4U, sentinel),
+                "seed scissor-clipped triangle framebuffer");
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (7ULL << 32U) | framebuffer,
+        (0x37ULL << 56U) | fill,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x2DULL << 56U) | (8ULL << 44U) | (16ULL << 12U) | 32ULL,
+        (0x08ULL << 56U) | (1ULL << 55U) | (16ULL << 16U) | 16ULL,
+        0ULL,
+        (2ULL * 65536ULL) << 32U,
+        ((2ULL * 65536ULL) << 32U) | 0x00010000ULL
+    };
+    for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
+        require(bus.write64(stream + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "write scissor-clipped triangle command stream");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 64U),
+            "publish scissor-clipped triangle command stream");
+    for (unsigned i = 0U; i < 4U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "scissor-clipped triangle setup command is processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "scissor-clipped flat triangle is rasterized");
+    for (std::uint32_t y = 0U; y < 8U; ++y) {
+        for (std::uint32_t x = 0U; x < 8U; ++x) {
+            std::uint32_t pixel = 0U;
+            require(bus.read32(framebuffer + (y * 8U + x) * 4U, pixel),
+                    "read scissor-clipped triangle pixel");
+            const bool covered = y < 4U && x >= 2U && x <= 3U &&
+                x <= 2U + y;
+            require(pixel == (covered ? fill : sentinel),
+                    "triangle writes only pixels inside scissor bounds");
+        }
+    }
+}
+
 void testTextureRectanglePacketDecoding() {
     using namespace m64plus::n64;
     for (std::uint8_t opcode : {0x24U, 0x25U}) {
@@ -3527,6 +3573,7 @@ int main() {
     testFlatFillTriangleHonorsInterlacedFieldSelection();
     testFlatFillTriangleUsesFillColorInCopyCycle();
     testFlatFillTriangleRejectsOutOfBoundsFramebufferAtomically();
+    testFlatFillTriangleClipsToScissorRectangle();
     testTextureRectangleLengths();
     testTextureRectanglePacketDecoding();
     testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
