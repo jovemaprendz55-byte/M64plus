@@ -2228,12 +2228,18 @@ void testFillRectangleRejectsUnsupportedColorImageFormatsWithoutWrites() {
     using namespace m64plus::n64;
     constexpr std::uint32_t base = 0x3D40U;
     constexpr std::uint32_t sentinel = 0xAABBCCDDU;
-    const std::array<std::uint64_t, 3> unsupportedImages = {
+    const std::array<std::uint64_t, 6> unsupportedImages = {
         (0x3FULL << 56U) | (3ULL << 51U) | (1ULL << 53U) |
             (3ULL << 32U) | base,
         (0x3FULL << 56U) | (1ULL << 51U) |
             (3ULL << 32U) | base,
         (0x3FULL << 56U) | (0ULL << 51U) |
+            (3ULL << 32U) | base,
+        (0x3FULL << 56U) | (2ULL << 53U) | (2ULL << 51U) |
+            (3ULL << 32U) | base,
+        (0x3FULL << 56U) | (3ULL << 53U) | (2ULL << 51U) |
+            (3ULL << 32U) | base,
+        (0x3FULL << 56U) | (4ULL << 53U) | (3ULL << 51U) |
             (3ULL << 32U) | base
     };
 
