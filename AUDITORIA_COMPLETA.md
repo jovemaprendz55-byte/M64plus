@@ -1402,3 +1402,13 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - **CI aprovada:** workflow [45515009952](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45515009952); `native-host-tests` e `assemble-debug` concluíram com `success`.
 
 **Limite atual:** esses resultados validam a lógica de preenchimento simples e o recorte por scissor em fixtures sintéticas. Não comprovam o pipeline completo de pixels do RDP, blending, dithering, depth, texturização ou renderização de jogos comerciais.
+
+### 17.29 — Limites degenerados de FILL_RECTANGLE (24/11/2026)
+
+- Adicionado o teste `testFillRectangleWritesSinglePixelForDegenerateBounds`, que envia um `FILL_RECTANGLE` cujos limites esquerdo/direito e superior/inferior coincidem.
+- O teste confirma que a coordenada fixa representa exatamente um pixel e que os outros 15 pixels da pequena framebuffer preservam o valor sentinela.
+- A primeira fixture falhou porque usava coordenadas 8 em unidades 10.2, isto é, pixel (2,2), enquanto a asserção verificava pixel (1,1). A fixture foi corrigida para coordenadas 4 (pixel 1,1); nenhuma alteração no código de produção foi necessária.
+- Commits: teste inicial `c851117b467dfa0a80750e8e7d60fb2fc7f294db`; correção da fixture `1733d0fb7f842bd7b22131115999aaf7438412df`.
+- **CI aprovada:** workflow [45516485872](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45516485872); `native-host-tests` e `assemble-debug` concluíram com `success`.
+
+**Limitação:** o teste cobre um caso sintético de preenchimento de um único pixel. Não implementa nem valida a rasterização de triângulos, o pipeline completo de pixels do RDP ou compatibilidade com jogos comerciais.
