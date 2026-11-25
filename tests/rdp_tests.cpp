@@ -2021,6 +2021,52 @@ void testLoadBlockRejectsStartOutsideTextureImageWidth() {
             "rejected out-of-range LOAD_BLOCK leaves TMEM unchanged");
 }
 
+void testLoadBlockRgba32RejectsSourceOverflowAtomically() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t source =
+        static_cast<std::uint32_t>(Rdram::kSize - 4U);
+    for (std::uint32_t i = 0U; i < 4U; ++i)
+        require(bus.write8(source + i, static_cast<std::uint8_t>(0xA0U + i)),
+                "seed valid RGBA32 source prefix at RDRAM end");
+    for (std::uint16_t i = 0U; i < 8U; ++i) {
+        require(state.tmem.writeByte(i, 0x5AU),
+                "seed lower RGBA32 TMEM bank before invalid load");
+        require(state.tmem.writeByte(static_cast<std::uint16_t>(0x800U + i), 0xC3U),
+                "seed upper RGBA32 TMEM bank before invalid load");
+    }
+
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (3ULL << 51U) | source;
+    const std::uint64_t tile =
+        (0x35ULL << 56U) | (3ULL << 51U);
+    const std::uint64_t load =
+        (0x33ULL << 56U) | (4ULL << 12U);
+    require(bus.write64(0xBC0U, image) &&
+            bus.write64(0xBC8U, tile) &&
+            bus.write64(0xBD0U, load),
+            "seed RGBA32 LOAD_BLOCK crossing RDRAM boundary");
+    require(bus.write32(Bus::kDpStart, 0xBC0U) &&
+            bus.write32(Bus::kDpEnd, 0xBD8U),
+            "publish RGBA32 RDRAM-boundary LOAD_BLOCK sequence");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "RGBA32 SET_TEXTURE_IMAGE configures boundary source");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "RGBA32 SET_TILE configures boundary test");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "RGBA32 LOAD_BLOCK rejects source extending beyond RDRAM");
+
+    std::uint8_t value = 0U;
+    for (std::uint16_t i = 0U; i < 8U; ++i) {
+        require(state.tmem.readByte(i, value) && value == 0x5AU,
+                "rejected RGBA32 LOAD_BLOCK preserves lower TMEM bank");
+        require(state.tmem.readByte(static_cast<std::uint16_t>(0x800U + i), value) &&
+                value == 0xC3U,
+                "rejected RGBA32 LOAD_BLOCK preserves upper TMEM bank");
+    }
+}
+
 void testLoadBlockCopiesRgba32IntoSplitTmemBanks() {
     using namespace m64plus::n64;
     Bus bus;
@@ -4385,6 +4431,7 @@ int main() {
     testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines();
     testLoadBlockContinuesAcrossTextureImageRows();
     testLoadBlockRejectsStartOutsideTextureImageWidth();
+    testLoadBlockRgba32RejectsSourceOverflowAtomically();
     testLoadBlockCopiesRgba32IntoSplitTmemBanks();
     testLoadBlockRgba32DxtSwapsOddLineWords();
     testLoadBlockRejectsUnsupportedTexelSizes();
