@@ -513,3 +513,28 @@ Foi analisado o teste existente `testFillRectangleHonorsScissorFieldParity` em `
 Todos os demais pixels devem permanecer em `0xAABBCCDD`. A coordenada x=3 deve permanecer intacta em todas as linhas, confirmando a borda direita exclusiva do scissor. Esse caso cobre simultaneamente seleção de campo e clipping horizontal, mas não substitui testes separados para cada borda do scissor.
 
 **Rastreabilidade e limite:** o resultado é derivado de um teste de regressão interno existente, não de uma medição independente de hardware. É útil como fixture de regressão/serialização, não como oráculo externo de conformidade. Nenhum código de produção ou teste executável foi alterado.
+
+
+
+### 18.11 Inventário dos casos de regressão de FILL_RECTANGLE
+
+Foi feita uma leitura do conjunto atual de testes em `tests/rdp_tests.cpp`. O inventário abaixo organiza os casos por comportamento coberto, sem afirmar que eles formam uma referência externa de conformidade.
+
+| Grupo | Casos existentes | O que verificam |
+|---|---|---|
+| Escrita básica | RGBA32 4×4; pixel único; RGBA16 | Escrita no formato e nos endereços esperados, inclusive retângulo degenerado. |
+| Clipping | Quatro bordas do scissor; interseção vazia; coordenadas invertidas | Limites inclusivos do retângulo de comando, bordas exclusivas do scissor e rejeição de regiões inválidas. |
+| Paridade | RGBA16 preserva paridade; seleção de campo par/ímpar | Índice do pixel/halfword e linhas habilitadas pelo campo selecionado. |
+| Limites de memória | Último pixel RGBA32; último halfword RGBA16; overflow na primeira ou em linhas posteriores | Acesso no limite exato e rejeição de endereços fora da RDRAM. |
+| Atomicidade | Casos de overflow e coordenadas fora do intervalo | Uma falha não pode deixar escrita parcial no framebuffer. |
+| Estado obrigatório | Sem color image, fill color ou other modes | O comando não deve escrever quando falta estado necessário. |
+| Modo/formato | Ciclo diferente de FILL; formatos de color image não suportados | Rejeição explícita dos caminhos ainda não implementados. |
+
+**Observações para a próxima etapa de vetores:**
+
+1. Os casos de RGBA32 e RGBA16 precisam permanecer separados: o RGBA16 escreve halfwords alternados e sua paridade depende da posição absoluta do pixel.
+2. Os testes de overflow em linhas posteriores são especialmente importantes: validar apenas o endereço inicial não garante que toda a região esteja dentro da RDRAM.
+3. A seleção de campo pode fazer com que linhas não selecionadas não sejam tocadas; o caso de overflow ignorado para campo não selecionado documenta esse comportamento específico.
+4. O inventário descreve o que os testes internos verificam. Para promover qualquer caso a vetor dourado de conformidade, ainda será necessário confrontar o resultado com uma fonte independente e registrar sua procedência.
+
+**Limite desta revisão:** não foi alterado código C++ nem acrescentado um executor JSON. Esta seção é um mapa de cobertura dos testes já existentes e não amplia o suporte funcional do RDP.
