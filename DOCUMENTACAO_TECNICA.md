@@ -657,3 +657,33 @@ A matriz foi conferida diretamente contra `RdpSyncState` em `app/src/main/cpp/n6
 **Ordem segura sugerida:** (1) manter os testes atuais de FILL_RECTANGLE e transferência TMEM; (2) planejar testes independentes para amostragem de textura isolada; (3) validar edge walker e cobertura com vetores de referência; (4) somente depois conectar interpolação, Z, combiner e blender. Nenhuma implementação de rasterização deve ser iniciada com base apenas nesta matriz.
 
 **Limite desta revisão:** somente documentação foi alterada. Nenhum arquivo C++ ou teste executável foi modificado.
+
+
+### 18.16 Matriz de limites das transferências para TMEM
+
+Esta revisão cruza as rotinas de transferência em `app/src/main/cpp/n64/rdp.cpp` com os testes registrados em `tests/rdp_tests.cpp`. O foco é identificar o que realmente chega à memória de textura e quais combinações continuam fora do escopo. Transferir bytes para TMEM não significa que esses bytes já possam ser amostrados ou desenhados.
+
+| Operação | Caminho observado no código | Limites e validações observados |
+|---|---|---|
+| `LOAD_TILE`, 4/8/16 bits | Calcula origem por coordenadas e largura da imagem; destino usa `tile.tmem` e stride `tile.line`; linhas ímpares aplicam XOR 4 no endereço de destino. | Valida o retângulo de origem antes de alterar TMEM; trata nibble inicial/final para 4 bits; wrap de endereço é mascarado para 4 KiB. |
+| `LOAD_TILE`, 32 bits | Caminho separado para RGBA32: R/G ficam no banco inferior de 2 KiB e B/A no banco superior; stride continua vindo de `tile.line`. | Exige imagem e tile RGBA de 32 bits; valida a origem inteira antes de escrever qualquer banco; normaliza endereço no banco inferior antes de derivar o superior. |
+| `LOAD_BLOCK` | Copia uma sequência contígua de texels de 8 ou 16 bits; acumulador DXT avança a linha e provoca troca das metades de 32 bits em linhas ímpares. | Rejeita tamanhos diferentes de 8/16 bits, contagens excessivas e origem fora da imagem/RDRAM; prepara o buffer temporário antes de escrever TMEM; atualiza tile size após sucesso. |
+| `LOAD_TLUT` | Lê entradas de 16 bits e replica cada entrada quatro vezes em um word de 64 bits na região alta da TMEM. | Exige imagem de 16 bits, até 256 entradas e destino de tile na região reservada à paleta; valida origem e intervalo do destino antes da escrita; atualiza tile size após sucesso. |
+
+**Cobertura de regressão identificada:**
+
+- `LOAD_TILE`: cópia básica, stride, wrap, nibble inicial ímpar, empacotamento de 4 bits, swizzle de linhas ímpares em 4/16 bits, separação RGBA32 em bancos, alinhamento e wrap dos bancos, coordenada X não zero e validação de origem sem escrita parcial.
+- `LOAD_BLOCK`: cópia contígua, wrap, origem fora da RDRAM, DXT com múltiplos carries e frações, continuidade entre linhas da imagem, início fora da largura e rejeição de tamanhos não suportados.
+- `LOAD_TLUT`: replicação de entradas, coordenadas de origem, intervalo além da largura, origem fora dos limites e destino abaixo/acima da região permitida.
+
+**Limites importantes para não superestimar o suporte:**
+
+1. O caminho ordinário de `LOAD_BLOCK` aceita apenas texels de 8 e 16 bits; 4 bits e 32 bits são explicitamente rejeitados nesse caminho.
+2. O caminho de 32 bits de `LOAD_TILE` é restrito a RGBA32. Não se deve generalizar esse suporte para outros formatos de 32 bits.
+3. As rotinas demonstram organização e transferência de dados, inclusive swizzle, wrap e DXT nos casos implementados. Ainda não demonstram leitura desses dados pelo sampler, aplicação de `SET_TILE_SIZE`, clamp/mirror/mask/shift, palette lookup, filtro bilinear ou perspectiva.
+4. Os testes de validação prévia protegem contra escrita parcial em várias falhas de origem. Essa propriedade deve continuar coberta quando novos formatos forem adicionados.
+5. A matriz é derivada do código e dos testes internos; ainda não é um conjunto de resultados dourados comparados independentemente com hardware ou outro emulador.
+
+**Próximo passo seguro:** antes de implementar amostragem, definir fixtures isoladas que especifiquem bytes iniciais da TMEM, configuração completa do tile, coordenadas S/T e resultado esperado para formatos CI/IA/I/RGBA, incluindo limites de tile, wrap, clamp/mirror e TLUT. Cada resultado esperado precisa ter procedência independente. Até isso existir, manter o escopo em documentação e testes das transferências já implementadas.
+
+**Limite desta revisão:** somente documentação foi alterada. Nenhum código C++ ou teste executável foi modificado; nenhuma funcionalidade de amostragem ou rasterização foi declarada como implementada.
