@@ -331,7 +331,7 @@ bool loadTlutEntries(Bus& bus, RdpSyncState& state,
     const std::uint32_t firstX = load.sl >> 2U;
     const std::uint32_t firstY = load.tl >> 2U;
     const std::uint32_t lastX = load.sh >> 2U;
-    if (lastX < firstX || lastX >= image.width) return false;
+    if (lastX < firstX) return false;
     const std::uint32_t count = lastX - firstX + 1U;
     if (count == 0U || count > 256U || tile.tmem < 256U ||
         static_cast<std::uint32_t>(tile.tmem) + count > 512U) return false;
