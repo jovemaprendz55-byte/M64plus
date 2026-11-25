@@ -561,3 +561,38 @@ Foi revisado o conjunto atual de testes de triângulos em `tests/rdp_tests.cpp`.
 **Próximo passo de validação:** antes de escrever o edge walker, criar fixtures de entrada independentes para triângulos left-major/right-major, YH/YM/YL, inclinações positivas/negativas e casos de uma scanline. Cada fixture precisa ter procedência documentada e resultado esperado independente; testes que apenas repetem a lógica do decoder não podem servir como oráculo.
 
 **Limite desta revisão:** somente documentação foi alterada. Não foi iniciada implementação de rasterização nem mudança no comportamento do processador.
+
+
+### 18.13 Inventário dos testes de retângulos de textura e carregamento de TMEM
+
+Foi revisada a cobertura existente em `tests/rdp_tests.cpp` para os comandos de retângulo de textura e para as operações de transferência de textura. Assim como nas seções anteriores, este inventário descreve testes internos; não representa, por si só, conformidade independente com o hardware.
+
+**Retângulos de textura (`0x24` e `0x25`):**
+
+| Caso | Verificação |
+|---|---|
+| `testTextureRectangleLengths` | Os comandos normal e flip possuem dois words. |
+| `testTextureRectanglePacketDecoding` | Coordenadas, tile, S/T com sinal, derivadas, flag flip e words brutos são preservados; pacote inválido não altera a saída anterior. |
+| `testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists` | O processador consome os dois words, mantém o estado decodificado e retorna `Unsupported`, sem alegar que a textura foi desenhada. |
+
+A cobertura garante enquadramento e retenção dos campos decodificados para as duas variantes. Não verifica amostragem de TMEM, coordenadas de textura, filtragem, perspectiva, ciclo do combiner/blender ou pixels finais. O retorno `Unsupported` é intencional enquanto não existir rasterização.
+
+**Transferência de dados para TMEM:**
+
+- `LOAD_TILE`: os testes cobrem cópia de imagem, stride por linha, coordenadas de origem, coordenadas invertidas, validação de todas as linhas antes da escrita, limites da imagem de origem e ausência de escrita parcial.
+- Formatos de 4 bits: há casos para seleção de nibble inicial ímpar, empacotamento de nibbles, linhas com swizzle e wrap no fim da TMEM.
+- Formatos de 16 bits: há casos para swizzle de linhas ímpares e wrap no limite da TMEM.
+- Formato RGBA32: há casos para divisão entre bancos de TMEM, alinhamento do banco superior, coordenada X diferente de zero, wrap dos dois bancos e validação completa da origem antes de escrever qualquer banco.
+- `LOAD_BLOCK`: os testes cobrem cópia contígua, continuidade entre linhas, stride DXT, carries múltiplos, progresso fracionário, troca de words em linhas ímpares, wrap da TMEM e rejeição de origem fora da RDRAM ou da largura da imagem.
+- `LOAD_TLUT`: os testes verificam replicação das entradas na região alta da TMEM, coordenadas e intervalo da imagem, além de rejeições por origem ou destino fora dos limites e por destino abaixo da região reservada à paleta.
+
+**Cuidados de interpretação:**
+
+1. Os testes de transferência validam bytes e limites da TMEM, mas não demonstram que o caminho completo de amostragem e filtragem produz pixels corretos.
+2. Um teste de swizzle ou wrap bem-sucedido não valida todos os formatos, tamanhos, modos de filtragem ou combinações de tile.
+3. Os casos de validação antes da escrita são importantes: uma falha em uma linha posterior não pode deixar a TMEM parcialmente modificada.
+4. Os retângulos de textura continuam sendo comandos consumidos sem rasterização. A presença de dados válidos na TMEM não significa que o framebuffer já os utiliza.
+
+**Próxima validação recomendada:** manter separadas três camadas: (a) decodificação e consumo do pacote de retângulo; (b) transferência e organização dos bytes em TMEM; (c) amostragem/rasterização e comparação de pixels. Para iniciar a terceira camada, ainda será necessário um vetor de saída independente, com estado de tile, TMEM, coordenadas, modos e framebuffer esperado documentados.
+
+**Limite desta revisão:** somente documentação foi alterada. Não foram modificados código C++, testes executáveis ou o comportamento do processador RDP.
