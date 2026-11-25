@@ -687,3 +687,47 @@ Esta revisão cruza as rotinas de transferência em `app/src/main/cpp/n64/rdp.cp
 **Próximo passo seguro:** antes de implementar amostragem, definir fixtures isoladas que especifiquem bytes iniciais da TMEM, configuração completa do tile, coordenadas S/T e resultado esperado para formatos CI/IA/I/RGBA, incluindo limites de tile, wrap, clamp/mirror e TLUT. Cada resultado esperado precisa ter procedência independente. Até isso existir, manter o escopo em documentação e testes das transferências já implementadas.
 
 **Limite desta revisão:** somente documentação foi alterada. Nenhum código C++ ou teste executável foi modificado; nenhuma funcionalidade de amostragem ou rasterização foi declarada como implementada.
+
+
+### 18.17 Requisitos do sampler de textura e ordem de validação
+
+Foi feita uma leitura cruzada do capítulo 13 do *Nintendo 64 Programming Manual* e do shader de referência `parallel-rdp/shaders/texture.h` (projeto público de emulação). O objetivo é delimitar o próximo subsistema sem copiar código nem assumir que a implementação de referência é, por si só, uma especificação normativa.
+
+**Fluxo conceitual confirmado pelo manual:**
+
+1. O comando `SET_TILE` configura formato, tamanho, stride em words de 64 bits, base TMEM, paleta e parâmetros por eixo (clamp, mirror, mask e shift).
+2. `SET_TILE_SIZE` fornece os limites SL/TL/SH/TH usados durante a renderização.
+3. Os comandos `LOAD_TILE`, `LOAD_BLOCK` e `LOAD_TLUT` alimentam TMEM; os comandos de carga também alteram os limites do tile, e o manual recomenda reaplicar `SET_TILE_SIZE` depois de `LOAD_BLOCK`/`LOAD_TLUT` quando necessário.
+4. Durante a renderização, as coordenadas S/T são transformadas em coordenadas relativas ao tile, com shift, clamp, wrap e mirror; só então são usadas para localizar texels em TMEM.
+5. A etapa de busca precisa decodificar o formato/tamanho, tratar TLUT quando habilitada e selecionar amostragem pontual ou filtrada. O manual também descreve footprints de 2×2 texels e filtragem/interpolação em modos de ciclo apropriados.
+
+**Comparação com o código atual de M64plus:**
+
+| Recurso | Estado atual identificado | Trabalho ainda necessário |
+|---|---|---|
+| Descritor de tile | Formato, tamanho, line, TMEM, palette, clamp/mirror/mask/shift são armazenados em `RdpTileState`. | Aplicar os campos na transformação de S/T durante uma operação de desenho. |
+| Limites do tile | `RdpTileSizeState` é armazenado; `LOAD_BLOCK` e `LOAD_TLUT` também atualizam os limites após sucesso. | Usar SL/TL/SH/TH na normalização/clamp do sampler e validar a interação com `SET_TILE_SIZE`. |
+| Busca em TMEM | Existem rotinas de escrita/carga e acesso por byte/word. | Decodificar texels por formato/tamanho, incluindo alinhamento, bancos e swizzle. |
+| TLUT | `LOAD_TLUT` replica entradas de 16 bits na região alta da TMEM. | Resolver índices CI4/CI8, seleção de paleta e conversão RGBA16/IA16. |
+| Coordenadas | Triângulos retêm coeficientes STW; retângulos de textura retêm S/T e derivadas. | Interpolação/perspective divide e transformação por tile antes da busca. |
+| Filtragem | Flags de sample type, mid-texel e bilerp são decodificadas em other modes. | Implementar ponto, filtro RDP e vizinhos com wrap/mirror/clamp corretos. |
+| Ciclos | Campos de ciclo e combiner são armazenados. | Integrar Texel0/Texel1 e a ordem de amostragem ao pipeline de um/dois ciclos. |
+
+**Observações específicas do shader de referência:** a implementação pública separa transformação de coordenadas, máscara/mirror, busca por formato, TLUT e filtragem. O código mostra que a ordem importa: shift e ajuste pelo limite inferior antecedem a seleção de texel; a máscara/mirror determina também o texel vizinho usado na filtragem; e o filtro de três pontos não é simplesmente uma média bilinear convencional. O shader inclui caminhos distintos para CI com TLUT, YUV, RGBA/IA/I e diferentes tamanhos. Esses detalhes são bons alvos de estudo e comparação, mas cada comportamento deve ser confirmado por documentação ou vetor de referência antes de ser adotado.
+
+**Plano de testes independente, antes de integrar ao rasterizador:**
+
+- Camada A — transformação de coordenadas: shift S/T (incluindo os códigos de shift à esquerda), subtração de SL/TL, clamp superior/inferior, wrap por mask e mirror em cada eixo.
+- Camada B — leitura de texel: RGBA16/32, IA4/8/16, I4/8, CI4/8 sem TLUT e YUV, com endereços TMEM conhecidos e testes de swizzle/bancos.
+- Camada C — paleta: CI4 com cada palette base, CI8, TLUT RGBA16 e IA16, entradas nos limites e seleção de tipo.
+- Camada D — filtro: point sample, footprint 2×2, filtro de três pontos, mid-texel e vizinhos cruzando borda de wrap/mirror/clamp.
+- Camada E — integração: apenas depois das camadas anteriores, conectar S/T interpolados de retângulo e triângulo e comparar framebuffer completo.
+
+Cada fixture deve guardar estado do tile, bytes da TMEM, coordenadas fixas, modos relevantes e resultado esperado com referência/procedência. Um teste que calcula o resultado esperado usando a mesma função que está sendo testada não é um oráculo independente.
+
+**Fontes consultadas:**
+
+- Nintendo 64 Programming Manual, capítulo 13 — Texture Mapping, especialmente [13.1 Texture Mapping](https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-01.html), [13.4 Tile Attributes](https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-04.html), [13.5 Tile Descriptor Loading](https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-05.html) e [13.7 Texture Filtering](https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-07.html).
+- Themaister/parallel-rdp, [shader de textura](https://github.com/Themaister/parallel-rdp/blob/master/parallel-rdp/shaders/texture.h). Consultado como implementação independente para estudar a separação de etapas e casos de borda, não como substituto do manual ou de vetores dourados.
+
+**Limite desta revisão:** somente documentação foi alterada. Nenhum código C++ ou teste executável foi modificado. O sampler continua não implementado; esta seção não declara suporte de renderização de textura.
