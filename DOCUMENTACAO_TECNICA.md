@@ -1767,3 +1767,34 @@ O teste testLoadTlutReplicatesEntriesIntoHighTmem cobre três entradas e replica
 A semântica de índices e a irrelevância da largura como limite SL..SH estão sustentadas pelo resumo RDP. Não se deve generalizar TL não zero como coordenada de imagem bidimensional sem evidência adicional. O endereço da origem deve ser validado contra vetores e uma implementação de referência antes de ampliar o contrato além do caso usual TL=0.
 
 **Status:** documentação corrigida e plano de regressão. Nenhum código C++ ou teste executável foi alterado ou executado.
+
+
+### 18.47 LOAD_TLUT: cautela com SL não zero e comparação de contagem
+
+A comparação adicional com o código de referência do Project64 exige refinar a conclusão da seção 18.46. A descrição do SGI RDP Command Summary identifica SL como índice baixo da tabela e SH como índice alto, mas a implementação consultada do Project64 não calcula a quantidade como (SH - SL) + 1. Ela calcula count como o campo SH mais um, usa o endereço TMEM do tile como início do destino e lê as entradas sequencialmente a partir do endereço da imagem de textura. O próprio código contém uma expressão comentada para um possível cálculo alternativo de início, mas a rotina ativa não usa SL para calcular o endereço de origem.
+
+**O que podemos afirmar com segurança**
+
+- O comando LOAD_TLUT usa origem de 16 bits e destino TMEM na metade superior.
+- O manual Nintendo confirma que LOAD_TLUT altera SL/TL/SH/TH no descritor e que SET_TILE_SIZE deve sobrescrever esses campos quando o tile for reutilizado para renderização.
+- A rotina ativa do Project64 usa SH + 1 como quantidade e faz leitura sequencial a partir do endereço base da imagem.
+- O caminho normal das macros deve ser tratado separadamente de casos com SL ou TL não zero. A documentação do SGI diz que TL normalmente é zero; não é suficiente para concluir que TL funciona como coordenada Y convencional.
+
+**Impacto na auditoria do código atual**
+
+A implementação local calcula count como (SH >> 2) - (SL >> 2) + 1 e desloca o endereço de origem por firstY * image.width + firstX. Isso pode divergir da estratégia observada no Project64 quando SL não é zero. Portanto, a conclusão da seção 18.46 sobre a fórmula inclusiva SL..SH deve ser considerada uma interpretação documental ainda não validada por vetor de hardware ou por macro oficial com SL diferente de zero. A correção da rejeição por image.width continua sendo uma questão separada: o comando e a implementação de referência não tratam SH como uma coordenada horizontal limitada pela largura declarada da imagem.
+
+**Próximos vetores necessários antes de qualquer alteração executável**
+
+1. Caso canônico com SL=0, TL=0 e SH representando 15: verificar transferência de 16 entradas contíguas com SET_TEXTURE_IMAGE width=1.
+2. Caso canônico com SL=0, TL=0 e SH representando 255: verificar o limite máximo de 256 entradas e o fim da região TLUT.
+3. Caso exploratório com SL diferente de zero: comparar separadamente contagem, endereço inicial da origem e posição inicial do destino; não presumir que o comportamento seja (SH-SL)+1.
+4. Caso com TL diferente de zero: manter como não especificado até obter evidência mais direta.
+5. Em todos os casos, preservar a validação completa da faixa RDRAM antes de qualquer escrita TMEM.
+
+Fontes:
+- SGI RDP Command Summary, tabela Load Tlut: https://ultra64.ca/files/documentation/silicon-graphics/SGI_RDP_Command_Summary.pdf
+- Project64, rotina rdp_loadtlut: https://github.com/project64/project64/blob/develop/Source/Project64-video/rdp.cpp
+- Nintendo 64 Programming Manual, seção 13.5: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro13/13-05.html
+
+**Status:** refinamento documental baseado em comparação de implementação. Nenhum código C++ ou teste executável foi alterado ou executado.
