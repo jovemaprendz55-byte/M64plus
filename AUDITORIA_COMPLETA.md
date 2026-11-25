@@ -1384,3 +1384,21 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - A cobertura não substitui testes específicos de SP DMA e PI DMA, nem implementa LLD/SCD com todas as regras temporais/atômicas do hardware.
 
 - Refinamento: a geração foi movida para a classe RDRAM, de modo que também detecta escritas feitas diretamente por componentes que recebem acesso à memória, não apenas as que passam por Bus.
+
+
+### 17.27 — Cobertura de recorte do FILL_RECTANGLE pelo scissor (24/11/2026)
+
+- O teste `testFillRectangleClipsAllEdgesAgainstScissor` verifica uma área de preenchimento maior que a janela de scissor e confirma que somente os pixels internos ao retângulo recortado são alterados.
+- A fixture verifica os quatro limites: esquerda, topo, direita exclusiva e base exclusiva. Pixels fora da interseção preservam o valor sentinela.
+- A alteração é cobertura de teste; não altera o algoritmo de rasterização nem implementa triângulos/texturas.
+- Commit: `731f6aa4d6095cf75db9caaa01b7a4e3d3dd83d7`.
+- **CI aprovada:** workflow [45515393588](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45515393588); os jobs `native-host-tests` e `assemble-debug` concluíram com `success`. A compilação Android e os testes nativos passaram.
+
+### 17.28 — Correção da fixture RGBA16 e validação (24/11/2026)
+
+- Corrigido o comando `SET_SCISSOR` do teste `testFillRectangleRgba16ScissorPreservesPixelParity`: os campos `xh`, `yh`, `xl` e `yl` estavam posicionados incorretamente na palavra de comando.
+- A fixture agora codifica `xh=4`, `yh=0`, `xl=12` e `yl=4` nos campos correspondentes, verificando o recorte sem alterar a paridade absoluta dos halfwords RGBA16.
+- Commit: `4ae6ba5cddb707cbeb2ad8329e8eaec9ccb079b6`.
+- **CI aprovada:** workflow [45515009952](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45515009952); `native-host-tests` e `assemble-debug` concluíram com `success`.
+
+**Limite atual:** esses resultados validam a lógica de preenchimento simples e o recorte por scissor em fixtures sintéticas. Não comprovam o pipeline completo de pixels do RDP, blending, dithering, depth, texturização ou renderização de jogos comerciais.
