@@ -60,7 +60,7 @@ void testTriangleEdgeHeaderDecoding() {
             edge.yLow == 0x0345U && edge.yMiddle == 0x0234U &&
             edge.yHigh == 0x0123U,
             "triangle LOD level, tile, Y coordinates and major-edge direction decode");
-    require(edge.xLeft == 267386880 && edge.dxLeftDy == 0 &&
+    require(edge.xLeft == -1048576 && edge.dxLeftDy == 0 &&
             edge.xHigh == 98304 && edge.dxHighDy == -1 &&
             edge.xMiddle == -32768 && edge.dxMiddleDy == 32768,
             "triangle edge X fields sign-extend from 28 bits and slopes from 30 bits then scale to quarter-pixel steps");
