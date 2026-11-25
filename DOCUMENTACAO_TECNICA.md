@@ -1268,7 +1268,7 @@ A leitura literal da macro oficial revela um caso que precisa permanecer como di
 - A macro envia S para `LOAD_TILE` como `S << (G_TEXTURE_IMAGE_FRAC - 1)`. Com fração 2, S=1 vira 2 e S=6 vira 12 em coordenadas fixas.
 - O caminho LOAD_TILE 8b atual interpreta coordenadas fixas em unidades de byte após `>> 2`. Portanto os limites inteiros aparentes são byte 0 até byte 3, inclusive: quatro bytes (`A1 B2 C3 D4`).
 - Ao mesmo tempo, o cálculo de line da macro é `(((((lrs)-(uls)+1)>>1)+7)>>3)`. Para seis texels, `((6>>1)+7)>>3 = 1` palavra de 8 bytes. O campo line é uma quantidade em palavras de 64 bits; ele não descreve diretamente o número de bytes efetivamente atravessados dentro da linha.
-- A macro usa a mesma expressão de largura para o tile de carga e o tile de renderização. A expressão calcula três bytes úteis arredondados para uma palavra, enquanto os limites S convertidos abrangem quatro posições de byte quando S inicial é ímpar.
+- A macro usa a mesma expressão de largura para o tile de carga e o tile de renderização. A expressão determina o stride do tile em palavras de 64 bits; ela não é uma contagem independente dos bytes copiados pela operação LOAD_TILE. Para S=1..6, a conversão inteira dos limites no caminho 8b atual seleciona quatro posições de byte (0..3). A diferença entre o intervalo de bytes e o stride não demonstra, por si só, leitura excedente nem defeito: o stride controla a distância entre linhas de destino.
 
 **Conclusão segura:** a coordenada de carga inclui o byte que contém o nibble inicial ímpar. Porém, a aritmética da largura declarada não deve ser tratada como prova de que o alinhamento e o acesso ficam corretos para esse caso. O efeito final depende também da interpretação de `LOAD_TILE`, do estado do tile e do sampler CI4. A macro oficial, isoladamente, não permite afirmar qual nibble será apresentado como primeiro texel visível.
 
@@ -1283,3 +1283,35 @@ Para cada caso, registrar bytes de origem, coordenadas fixas emitidas, bytes efe
 **Fonte primária:** cabeçalho GBI oficial, `gDPLoadTextureTile_4b` e `gsDPLoadTextureTile_4b`, linhas 3984–4009 e 4042–4064: https://ultra64.ca/files/documentation/online-manuals/man/header/gbi.htm.
 
 **Status:** análise documental de risco CI4-MAC-05. Não cria teste executável, não declara equivalência com hardware e não altera código C++.
+
+
+### 18.32 Separação entre extensão da carga LOAD_TILE e stride TMEM
+
+A auditoria da seção 18.31 exige separar três quantidades que não são intercambiáveis:
+
+1. **Extensão horizontal da carga:** determinada pelos limites inclusivos SL e SH de LOAD_TILE, interpretados na unidade do tile de carga.
+2. **Stride de origem:** determinado pela largura da imagem de textura em RDRAM.
+3. **Stride de destino:** determinado pelo campo `line` do tile de carga, em palavras de 64 bits da TMEM (8 bytes por unidade).
+
+O manual de programação do Nintendo 64 explica que LOAD_TILE usa os parâmetros de formato, tamanho, endereço TMEM e line do descritor selecionado; o comando também atualiza os limites SL/TL/SH/TH do descritor. A documentação de comandos RDP define `line` como o tamanho da linha do tile em palavras de 64 bits. Portanto, `line=1` significa que a próxima linha de destino começa a oito bytes da anterior; não significa que LOAD_TILE copiará exatamente oito bytes, nem que a largura horizontal da carga seja oito bytes.
+
+**Aplicação ao vetor S=1..6 da seção 18.31:**
+
+- A macro transforma S=1 e S=6 em coordenadas fixas 2 e 12.
+- O caminho LOAD_TILE 8b deste repositório aplica `>> 2`, obtendo os índices de byte 0 e 3, inclusive.
+- O laço horizontal de `loadTileTexels` percorre `x1 - x0 + 1`, portanto quatro bytes neste caso.
+- `tile.line * 8` é usado separadamente para calcular o início de cada linha de destino.
+- Em uma carga de uma única linha, o valor de `line` não reduz nem aumenta a quantidade de bytes percorridos pelo laço horizontal.
+
+**Consequência para a investigação:** a diferença entre quatro bytes copiados e um stride nominal de oito bytes não constitui discrepância. Os quatro bytes podem ocupar parte de uma linha de oito bytes da TMEM, deixando o restante intacto. O ponto ainda não resolvido é se o tile CI4 de renderização, após a sequência de configuração da macro, interpreta o primeiro nibble da região S ímpar conforme a intenção do chamador. Isso depende da semântica de coordenadas do tile/sampler e não pode ser concluído apenas pela rotina de cópia.
+
+**O que foi confirmado no código atual:** `loadTileTexels` deriva a extensão horizontal dos limites LOAD_TILE convertidos; calcula o endereço de origem por `(y0 + row) * image.width + x0 + column`; calcula o destino por `tile.tmem * 8 + row * tile.line * 8`; e aplica XOR 4 ao endereço de destino em linhas ímpares. Para a origem 8b usada pela macro CI4, cada coluna representa um byte. Essa descrição é uma leitura da implementação atual, não uma afirmação de equivalência com hardware.
+
+**Fontes de referência:**
+- Manual de programação Nintendo 64, seção *Tile Descriptor Loading*: explica quais parâmetros LOAD_TILE toma do descritor e que os limites de tile são atualizados pelo comando. https://ultra64.ca/files/documentation/nintendo/Nintendo_64_Programming_Manual_NU6-06-0030-001G_HQ.pdf
+- Resumo de comandos RDP SGI, tabela *Set Tile*: define `Line` como tamanho da linha em palavras de 64 bits. https://ultra64.ca/files/documentation/silicon-graphics/SGI_RDP_Command_Summary.pdf
+- Implementação local: `app/src/main/cpp/n64/rdp.cpp`, função `loadTileTexels`.
+
+**Próxima lacuna:** criar um teste de integração da sequência GBI CI4 para S ímpar que verifique separadamente bytes de origem lidos, bytes TMEM escritos, stride/padding e estado final do tile de renderização. Não usar a expressão `line` como substituto da contagem de bytes da carga e não declarar o nibble inicial correto sem uma regra de amostragem documentada ou um vetor de referência independente.
+
+**Status:** esclarecimento documental; nenhum código C++ ou teste executável foi alterado ou executado nesta etapa.
