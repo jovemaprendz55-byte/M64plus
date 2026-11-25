@@ -3249,6 +3249,107 @@ void testFlatFillTriangleRasterizesRightTriangle() {
     }
 }
 
+
+void testFlatFillTriangleRgba16UsesFramebufferHalfwordParity() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x500U;
+    constexpr std::uint32_t stream = 0xC00U;
+    constexpr std::uint16_t evenColor = 0xAABBU;
+    constexpr std::uint16_t oddColor = 0xCCDDU;
+    constexpr std::uint16_t sentinel = 0xDEADU;
+    for (std::uint32_t i = 0U; i < 8U * 8U; ++i)
+        require(bus.write16(framebuffer + i * 2U, sentinel),
+                "seed RGBA16 triangle framebuffer");
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (2ULL << 51U) | (7ULL << 32U) | framebuffer,
+        (0x37ULL << 56U) | 0xAABBCCDDULL,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x2DULL << 56U) | (32ULL << 12U) | 32ULL,
+        (0x08ULL << 56U) | (1ULL << 55U) | (16ULL << 16U) | 16ULL,
+        0ULL,
+        (2ULL * 65536ULL) << 32U,
+        ((2ULL * 65536ULL) << 32U) | 0x00010000ULL
+    };
+    for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
+        require(bus.write64(stream + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "write RGBA16 triangle command stream");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 64U),
+            "publish RGBA16 triangle command stream");
+    for (unsigned i = 0U; i < 4U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "RGBA16 triangle setup command is processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "RGBA16 flat-fill triangle is rasterized");
+
+    for (std::uint32_t y = 0U; y < 8U; ++y) {
+        for (std::uint32_t x = 0U; x < 8U; ++x) {
+            std::uint16_t pixel = 0U;
+            require(bus.read16(framebuffer + (y * 8U + x) * 2U, pixel),
+                    "read RGBA16 triangle output pixel");
+            const bool covered = y < 4U && x >= 2U && x <= 2U + y;
+            const std::uint16_t expected = !covered ? sentinel
+                : (((y * 8U + x) & 1U) == 0U ? evenColor : oddColor);
+            require(pixel == expected,
+                    "RGBA16 triangle selects fill halfword by framebuffer pixel parity");
+        }
+    }
+}
+
+void testFlatFillTriangleHonorsInterlacedFieldSelection() {
+    using namespace m64plus::n64;
+    for (std::uint8_t oddLine = 0U; oddLine < 2U; ++oddLine) {
+        Bus bus;
+        RdpSyncState state{};
+        constexpr std::uint32_t framebuffer = 0x700U;
+        constexpr std::uint32_t stream = 0xD00U;
+        constexpr std::uint32_t sentinel = 0xDEADBEEFU;
+        constexpr std::uint32_t fill = 0x12345678U;
+        for (std::uint32_t i = 0U; i < 8U * 8U; ++i)
+            require(bus.write32(framebuffer + i * 4U, sentinel),
+                    "seed interlaced triangle framebuffer");
+        const std::uint64_t commands[] = {
+            (0x3FULL << 56U) | (3ULL << 51U) | (7ULL << 32U) | framebuffer,
+            (0x37ULL << 56U) | fill,
+            (0x2FULL << 56U) | (3ULL << 52U),
+            (0x2DULL << 56U) | (1ULL << 25U) |
+                (static_cast<std::uint64_t>(oddLine) << 24U) |
+                (32ULL << 12U) | 32ULL,
+            (0x08ULL << 56U) | (1ULL << 55U) | (16ULL << 16U) | 16ULL,
+            0ULL,
+            (2ULL * 65536ULL) << 32U,
+            ((2ULL * 65536ULL) << 32U) | 0x00010000ULL
+        };
+        for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
+            require(bus.write64(stream + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                    "write interlaced triangle command stream");
+        require(bus.write32(Bus::kDpStart, stream) &&
+                bus.write32(Bus::kDpEnd, stream + 64U),
+                "publish interlaced triangle command stream");
+        for (unsigned i = 0U; i < 4U; ++i)
+            require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                    "interlaced triangle setup command is processed");
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "interlaced flat-fill triangle is rasterized");
+
+        for (std::uint32_t y = 0U; y < 8U; ++y) {
+            for (std::uint32_t x = 0U; x < 8U; ++x) {
+                std::uint32_t pixel = 0U;
+                require(bus.read32(framebuffer + (y * 8U + x) * 4U, pixel),
+                        "read interlaced triangle output pixel");
+                const bool selectedField = (y & 1U) == oddLine;
+                const bool covered = selectedField && y < 4U &&
+                    x >= 2U && x <= 2U + y;
+                require(pixel == (covered ? fill : sentinel),
+                        "triangle writes only scanlines selected by interlaced field");
+            }
+        }
+    }
+}
+
 void testTextureRectanglePacketDecoding() {
     using namespace m64plus::n64;
     for (std::uint8_t opcode : {0x24U, 0x25U}) {
@@ -3335,6 +3436,8 @@ int main() {
     testMaximumTriangleCommandWaitsForAllWords();
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testFlatFillTriangleRasterizesRightTriangle();
+    testFlatFillTriangleRgba16UsesFramebufferHalfwordParity();
+    testFlatFillTriangleHonorsInterlacedFieldSelection();
     testTextureRectangleLengths();
     testTextureRectanglePacketDecoding();
     testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
