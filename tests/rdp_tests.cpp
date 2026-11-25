@@ -2075,6 +2075,60 @@ void testLoadBlockCopiesRgba32IntoSplitTmemBanks() {
     }
 }
 
+void testLoadBlockRgba32DxtSwapsOddLineWords() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t source = 0x1C00U;
+    const std::uint8_t rgba[] = {
+        0x10U, 0x11U, 0x12U, 0x13U,
+        0x20U, 0x21U, 0x22U, 0x23U,
+        0x30U, 0x31U, 0x32U, 0x33U,
+        0x40U, 0x41U, 0x42U, 0x43U
+    };
+    for (std::size_t i = 0U; i < sizeof(rgba); ++i)
+        require(bus.write8(source + static_cast<std::uint32_t>(i), rgba[i]),
+                "seed RGBA32 DXT LOAD_BLOCK texels");
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | source;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (3ULL << 51U);
+    const std::uint64_t loadBlock =
+        (0x33ULL << 56U) | (12ULL << 12U) | 0x800ULL;
+    require(bus.write64(0xB80U, setImage) &&
+            bus.write64(0xB88U, setTile) &&
+            bus.write64(0xB90U, loadBlock),
+            "seed RGBA32 DXT command sequence");
+    require(bus.write32(Bus::kDpStart, 0xB80U) &&
+            bus.write32(Bus::kDpEnd, 0xB98U),
+            "publish RGBA32 DXT sequence");
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) ==
+                    RdpProcessResult::Processed,
+                "RGBA32 DXT LOAD_BLOCK sequence executes");
+
+    // DXT=0x800 advances one line per 64-bit word. The second word is
+    // therefore half-swapped before RG/BA are split into their TMEM banks.
+    const std::uint8_t expectedLower[] = {
+        0x10U, 0x11U, 0x20U, 0x21U,
+        0x40U, 0x41U, 0x30U, 0x31U
+    };
+    const std::uint8_t expectedUpper[] = {
+        0x12U, 0x13U, 0x22U, 0x23U,
+        0x42U, 0x43U, 0x32U, 0x33U
+    };
+    std::uint8_t value = 0U;
+    for (std::size_t i = 0U; i < 8U; ++i) {
+        require(state.tmem.readByte(static_cast<std::uint16_t>(i), value) &&
+                    value == expectedLower[i],
+                "RGBA32 DXT odd word is swapped in lower TMEM bank");
+        require(state.tmem.readByte(static_cast<std::uint16_t>(0x800U + i), value) &&
+                    value == expectedUpper[i],
+                "RGBA32 DXT odd word is swapped in upper TMEM bank");
+    }
+}
+
 void testLoadBlockRejectsUnsupportedTexelSizes() {
     using namespace m64plus::n64;
     for (const std::uint32_t size : {0U, 3U}) {
@@ -4332,6 +4386,7 @@ int main() {
     testLoadBlockContinuesAcrossTextureImageRows();
     testLoadBlockRejectsStartOutsideTextureImageWidth();
     testLoadBlockCopiesRgba32IntoSplitTmemBanks();
+    testLoadBlockRgba32DxtSwapsOddLineWords();
     testLoadBlockRejectsUnsupportedTexelSizes();
     testLoadTlutReplicatesEntriesIntoHighTmem();
     testLoadTlutRejectsOutOfRangeSourceWithoutPartialTmemWrites();
