@@ -1629,3 +1629,44 @@ Esses vetores testam somente a interpretação/expansão da palavra já selecion
 **Conclusão e limite da auditoria:** a especificação de saída para RGBA16 e IA16 está suficientemente determinada para definir uma futura rotina pura de decodificação de 16 bits em RGBA8. Ainda é necessário implementar e testar a consulta TLUT no caminho de amostragem antes de validar a renderização CI4 ponta a ponta.
 
 **Status:** somente documentação e auditoria. Nenhum código C++ ou teste executável foi alterado ou executado nesta etapa.
+
+
+### 18.44 Ordem de bytes entre RDRAM, leitura TLUT e armazenamento na TMEM
+
+Esta etapa fecha uma parte importante da cadeia de dados que antecede a futura decodificação RGBA16/IA16: a ordem dos bytes. A auditoria foi feita diretamente em Bus::read16, Bus::readBytes, RdpTextureMemory::write64 e loadTlutEntries.
+
+**Leitura da entrada na RDRAM**
+
+- Bus::readBytes percorre os bytes na ordem crescente dos endereços.
+- Bus::read16 interpreta o primeiro byte como o byte mais significativo: value = (bytes[0] << 8) | bytes[1].
+- Portanto, dois bytes de origem F8 01 são lidos como a palavra numérica 0xF801, e não 0x01F8.
+
+**Armazenamento da palavra replicada**
+
+- loadTlutEntries constrói uma palavra de 64 bits repetindo a entrada de 16 bits quatro vezes.
+- RdpTextureMemory::write64 grava primeiro o byte mais significativo da palavra no menor endereço, seguindo em ordem big-endian.
+- Como os quatro campos de 16 bits são idênticos, a sequência de oito bytes armazenada para a entrada 0xF801 é F8 01 F8 01 F8 01 F8 01.
+
+**O que isso confirma**
+
+A cadeia de transferência mantém a interpretação big-endian da palavra RGBA16/IA16 desde os bytes da RDRAM até os bytes replicados na TMEM. Assim, a futura rotina de decodificação pode receber a palavra numérica de 16 bits já montada, desde que o sampler leia a lane correta da palavra replicada. Não é necessário inverter os bytes da entrada após Bus::read16.
+
+**Limites que permanecem**
+
+- A auditoria não determina qual lane/banco será consultado em cada ciclo do sampler.
+- A replicação de uma entrada quatro vezes não substitui a seleção de banco nem prova o comportamento de filtragem.
+- Não há ainda consulta CI4/TLUT integrada ao rasterizador, portanto não existe um caminho completo que permita validar a cor final na tela.
+
+**Vetores manuais para futura verificação de integração**
+
+| Bytes RDRAM | Palavra Bus::read16 | Oito bytes TMEM esperados |
+|---|---|---|
+| F8 01 | 0xF801 | F8 01 F8 01 F8 01 F8 01 |
+| 07 C0 | 0x07C0 | 07 C0 07 C0 07 C0 07 C0 |
+| 80 40 | 0x8040 | 80 40 80 40 80 40 80 40 |
+
+Esses vetores validam ordem de bytes e replicação; não testam interpretação RGBA/IA, que permanece condicionada ao modo TLUT, nem o cálculo do endereço da amostra.
+
+**Conclusão:** a leitura TLUT atual usa ordem big-endian coerente com a representação numérica de 16 bits e com o armazenamento serializado na TMEM. A lacuna restante é a leitura da entrada pelo sampler, seleção de lane/banco e conversão para RGBA8. Nenhum código C++ ou teste executável foi alterado ou executado nesta etapa.
+
+**Status:** auditoria documental de fluxo de bytes; sem mudança na implementação.
