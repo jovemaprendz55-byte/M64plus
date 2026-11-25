@@ -1423,3 +1423,15 @@ Na revisão do vetor de limite, o CI revelou que a substituição anterior tamb�
 - **CI aprovada:** workflow [45517620888](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45517620888); os jobs `native-host-tests` e `assemble-debug` concluíram com `success`.
 
 **Limitação:** o teste valida a rejeição segura de um modo não suportado. Não implementa outros ciclos do RDP nem comprova renderização de jogos comerciais.
+
+
+### 17.31 — Rejeição de formatos/tamanhos de color image não suportados (25/11/2026)
+
+- Adicionado o teste `testFillRectangleRejectsUnsupportedColorImageFormatsWithoutWrites`, que exercita três configurações de color image fora do suporte atual do `FILL_RECTANGLE`.
+- Para cada configuração, o teste prepara pixels sentinela, executa os comandos de configuração e confirma que o preenchimento retorna `Unsupported` sem modificar a framebuffer.
+- O teste amplia apenas a cobertura de rejeição segura; não adiciona suporte a novos formatos ou tamanhos de pixel.
+- Commit do teste: `1068fff45b4d70e4aff532ee8c304c491416fbac`. A primeira execução falhou porque a função não estava registrada no `main()` dos testes.
+- Correção: commit `8b973da4dd21d3c126cf8cdb28512b7cdb36fd52`, que registra a função no runner.
+- **CI aprovada após a correção:** workflow [45570480994](https://github.com/jovemaprendz55-byte/M64plus/actions/runs/45570480994); `native-host-tests` e `assemble-debug` concluíram com `success`.
+
+**Limitação:** a validação cobre apenas as configurações sintéticas incluídas no teste. Não comprova suporte geral a formatos de color image, nem o pipeline completo de pixels ou renderização de jogos comerciais.
