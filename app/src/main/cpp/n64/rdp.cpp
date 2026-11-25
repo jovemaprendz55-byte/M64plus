@@ -1,5 +1,7 @@
 #include "n64/rdp.h"
 
+#include <array>
+
 #include "n64/bus.h"
 
 namespace m64plus::n64 {
@@ -344,19 +346,18 @@ bool loadTlutEntries(Bus& bus, RdpSyncState& state,
         sourceBase + static_cast<std::uint64_t>(count) * 2U;
     if (sourceEnd > static_cast<std::uint64_t>(UINT32_MAX) + 1U) return false;
 
+    // Stage the complete source range before touching TMEM. Besides avoiding
+    // duplicate bus reads, this keeps the transfer atomic if a later read fails.
+    std::array<std::uint16_t, 256> entries{};
     for (std::uint32_t i = 0; i < count; ++i) {
         const std::uint64_t address = sourceBase + i * 2U;
-        std::uint16_t ignored = 0;
-        if (!bus.read16(static_cast<std::uint32_t>(address), ignored)) return false;
+        if (!bus.read16(static_cast<std::uint32_t>(address), entries[i])) return false;
     }
 
     const std::uint64_t destinationBase =
         static_cast<std::uint64_t>(tile.tmem) * 8U;
     for (std::uint32_t i = 0; i < count; ++i) {
-        const std::uint32_t address =
-            static_cast<std::uint32_t>(sourceBase + i * 2U);
-        std::uint16_t entry = 0;
-        if (!bus.read16(address, entry)) return false;
+        const std::uint16_t entry = entries[i];
         const std::uint64_t replicated =
             (static_cast<std::uint64_t>(entry) << 48U) |
             (static_cast<std::uint64_t>(entry) << 32U) |
