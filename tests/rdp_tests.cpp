@@ -3395,6 +3395,48 @@ void testFlatFillTriangleUsesFillColorInCopyCycle() {
     }
 }
 
+
+void testFlatFillTriangleRejectsOutOfBoundsFramebufferAtomically() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t stream = 0xF00U;
+    constexpr std::uint32_t sentinel = 0xCAFEBABEU;
+    const std::uint32_t framebuffer = static_cast<std::uint32_t>(
+        bus.rdram().size() - 100U);
+    for (std::uint32_t offset = 0U; offset < 100U; offset += 4U)
+        require(bus.write32(framebuffer + offset, sentinel),
+                "seed near-end triangle framebuffer");
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (7ULL << 32U) | framebuffer,
+        (0x37ULL << 56U) | 0x11223344ULL,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x2DULL << 56U) | (32ULL << 12U) | 32ULL,
+        (0x08ULL << 56U) | (1ULL << 55U) | (16ULL << 16U) | 16ULL,
+        0ULL,
+        (2ULL * 65536ULL) << 32U,
+        ((2ULL * 65536ULL) << 32U) | 0x00010000ULL
+    };
+    for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
+        require(bus.write64(stream + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "write out-of-bounds triangle command stream");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 64U),
+            "publish out-of-bounds triangle command stream");
+    for (unsigned i = 0U; i < 4U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "out-of-bounds triangle setup command is processed");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "out-of-bounds triangle command is consumed");
+    for (std::uint32_t offset = 0U; offset < 100U; offset += 4U) {
+        std::uint32_t pixel = 0U;
+        require(bus.read32(framebuffer + offset, pixel),
+                "read near-end triangle framebuffer");
+        require(pixel == sentinel,
+                "out-of-bounds triangle leaves the entire framebuffer unchanged");
+    }
+}
+
 void testTextureRectanglePacketDecoding() {
     using namespace m64plus::n64;
     for (std::uint8_t opcode : {0x24U, 0x25U}) {
@@ -3484,6 +3526,7 @@ int main() {
     testFlatFillTriangleRgba16UsesFramebufferHalfwordParity();
     testFlatFillTriangleHonorsInterlacedFieldSelection();
     testFlatFillTriangleUsesFillColorInCopyCycle();
+    testFlatFillTriangleRejectsOutOfBoundsFramebufferAtomically();
     testTextureRectangleLengths();
     testTextureRectanglePacketDecoding();
     testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
