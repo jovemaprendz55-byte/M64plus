@@ -3036,6 +3036,7 @@ int main() {
     testLoadTlutHonorsTextureImageCoordinatesAndRange();
     testFillRectangleWritesRgba32PixelsAndHonorsScissor();
     testFillRectangleRejectsUnsupportedCycleTypeWithoutWrites();
+    testFillRectangleRejectsUnsupportedColorImageFormatsWithoutWrites();
     testFillRectangleWritesSinglePixelForDegenerateBounds();
     testFillRectangleClipsAllEdgesAgainstScissor();
     testFillRectangleWritesRgba16AlternatingHalfwords();
