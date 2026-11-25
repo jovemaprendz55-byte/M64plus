@@ -2021,6 +2021,60 @@ void testLoadBlockRejectsStartOutsideTextureImageWidth() {
             "rejected out-of-range LOAD_BLOCK leaves TMEM unchanged");
 }
 
+void testLoadBlockCopiesRgba32IntoSplitTmemBanks() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t source = 0x1B00U;
+    const std::uint8_t rgba[] = {
+        0x11U, 0x22U, 0x33U, 0x44U,
+        0x55U, 0x66U, 0x77U, 0x88U
+    };
+    for (std::size_t i = 0U; i < sizeof(rgba); ++i)
+        require(bus.write8(source + static_cast<std::uint32_t>(i), rgba[i]),
+                "seed RGBA32 LOAD_BLOCK source texels");
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (3ULL << 51U) | (1ULL << 32U) | source;
+    const std::uint64_t setTile =
+        (0x35ULL << 56U) | (3ULL << 51U);
+    const std::uint64_t loadBlock =
+        (0x33ULL << 56U) | (4ULL << 12U);
+    require(bus.write64(0xB40U, setImage) &&
+            bus.write64(0xB48U, setTile) &&
+            bus.write64(0xB50U, loadBlock),
+            "seed RGBA32 LOAD_BLOCK command sequence");
+    require(bus.write32(Bus::kDpStart, 0xB40U) &&
+            bus.write32(Bus::kDpEnd, 0xB58U),
+            "publish RGBA32 LOAD_BLOCK sequence");
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) ==
+                    RdpProcessResult::Processed,
+                "RGBA32 LOAD_BLOCK sequence executes");
+
+    std::uint8_t value = 0U;
+    const std::uint8_t expected[] = {
+        0x11U, 0x22U, 0x55U, 0x66U
+    };
+    for (std::size_t i = 0U; i < 4U; ++i) {
+        const std::uint16_t address = static_cast<std::uint16_t>(
+            (i < 2U ? 0U : 2U) + (i % 2U));
+        require(state.tmem.readByte(address, value) &&
+                    value == expected[i],
+                "RGBA32 LOAD_BLOCK stores RG channels in lower TMEM bank");
+    }
+    const std::uint8_t expectedUpper[] = {
+        0x33U, 0x44U, 0x77U, 0x88U
+    };
+    for (std::size_t i = 0U; i < 4U; ++i) {
+        const std::uint16_t address = static_cast<std::uint16_t>(
+            0x800U + (i < 2U ? 0U : 2U) + (i % 2U));
+        require(state.tmem.readByte(address, value) &&
+                    value == expectedUpper[i],
+                "RGBA32 LOAD_BLOCK stores BA channels in upper TMEM bank");
+    }
+}
+
 void testLoadBlockRejectsUnsupportedTexelSizes() {
     using namespace m64plus::n64;
     for (const std::uint32_t size : {0U, 3U}) {
@@ -4277,6 +4331,7 @@ int main() {
     testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines();
     testLoadBlockContinuesAcrossTextureImageRows();
     testLoadBlockRejectsStartOutsideTextureImageWidth();
+    testLoadBlockCopiesRgba32IntoSplitTmemBanks();
     testLoadBlockRejectsUnsupportedTexelSizes();
     testLoadTlutReplicatesEntriesIntoHighTmem();
     testLoadTlutRejectsOutOfRangeSourceWithoutPartialTmemWrites();
