@@ -5813,7 +5813,7 @@ void testTextureRectangleWrapsTmemAddressAtEnd() {
             "seed wrapped TMEM texel at address zero");
     require(bus.write16(framebuffer, 0xDEADU),
             "seed framebuffer before TMEM wrap test");
-    const std::uint64_t first = (0x24ULL << 56U) | 4ULL;
+    const std::uint64_t first = (0x24ULL << 56U) | (4ULL << 12U) | 4ULL;
     const std::uint64_t second = (0x0080ULL << 48U) |
         (0x0400ULL << 16U) | 0x0400ULL;
     require(bus.write64(stream, first) && bus.write64(stream + 8U, second),
