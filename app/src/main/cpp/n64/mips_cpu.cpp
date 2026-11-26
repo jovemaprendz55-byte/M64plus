@@ -81,7 +81,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
     if (pc_ > 0xFFFFFFFFULL &&
         pc_ != static_cast<std::uint64_t>(static_cast<std::int64_t>(
             static_cast<std::int32_t>(instructionAddress))))
-        return takeException(ExceptionCode::BusInstruction, pc_);
+        return takeException(ExceptionCode::AddressLoad, pc_);
     const std::uint32_t pc32 = static_cast<std::uint32_t>(pc_);
     const bool pcInDirectSegment = pc32 >= 0x80000000U && pc32 < 0xC0000000U;
     const bool pcInSupervisorSegment = pc32 >= 0xC0000000U && pc32 < 0xE0000000U;
