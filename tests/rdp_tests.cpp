@@ -5117,6 +5117,58 @@ void testTextureRectanglePacketDecoding() {
             "texture rectangle with inconsistent unknown-opcode metadata is rejected");
 }
 
+void testTextureRectangleRasterizesClampedRgba16Texels() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x2800U;
+    constexpr std::uint32_t stream = 0x2900U;
+    constexpr std::uint16_t sentinel = 0xDEADU;
+    state.colorImage = {0U, 2U, 4U, framebuffer};
+    state.hasColorImage = true;
+    state.textureImage = {0U, 2U, 2U, 0U};
+    state.hasTextureImage = true;
+    state.tiles[0].format = 0U;
+    state.tiles[0].size = 2U;
+    state.tiles[0].line = 1U;
+    state.tiles[0].clampS = true;
+    state.tiles[0].clampT = true;
+    state.hasTile[0] = true;
+    state.tileSizes[0] = {0U, 0U, 4U, 0U};
+    state.hasTileSize[0] = true;
+    state.hasOtherModes = true;
+    state.otherModes.cycleType = 0U;
+    state.hasScissor = true;
+    state.scissor = {0U, 0U, 16U, 4U, false, false};
+    require(state.tmem.writeByte(0U, 0x12U) &&
+            state.tmem.writeByte(1U, 0x34U) &&
+            state.tmem.writeByte(2U, 0xABU) &&
+            state.tmem.writeByte(3U, 0xCDU),
+            "seed two RGBA16 texels in TMEM");
+    for (std::uint32_t i = 0U; i < 4U; ++i)
+        require(bus.write16(framebuffer + i * 2U, sentinel),
+                "seed texture rectangle framebuffer");
+    const std::uint64_t first = (0x24ULL << 56U) |
+        (0ULL << 44U) | (0ULL << 32U) | (0ULL << 24U) |
+        (8ULL << 12U) | 4ULL;
+    const std::uint64_t second = (0ULL << 48U) | (0ULL << 32U) |
+        (0x0400ULL << 16U) | 0x0400ULL;
+    require(bus.write64(stream, first) && bus.write64(stream + 8U, second),
+            "write RGBA16 texture rectangle command");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 16U),
+            "publish RGBA16 texture rectangle command");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "supported RGBA16 texture rectangle rasterizes");
+    std::uint16_t pixel = 0U;
+    require(bus.read16(framebuffer, pixel) && pixel == 0x1234U,
+            "first texture rectangle pixel samples first TMEM texel");
+    require(bus.read16(framebuffer + 2U, pixel) && pixel == 0xABCDU,
+            "second texture rectangle pixel samples next TMEM texel");
+    require(bus.read16(framebuffer + 4U, pixel) && pixel == sentinel,
+            "texture rectangle does not write outside its right edge");
+}
+
 void testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists() {
     using namespace m64plus::n64;
     for (std::uint8_t opcode : {0x24U, 0x25U}) {
@@ -5234,6 +5286,7 @@ int main() {
     testTextureRectangleWaitsForBothWordsWithoutConsumingPartialPacket();
     testTextureRectangleLengths();
     testTextureRectanglePacketDecoding();
+    testTextureRectangleRasterizesClampedRgba16Texels();
     testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testDpcCommandStreamIntegration();
     testRdpSynchronizationCommands();
