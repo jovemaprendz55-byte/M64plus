@@ -1857,6 +1857,38 @@ void testLoadBlockRejectsSourcePastRdramEndWithoutPartialWrites() {
                 "rejected LOAD_BLOCK leaves all destination TMEM bytes unchanged");
 }
 
+void testLoadBlockSixteenBitRejectsSourceOverflowAtomically() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint32_t source = static_cast<std::uint32_t>(Rdram::kSize - 4U);
+    for (std::uint32_t i = 0U; i < 4U; ++i)
+        require(bus.write8(source + i, static_cast<std::uint8_t>(0xA0U + i)),
+                "seed valid 16-bit source prefix at RDRAM end");
+    for (std::uint16_t i = 0U; i < 16U; ++i)
+        require(state.tmem.writeByte(i, 0x5AU),
+                "seed TMEM before overflowing 16-bit LOAD_BLOCK");
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (2ULL << 51U) | (3ULL << 32U) | source;
+    const std::uint64_t tile = (0x35ULL << 56U) | (2ULL << 51U);
+    const std::uint64_t load = (0x33ULL << 56U) | (12ULL << 12U);
+    require(bus.write64(0xB60U, image) && bus.write64(0xB68U, tile) &&
+            bus.write64(0xB70U, load), "seed overflowing 16-bit LOAD_BLOCK");
+    require(bus.write32(Bus::kDpStart, 0xB60U) &&
+            bus.write32(Bus::kDpEnd, 0xB78U),
+            "publish overflowing 16-bit LOAD_BLOCK");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TEXTURE_IMAGE configures 16-bit source");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE configures 16-bit destination");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "16-bit LOAD_BLOCK rejects source range beyond RDRAM");
+    std::uint8_t value = 0U;
+    for (std::uint16_t i = 0U; i < 16U; ++i)
+        require(state.tmem.readByte(i, value) && value == 0x5AU,
+                "rejected 16-bit LOAD_BLOCK leaves TMEM unchanged");
+}
+
 void testLoadBlockDxtCarriesAtExactHalfLine() {
     using namespace m64plus::n64;
     Bus bus;
@@ -4806,6 +4838,7 @@ int main() {
     testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadBlockWrapsDestinationAcrossTmemEnd();
     testLoadBlockRejectsSourcePastRdramEndWithoutPartialWrites();
+    testLoadBlockSixteenBitRejectsSourceOverflowAtomically();
     testLoadBlockDxtSwapsOddLineWords();
     testLoadBlockDxtSwizzlesOddLinesForEightAndSixteenBitTexels();
     testLoadBlockDxtCarriesAtExactHalfLine();
