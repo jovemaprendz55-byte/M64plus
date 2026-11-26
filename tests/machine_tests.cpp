@@ -2463,6 +2463,24 @@ void testCp0RandomCyclesWithinWiredBoundary() {
 }
 
 
+void testCp0ErrorLevelMasksInterrupts() {
+    m64plus::n64::Cp0 cp0;
+    cp0.setExternalInterrupt(true);
+    constexpr std::uint64_t interruptEnable = 1ULL;
+    constexpr std::uint64_t errorLevel = 1ULL << 2U;
+    constexpr std::uint64_t externalInterruptMask = 1ULL << 10U;
+    require(cp0.write(m64plus::n64::Cp0::kStatus,
+                      interruptEnable | errorLevel | externalInterruptMask),
+            "enable external interrupt while ERL is set");
+    require(!cp0.interruptRequested(),
+            "ERL masks interrupts even when IE and the interrupt mask are set");
+    require(cp0.write(m64plus::n64::Cp0::kStatus,
+                      interruptEnable | externalInterruptMask),
+            "clear ERL while retaining interrupt enables");
+    require(cp0.interruptRequested(),
+            "pending external interrupt is accepted after ERL is cleared");
+}
+
 void testCp0CountCompareTimerInterrupt() {
     using m64plus::n64::Cp0;
     Cp0 cp0;
@@ -3476,6 +3494,7 @@ int main() {
     testMachineResetClearsCpuAndMiInterruptState();
     testTlbPairedPagesAsidGlobalAndPermissions();
     testCp0RandomCyclesWithinWiredBoundary();
+    testCp0ErrorLevelMasksInterrupts();
     testCp0CountCompareTimerInterrupt();
     testMiExternalInterruptReachesMainCpu();
     testMiExternalInterruptDeassertionClearsCpuPendingBit();
