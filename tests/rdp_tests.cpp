@@ -5936,6 +5936,62 @@ void testTextureRectangleHonorsInterlacedFieldSelection() {
 }
 
 
+
+void testFlippedTextureRectangleWrapsOddSwizzledTmemRows() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x3800U;
+    constexpr std::uint32_t stream = 0x3900U;
+    state.colorImage = {0U, 2U, 2U, framebuffer};
+    state.hasColorImage = true;
+    state.textureImage = {0U, 2U, 2U, 0U};
+    state.hasTextureImage = true;
+    state.tiles[0].format = 0U;
+    state.tiles[0].size = 2U;
+    state.tiles[0].line = 1U;
+    state.tiles[0].tmem = 511U;
+    state.tiles[0].clampS = true;
+    state.tiles[0].clampT = true;
+    state.hasTile[0] = true;
+    state.tileSizes[0] = {0U, 0U, 4U, 4U};
+    state.hasTileSize[0] = true;
+    state.hasOtherModes = true;
+    state.otherModes.cycleType = 0U;
+    state.hasScissor = true;
+    state.scissor = {0U, 0U, 8U, 8U, false, false};
+    require(state.tmem.writeByte(4088U, 0x11U) &&
+            state.tmem.writeByte(4089U, 0x22U) &&
+            state.tmem.writeByte(4090U, 0x33U) &&
+            state.tmem.writeByte(4091U, 0x44U) &&
+            state.tmem.writeByte(4U, 0x55U) &&
+            state.tmem.writeByte(5U, 0x66U) &&
+            state.tmem.writeByte(6U, 0x77U) &&
+            state.tmem.writeByte(7U, 0x88U),
+            "seed flipped texture texels across odd-row TMEM wrap");
+    for (std::uint32_t i = 0U; i < 4U; ++i)
+        require(bus.write16(framebuffer + i * 2U, 0xDEADU),
+                "seed flipped TMEM-wrap framebuffer");
+    const std::uint64_t first =
+        (0x25ULL << 56U) | (8ULL << 12U) | 8ULL;
+    const std::uint64_t second =
+        (0x0400ULL << 16U) | 0x0400ULL;
+    require(bus.write64(stream, first) && bus.write64(stream + 8U, second),
+            "write flipped rectangle crossing odd-row TMEM wrap");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 16U),
+            "publish flipped TMEM-wrap rectangle");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "flipped rectangle processes TMEM wrap");
+    const std::uint16_t expected[] = {0x1122U, 0x5566U, 0x3344U, 0x7788U};
+    for (std::uint32_t i = 0U; i < 4U; ++i) {
+        std::uint16_t pixel = 0U;
+        require(bus.read16(framebuffer + i * 2U, pixel) && pixel == expected[i],
+                "flipped rectangle reads correct swizzled texel after TMEM wrap");
+    }
+}
+
+
 int main() {
     testTextureRectangleWrapsTmemAddressAtEnd();
     testTextureRectangleHonorsInterlacedFieldSelection();
