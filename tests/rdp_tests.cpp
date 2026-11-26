@@ -4875,6 +4875,7 @@ int main() {
     testLoadBlockWrapsDestinationAcrossTmemEnd();
     testLoadBlockRejectsSourcePastRdramEndWithoutPartialWrites();
     testLoadBlockSixteenBitRejectsSourceOverflowAtomically();
+    testLoadBlockFourBitRejectsSourceOverflowAtomically();
     testLoadBlockDxtSwapsOddLineWords();
     testLoadBlockDxtSwizzlesOddLinesForEightAndSixteenBitTexels();
     testLoadBlockDxtCarriesAtExactHalfLine();
