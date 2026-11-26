@@ -2035,6 +2035,41 @@ void testCpuMtc0RequiresKernelPrivilege() {
     }
 }
 
+
+void testCpuNestedTlbExceptionUpdatesFaultAddressRegisters() {
+    m64plus::n64::Cp0 cp0;
+    constexpr std::uint64_t initialAsid = 0x5AU;
+    constexpr std::uint64_t firstPc = 0xFFFFFFFF80001000ULL;
+    constexpr std::uint64_t nestedPc = 0xFFFFFFFF80002000ULL;
+    constexpr std::uint64_t badAddress = 0xC000123456789ABCULL;
+    require(cp0.write(m64plus::n64::Cp0::kEntryHi, initialAsid),
+            "set initial EntryHi ASID before nested exception");
+    cp0.raiseException(m64plus::n64::ExceptionCode::Syscall, firstPc, true);
+    const std::uint64_t firstEpc = cp0.read(m64plus::n64::Cp0::kEpc);
+    const std::uint64_t firstCause = cp0.read(m64plus::n64::Cp0::kCause);
+    const std::uint64_t expectedContext = (badAddress >> 9U) & 0x7FFFF0ULL;
+    const std::uint64_t expectedXContext = 0xFFFFFFFE00000000ULL |
+        ((badAddress >> 9U) & 0x7FFFFFF0ULL) |
+        ((badAddress >> 31U) & 0x180000000ULL);
+
+    cp0.raiseException(m64plus::n64::ExceptionCode::TlbLoad, nestedPc,
+                       false, badAddress, true);
+    require(cp0.read(m64plus::n64::Cp0::kContext) == expectedContext,
+            "nested TLB exception updates Context despite EXL already being set");
+    require(cp0.read(m64plus::n64::Cp0::kXContext) == expectedXContext,
+            "nested TLB exception updates XContext despite EXL already being set");
+    require(cp0.read(m64plus::n64::Cp0::kEntryHi) ==
+                ((badAddress & 0xFFFFE000ULL) | initialAsid),
+            "nested TLB exception updates EntryHi and preserves ASID");
+    require(cp0.read(m64plus::n64::Cp0::kBadVAddr) == badAddress,
+            "nested TLB exception updates BadVAddr");
+    require(cp0.read(m64plus::n64::Cp0::kEpc) == firstEpc,
+            "nested TLB exception preserves the first EPC");
+    require((cp0.read(m64plus::n64::Cp0::kCause) & (1ULL << 31U)) ==
+                (firstCause & (1ULL << 31U)),
+            "nested TLB exception preserves the first Cause.BD state");
+}
+
 void testCpuXContextWritesOnlyPteBaseField() {
     m64plus::n64::Cp0 cp0;
     require(cp0.write(m64plus::n64::Cp0::kXContext, 0xFFFFFFFFFFFFFFFFULL),
@@ -3441,6 +3476,7 @@ int main() {
     testCpuMtc0StatusChangesPrivilegeForNextInstruction();
     testCpuMtc0WorksInKernelMode();
     testCpuMtc0RequiresKernelPrivilege();
+    testCpuNestedTlbExceptionUpdatesFaultAddressRegisters();
     testCpuXContextWritesOnlyPteBaseField();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
