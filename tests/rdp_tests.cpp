@@ -5089,6 +5089,15 @@ void testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExist
     for (std::uint8_t opcode : {0x24U, 0x25U}) {
         Bus bus;
         RdpSyncState state{};
+        constexpr std::uint32_t framebuffer = 0x2400U;
+        constexpr std::uint32_t sentinel = 0xA1B2C3D4U;
+        state.colorImage = {0U, 0U, 4U, framebuffer};
+        state.hasColorImage = true;
+        state.fillColor = 0x55667788U;
+        state.hasFillColor = true;
+        for (std::uint32_t i = 0U; i < 16U; ++i)
+            require(bus.write32(framebuffer + i * 4U, sentinel),
+                    "seed framebuffer before unsupported texture rectangle");
         const std::uint32_t start = 0xA40U;
         const std::uint64_t first = (static_cast<std::uint64_t>(opcode) << 56U) |
             (0x120ULL << 44U) | (0x230ULL << 32U) | (3ULL << 24U) |
@@ -5113,6 +5122,11 @@ void testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExist
         std::uint32_t current = 0U;
         require(bus.read32(Bus::kDpCurrent, current) && current == start + 16U,
                 "texture rectangle consumes its complete two-word packet");
+        for (std::uint32_t i = 0U; i < 16U; ++i) {
+            std::uint32_t pixel = 0U;
+            require(bus.read32(framebuffer + i * 4U, pixel) && pixel == sentinel,
+                    "unsupported texture rectangle leaves framebuffer unchanged");
+        }
     }
 }
 
