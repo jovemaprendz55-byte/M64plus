@@ -4,7 +4,7 @@ Emulador Nintendo 64 para Android. Alvo inicial: Android 16 ARM64 e testes no Po
 
 ## Estado atual
 
-- **Gráficos:** aplicativo Android com OpenGL ES 2.0. O triângulo de diagnóstico foi confirmado visualmente no Poco C85. O núcleo RDP inicial já decodifica comandos, mantém estado de imagem/tiles/modos, carrega texturas para TMEM (incluindo formatos de 4/8/16/32 bits e bancos RGBA32) e rasteriza operações limitadas de preenchimento, triângulos flat-fill e texture rectangles RGBA16 com amostragem nearest.
+- **Gráficos:** aplicativo Android com OpenGL ES 2.0. O triângulo de diagnóstico foi confirmado visualmente no Poco C85. O núcleo RDP inicial já decodifica comandos, mantém estado de imagem/tiles/modos, carrega texturas para TMEM (incluindo formatos de 4/8/16/32 bits e bancos RGBA32) e rasteriza operações limitadas de preenchimento, triângulos flat-fill e texture rectangles RGBA16 normais e com flip, com amostragem nearest.
 - **RDRAM:** memória de 8 MiB em C++17, big-endian, com acessos de 8/16/32/64 bits e proteção de limites.
 - **Barramento físico inicial:** decodifica RDRAM, SP DMEM (4 KiB) e SP IMEM (4 KiB); acessos big-endian e rejeição segura de regiões ainda não mapeadas. A CPU já pode buscar instruções e executar loads/stores usando o barramento; MMIO e DMA ainda faltam.
 - **CPU:** núcleo MIPS III inicial com 32 registradores GPR, aritmética/lógica, saltos, desvios e delay slots. Inclui LB/LBU/LH/LHU/LW/LWU/LD e SB/SH/SW/SD.
@@ -14,7 +14,7 @@ Emulador Nintendo 64 para Android. Alvo inicial: Android 16 ARM64 e testes no Po
 
 ## Limitações importantes
 
-A tradução TLB continua opt-in e ainda não existe um fluxo completo de boot do N64. Faltam, entre outros componentes, o barramento completo e mapeamento de dispositivos, modos de privilégio completos, FPU, caches, RSP completo, rasterização RDP com texturas/combinação/Z-buffer, áudio, carregamento de ROM e compatibilidade com jogos. O RDP atual é apenas uma base parcial: texture rectangles suportam somente o opcode TEXTURE_RECTANGLE (sem flip), imagens e tiles RGBA16, coordenadas alinhadas, derivadas unitárias, clamp S/T e amostragem nearest; não há filtragem bilinear, masks/mirror, combinação de cores ou suporte geral aos demais formatos e modos. Os triângulos rasterizados estão limitados ao caminho flat-fill sem shade, textura ou Z. O triângulo confirma somente a inicialização básica do OpenGL ES; não significa que jogos já executam.
+A tradução TLB continua opt-in e ainda não existe um fluxo completo de boot do N64. Faltam, entre outros componentes, o barramento completo e mapeamento de dispositivos, modos de privilégio completos, FPU, caches, RSP completo, rasterização RDP com texturas/combinação/Z-buffer, áudio, carregamento de ROM e compatibilidade com jogos. O RDP atual é apenas uma base parcial: texture rectangles suportam os opcodes TEXTURE_RECTANGLE e TEXTURE_RECTANGLE_FLIP, imagens e tiles RGBA16, coordenadas alinhadas, derivadas unitárias, clamp S/T e amostragem nearest; não há filtragem bilinear, masks/mirror, combinação de cores ou suporte geral aos demais formatos e modos. Os triângulos rasterizados estão limitados ao caminho flat-fill sem shade, textura ou Z. O triângulo confirma somente a inicialização básica do OpenGL ES; não significa que jogos já executam.
 
 ## Build
 
@@ -25,4 +25,4 @@ GitHub Actions compila o APK debug com Android SDK 36, NDK 27.2.12479018 e CMake
 1. Validar os autotestes JNI no Poco C85.
 2. Completar os dispositivos MMIO do barramento e conectar a CPU ao barramento físico do VR4300.
 3. Ampliar o conjunto de instruções MIPS III e implementar FPU/caches.
-4. Ampliar RSP/RDP (mais formatos e modos de textura, flip, filtragem, shade e Z), áudio, controles e carregamento de ROM.
+4. Ampliar RSP/RDP (mais formatos e modos de textura, filtragem, shade e Z), áudio, controles e carregamento de ROM.
