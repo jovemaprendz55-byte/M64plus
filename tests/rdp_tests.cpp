@@ -2067,7 +2067,7 @@ void testLoadBlockRgba32RejectsSourceOverflowAtomically() {
     }
 }
 
-void testLoadBlockRgba32DxtMultipleCarriesKeepEvenWordOrder() {
+void testLoadBlockRgba32DxtMultipleCarriesApplyOddLineSwizzle() {
     using namespace m64plus::n64;
     Bus bus;
     RdpSyncState state{};
@@ -2091,20 +2091,21 @@ void testLoadBlockRgba32DxtMultipleCarriesKeepEvenWordOrder() {
         require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
                 "RGBA32 multiple-carry DXT sequence executes");
 
+    const std::uint8_t order[] = {0U, 1U, 3U, 2U};
     for (std::uint16_t i = 0U; i < 4U; ++i) {
         const std::uint16_t lower = static_cast<std::uint16_t>(i * 2U);
         const std::uint16_t upper = static_cast<std::uint16_t>(0x800U + lower);
-        const std::uint8_t red = static_cast<std::uint8_t>(0x40U + i * 4U);
+        const std::uint8_t red = static_cast<std::uint8_t>(0x40U + order[i] * 4U);
         std::uint8_t value = 0U;
         require(state.tmem.readByte(lower, value) && value == red &&
                 state.tmem.readByte(static_cast<std::uint16_t>(lower + 1U), value) &&
                 value == static_cast<std::uint8_t>(red + 1U),
-                "two DXT carries per word preserve lower-bank texel order");
+                "multiple DXT carries preserve odd-line lower-bank texel swizzle");
         require(state.tmem.readByte(upper, value) &&
                 value == static_cast<std::uint8_t>(red + 2U) &&
                 state.tmem.readByte(static_cast<std::uint16_t>(upper + 1U), value) &&
                 value == static_cast<std::uint8_t>(red + 3U),
-                "two DXT carries per word preserve upper-bank texel order");
+                "multiple DXT carries preserve odd-line upper-bank texel swizzle");
     }
 }
 
