@@ -3464,6 +3464,7 @@ int main() {
     testCpuMemoryFaultInvalidatesLoadLinkedReservation();
     testCpuBusDataFaultInvalidatesLoadLinkedReservation();
     testCpuDataAddressErrorPrecedesTlbFault();
+    testCpuJalrUnalignedTargetFaultsAfterDelaySlot();
     testCpuNonCanonicalInstructionAddressRaisesAddressLoad();
     testCpuBusInstructionFaultInvalidatesLoadLinkedReservation();
     testCpuAddressStoreFaultInvalidatesLoadLinkedReservation();
