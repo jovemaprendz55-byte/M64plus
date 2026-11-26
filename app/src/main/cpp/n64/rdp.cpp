@@ -1,5 +1,6 @@
 #include "n64/rdp.h"
 
+#include <algorithm>
 #include <array>
 
 #include "n64/bus.h"
@@ -126,9 +127,8 @@ bool rasterizeTextureRectangleRgba16(Bus& bus, const RdpSyncState& state,
         (tileSize.sh - tileSize.sl) / 4U);
     const std::int32_t maxT = static_cast<std::int32_t>(
         (tileSize.th - tileSize.tl) / 4U);
-    if (sourceS < 0 || sourceT < 0 ||
-        sourceS + (clipRight - left) - 1 > maxS ||
-        sourceT + (clipBottom - top) - 1 > maxT) return false;
+    // Clamp coordinates to the SET_TILE_SIZE rectangle instead of
+    // rejecting a rectangle whose sampling coordinates cross its edges.
 
     const std::uint64_t memorySize = bus.rdram().size();
     for (std::int32_t y = clipTop; y < clipBottom; ++y) {
@@ -145,11 +145,12 @@ bool rasterizeTextureRectangleRgba16(Bus& bus, const RdpSyncState& state,
     for (std::int32_t y = clipTop; y < clipBottom; ++y) {
         if (state.scissor.fieldEnable &&
             (y & 1) != static_cast<std::int32_t>(state.scissor.oddLine)) continue;
-        const std::uint32_t texT = static_cast<std::uint32_t>(sourceT + y - top);
+        const std::int32_t texT = std::clamp(sourceT + y - top, 0, maxT);
         for (std::int32_t x = clipLeft; x < clipRight; ++x) {
-            const std::uint32_t texS = static_cast<std::uint32_t>(sourceS + x - left);
+            const std::uint32_t texS = static_cast<std::uint32_t>(
+                std::clamp(sourceS + x - left, 0, maxS));
             const std::uint32_t row = static_cast<std::uint32_t>(tile.tmem) * 8U +
-                texT * static_cast<std::uint32_t>(tile.line) * 8U;
+                static_cast<std::uint32_t>(texT) * static_cast<std::uint32_t>(tile.line) * 8U;
             const std::uint32_t logical = row + texS * 2U;
             const std::uint16_t tmemAddress = static_cast<std::uint16_t>(
                 (logical & ~7U) | ((logical & 7U) ^ ((texT & 1U) != 0U ? 4U : 0U)));
