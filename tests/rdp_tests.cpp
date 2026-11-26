@@ -5992,8 +5992,59 @@ void testFlippedTextureRectangleWrapsOddSwizzledTmemRows() {
 }
 
 
+void testFlippedTextureRectangleClipsBothAxesFromOriginalOrigin() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x3A00U;
+    constexpr std::uint32_t stream = 0x3B00U;
+    state.colorImage = {0U, 2U, 2U, framebuffer};
+    state.hasColorImage = true;
+    state.textureImage = {0U, 2U, 2U, 0U};
+    state.hasTextureImage = true;
+    state.tiles[0].format = 0U;
+    state.tiles[0].size = 2U;
+    state.tiles[0].line = 1U;
+    state.tiles[0].clampS = true;
+    state.tiles[0].clampT = true;
+    state.hasTile[0] = true;
+    state.tileSizes[0] = {0U, 0U, 4U, 4U};
+    state.hasTileSize[0] = true;
+    state.hasOtherModes = true;
+    state.otherModes.cycleType = 0U;
+    state.hasScissor = true;
+    state.scissor = {4U, 4U, 8U, 8U, false, false};
+    require(state.tmem.writeByte(0U, 0x11U) &&
+            state.tmem.writeByte(1U, 0x22U) &&
+            state.tmem.writeByte(2U, 0x33U) &&
+            state.tmem.writeByte(3U, 0x44U) &&
+            state.tmem.writeByte(12U, 0x55U) &&
+            state.tmem.writeByte(13U, 0x66U) &&
+            state.tmem.writeByte(14U, 0x77U) &&
+            state.tmem.writeByte(15U, 0x88U),
+            "seed flipped texture rows for two-axis clipping");
+    require(bus.write16(framebuffer + 6U, 0xDEADU),
+            "seed clipped flipped destination");
+    const std::uint64_t first = (0x25ULL << 56U) |
+        (8ULL << 12U) | 8ULL;
+    const std::uint64_t second =
+        (0x0400ULL << 16U) | 0x0400ULL;
+    require(bus.write64(stream, first) && bus.write64(stream + 8U, second),
+            "write flipped rectangle clipped on top and left");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 16U),
+            "publish two-axis clipped flipped rectangle");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "flipped rectangle processes two-axis clipping");
+    std::uint16_t pixel = 0U;
+    require(bus.read16(framebuffer + 6U, pixel) && pixel == 0x7788U,
+            "two-axis clipping retains original flipped texture origin");
+}
+
+
 int main() {
     testTextureRectangleWrapsTmemAddressAtEnd();
+    testFlippedTextureRectangleClipsBothAxesFromOriginalOrigin();
     testTextureRectangleHonorsInterlacedFieldSelection();
 
     testTriangleDecoderRejectsUnknownOpcodeMetadataAtomically();
