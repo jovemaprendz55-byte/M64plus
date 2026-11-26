@@ -5350,7 +5350,7 @@ void testTextureRectangleRejectsInvertedTileSizeWithoutWrites() {
     state.tiles[0].clampS = true;
     state.tiles[0].clampT = true;
     state.hasTile[0] = true;
-    state.tileSizes[0] = {4U, 0U, 4U, 4U};
+    state.tileSizes[0] = {8U, 0U, 4U, 4U};
     state.hasTileSize[0] = true;
     state.hasOtherModes = true;
     state.otherModes.cycleType = 0U;
