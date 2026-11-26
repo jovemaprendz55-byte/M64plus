@@ -2286,7 +2286,7 @@ void testLoadBlockFourBitOddNibbleDxtSwizzlesOddLine() {
     const std::uint8_t sourceBytes[] = {
         0x12U, 0x34U, 0x56U, 0x78U, 0x9AU, 0xBCU, 0xDEU, 0xF0U,
         0x12U, 0x34U, 0x56U, 0x78U, 0x9AU, 0xBCU, 0xDEU, 0xF0U,
-        0x12U
+        0x12U, 0x34U
     };
     for (std::uint32_t i = 0U; i < sizeof(sourceBytes); ++i)
         require(bus.write8(source + i, sourceBytes[i]),
