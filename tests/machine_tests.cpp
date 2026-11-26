@@ -1046,6 +1046,28 @@ void testCpuDoublewordLoadLinkedStoreConditional() {
 }
 
 
+void testCpuLoadLinkedStoreConditionalIgnoresUnrelatedBusWrites() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x2C0U;
+    constexpr std::uint32_t unrelatedAddress = 0x400U;
+    const std::uint32_t program[] = {0xC1090000U, 0xE1090000U}; // LL / SC
+    for (std::uint32_t i = 0; i < 2U; ++i)
+        require(bus.write32(i * 4U, program[i]), "write unrelated-write LL/SC program");
+    require(bus.write32(dataAddress, 0xAABBCCDDU), "initialize LL/SC target");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    require(machine.stepCpu(), "LL establishes reservation");
+    require(bus.write32(unrelatedAddress, 0x55667788U),
+            "external bus agent writes outside the reserved 16-byte granule");
+    require(machine.stepCpu(), "SC executes after unrelated external write");
+    std::uint32_t value = 0U;
+    require(bus.read32(dataAddress, value) && value == 0xAABBCCDDU,
+            "unrelated write does not alter reserved word");
+    require(machine.cpu().reg(9U) == 1U,
+            "SC succeeds when only an unrelated reservation granule changed");
+}
+
 void testCpuLoadLinkedStoreConditionalDetectsBusWrites() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -3318,6 +3340,7 @@ int main() {
     testCpuDoublewordMultiplyDivide();
     testCpuDoublewordMultiplyDivideEdgeCases();
     testCpuLoadLinkedStoreConditional();
+    testCpuLoadLinkedStoreConditionalIgnoresUnrelatedBusWrites();
     testCpuLoadLinkedStoreConditionalDetectsBusWrites();
     testCpuExceptionInvalidatesLoadLinkedReservation();
     testCpuInterruptInvalidatesLoadLinkedReservation();
