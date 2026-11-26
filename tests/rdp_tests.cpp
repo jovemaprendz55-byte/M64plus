@@ -5784,7 +5784,53 @@ void testTextureRectangleLengths() {
 }
 } // namespace
 
+
+void testTextureRectangleWrapsTmemAddressAtEnd() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x3200U;
+    constexpr std::uint32_t stream = 0x3300U;
+    state.colorImage = {0U, 2U, 1U, framebuffer};
+    state.hasColorImage = true;
+    state.textureImage = {0U, 2U, 1U, 0U};
+    state.hasTextureImage = true;
+    state.tiles[0].format = 0U;
+    state.tiles[0].size = 2U;
+    state.tiles[0].line = 1U;
+    state.tiles[0].tmem = 511U;
+    state.tiles[0].clampS = true;
+    state.tiles[0].clampT = true;
+    state.hasTile[0] = true;
+    state.tileSizes[0] = {0U, 0U, 16U, 0U};
+    state.hasTileSize[0] = true;
+    state.hasOtherModes = true;
+    state.otherModes.cycleType = 0U;
+    state.hasScissor = true;
+    state.scissor = {0U, 0U, 4U, 4U, false, false};
+    require(state.tmem.writeByte(0U, 0x5AU) &&
+            state.tmem.writeByte(1U, 0xC3U),
+            "seed wrapped TMEM texel at address zero");
+    require(bus.write16(framebuffer, 0xDEADU),
+            "seed framebuffer before TMEM wrap test");
+    const std::uint64_t first = (0x24ULL << 56U) | (4ULL << 32U);
+    const std::uint64_t second = (0x0080ULL << 48U) |
+        (0x0400ULL << 16U) | 0x0400ULL;
+    require(bus.write64(stream, first) && bus.write64(stream + 8U, second),
+            "write rectangle sampling the first texel after TMEM wrap");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 16U),
+            "publish TMEM wrap texture rectangle");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "texture rectangle samples across TMEM address wrap");
+    std::uint16_t pixel = 0U;
+    require(bus.read16(framebuffer, pixel) && pixel == 0x5AC3U,
+            "texture rectangle reads texel from wrapped TMEM address zero");
+}
+
 int main() {
+    testTextureRectangleWrapsTmemAddressAtEnd();
+
     testTriangleDecoderRejectsUnknownOpcodeMetadataAtomically();
 
     testSingleWordCommands();
