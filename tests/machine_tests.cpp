@@ -1224,6 +1224,38 @@ void testCpuBusDataFaultInvalidatesLoadLinkedReservation() {
             "SC reports failure because bus data fault invalidated reservation");
 }
 
+void testCpuDataAddressErrorPrecedesTlbFault() {
+    {
+        N64Machine machine;
+        Bus& bus = machine.bus();
+        constexpr std::uint64_t badAddress = 0x00400001ULL;
+        require(bus.write32(0x1000U, 0x8D490001U), "write unaligned LW to unmapped virtual page");
+        machine.cpu().reset(0xFFFFFFFF80001000ULL);
+        machine.cpu().setRegister(10U, 0x00400000U);
+        machine.cpu().setTlbEnabled(true);
+        require(machine.stepCpu(), "unaligned LW raises address error before TLB lookup");
+        require(machine.cpu().lastExceptionCode() == 4U,
+                "unaligned LW reports Address Load instead of TLB Load");
+        require(machine.cpu().cp0().read(m64plus::n64::Cp0::kBadVAddr) == badAddress,
+                "unaligned LW records its effective virtual address");
+    }
+    {
+        N64Machine machine;
+        Bus& bus = machine.bus();
+        constexpr std::uint64_t badAddress = 0x00400001ULL;
+        require(bus.write32(0x1000U, 0xAD4B0001U), "write unaligned SW to unmapped virtual page");
+        machine.cpu().reset(0xFFFFFFFF80001000ULL);
+        machine.cpu().setRegister(10U, 0x00400000U);
+        machine.cpu().setRegister(11U, 0xA5A5A5A5U);
+        machine.cpu().setTlbEnabled(true);
+        require(machine.stepCpu(), "unaligned SW raises address error before TLB lookup");
+        require(machine.cpu().lastExceptionCode() == 5U,
+                "unaligned SW reports Address Store instead of TLB Store");
+        require(machine.cpu().cp0().read(m64plus::n64::Cp0::kBadVAddr) == badAddress,
+                "unaligned SW records its effective virtual address");
+    }
+}
+
 void testCpuNonCanonicalInstructionAddressRaisesAddressLoad() {
     N64Machine machine;
     constexpr std::uint64_t invalidPc = 0x0000000180000000ULL;
@@ -3401,6 +3433,7 @@ int main() {
     testCpuInterruptInvalidatesLoadLinkedReservation();
     testCpuMemoryFaultInvalidatesLoadLinkedReservation();
     testCpuBusDataFaultInvalidatesLoadLinkedReservation();
+    testCpuDataAddressErrorPrecedesTlbFault();
     testCpuNonCanonicalInstructionAddressRaisesAddressLoad();
     testCpuBusInstructionFaultInvalidatesLoadLinkedReservation();
     testCpuAddressStoreFaultInvalidatesLoadLinkedReservation();
