@@ -22,7 +22,7 @@ public:
     std::uint64_t reservationEpoch(std::uint32_t address) const noexcept;
 private:
     bool contains(std::uint32_t address, std::size_t width) const noexcept;
-    void markWrite(std::uint32_t address) noexcept;
+    void markWrite(std::uint32_t address, std::size_t width) noexcept;
     std::vector<std::uint8_t> bytes_;
     std::uint64_t writeEpoch_ = 0;
     std::vector<std::uint64_t> reservationEpochs_;
