@@ -589,6 +589,13 @@ bool MipsCpu::stepMemory(Memory& memory) {
             effective != static_cast<std::uint64_t>(static_cast<std::int64_t>(
                 static_cast<std::int32_t>(address))))
             return takeException(ExceptionCode::AddressLoad, effective);
+        // Address errors have priority over TLB faults for data accesses.
+        if ((opcode == 0x21 || opcode == 0x25) && (effective & 1U))
+            return takeException(ExceptionCode::AddressLoad, effective);
+        if ((opcode == 0x23 || opcode == 0x27 || opcode == 0x30) && (effective & 3U))
+            return takeException(ExceptionCode::AddressLoad, effective);
+        if ((opcode == 0x34 || opcode == 0x37) && (effective & 7U))
+            return takeException(ExceptionCode::AddressLoad, effective);
         const bool inDirectSegment = address >= 0x80000000U && address < 0xC0000000U;
         const bool inSupervisorSegment = address >= 0xC0000000U && address < 0xE0000000U;
         const bool inKernelSegment3 = address >= 0xE0000000U;
@@ -608,9 +615,6 @@ bool MipsCpu::stepMemory(Memory& memory) {
                 return takeException(ExceptionCode::TlbModification, effective);
             address = translated;
         }
-        if ((opcode == 0x21 || opcode == 0x25) && (address & 1U)) return takeException(ExceptionCode::AddressLoad, effective);
-        if ((opcode == 0x23 || opcode == 0x27 || opcode == 0x30) && (address & 3U)) return takeException(ExceptionCode::AddressLoad, effective);
-        if ((opcode == 0x34 || opcode == 0x37) && (address & 7U)) return takeException(ExceptionCode::AddressLoad, effective);
         if (opcode == 0x20 || opcode == 0x24) {
             std::uint8_t value = 0;
             if (!memory.read8(address, value)) return takeException(ExceptionCode::BusData, effective);
@@ -684,6 +688,13 @@ bool MipsCpu::stepMemory(Memory& memory) {
             effective != static_cast<std::uint64_t>(static_cast<std::int64_t>(
                 static_cast<std::int32_t>(address))))
             return takeException(ExceptionCode::AddressStore, effective);
+        // Address errors have priority over TLB faults for data accesses.
+        if (opcode == 0x29 && (effective & 1U))
+            return takeException(ExceptionCode::AddressStore, effective);
+        if ((opcode == 0x2B || opcode == 0x38) && (effective & 3U))
+            return takeException(ExceptionCode::AddressStore, effective);
+        if ((opcode == 0x3F || opcode == 0x3C) && (effective & 7U))
+            return takeException(ExceptionCode::AddressStore, effective);
         const bool inDirectSegment = address >= 0x80000000U && address < 0xC0000000U;
         const bool inSupervisorSegment = address >= 0xC0000000U && address < 0xE0000000U;
         const bool inKernelSegment3 = address >= 0xE0000000U;
@@ -703,9 +714,6 @@ bool MipsCpu::stepMemory(Memory& memory) {
                 return takeException(ExceptionCode::TlbModification, effective);
             address = translated;
         }
-        if (opcode == 0x29 && (address & 1U)) return takeException(ExceptionCode::AddressStore, effective);
-        if ((opcode == 0x2B || opcode == 0x38) && (address & 3U)) return takeException(ExceptionCode::AddressStore, effective);
-        if ((opcode == 0x3F || opcode == 0x3C) && (address & 7U)) return takeException(ExceptionCode::AddressStore, effective);
         bool stored = false;
         if (opcode == 0x38 || opcode == 0x3C) { // SC / SCD
             const bool reservationMatches = reservationValid_ && reservationAddress_ == address &&
