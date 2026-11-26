@@ -501,6 +501,8 @@ bool MipsCpu::stepMemory(Memory& memory) {
             if ((instruction & 0x001FFFC0U) != 0U)
                 return takeException(ExceptionCode::ReservedInstruction);
             if (function == 0x18) { // ERET
+                // ERET clears the architectural LLbit on either ERL or EXL return.
+                reservationValid_ = false;
                 doExceptionReturn = true;
             } else if (function == 0x08) { // TLBP
                 const int found = tlb_.probe(cp0_.read(Cp0::kEntryHi),
