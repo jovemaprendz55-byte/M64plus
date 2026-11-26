@@ -2577,6 +2577,42 @@ void testLoadBlockDxtSwapsOddLineWords() {
             "DXT odd line completes 32-bit half swap");
 }
 
+void testLoadBlockDxtSwizzlesOddLinesForEightAndSixteenBitTexels() {
+    using namespace m64plus::n64;
+    for (const std::uint8_t size : {1U, 2U}) {
+        Bus bus;
+        RdpSyncState state{};
+        for (std::uint32_t i = 0; i < 16U; ++i)
+            require(bus.write8(0x1800U + i, static_cast<std::uint8_t>(i)),
+                    "seed two 64-bit LOAD_BLOCK words");
+        const std::uint64_t setImage =
+            (0x3DULL << 56U) | (static_cast<std::uint64_t>(size) << 51U) |
+            (31ULL << 32U) | 0x1800ULL;
+        const std::uint64_t setTile =
+            (0x35ULL << 56U) | (static_cast<std::uint64_t>(size) << 51U);
+        const std::uint64_t texelCount = size == 1U ? 16ULL : 8ULL;
+        const std::uint64_t loadBlock =
+            (0x33ULL << 56U) | ((texelCount - 1U) * 4ULL << 12U) | 0x800ULL;
+        require(bus.write64(0xA40U, setImage) &&
+                bus.write64(0xA48U, setTile) &&
+                bus.write64(0xA50U, loadBlock), "seed 8/16-bit DXT sequence");
+        require(bus.write32(Bus::kDpStart, 0xA40U) &&
+                bus.write32(Bus::kDpEnd, 0xA58U), "publish 8/16-bit DXT sequence");
+        for (unsigned i = 0; i < 3U; ++i)
+            require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                    "8/16-bit DXT LOAD_BLOCK sequence executes");
+        std::uint8_t value = 0U;
+        require(state.tmem.readByte(8U, value) && value == 12U,
+                "odd DXT line begins with source byte twelve");
+        require(state.tmem.readByte(11U, value) && value == 15U,
+                "odd DXT line preserves second half ordering");
+        require(state.tmem.readByte(12U, value) && value == 8U,
+                "odd DXT line swaps first 32-bit half");
+        require(state.tmem.readByte(15U, value) && value == 11U,
+                "odd DXT line completes 32-bit half swap");
+    }
+}
+
 void testLoadTlutReplicatesEntriesIntoHighTmem() {
     using namespace m64plus::n64;
     Bus bus;
@@ -4771,6 +4807,7 @@ int main() {
     testLoadBlockWrapsDestinationAcrossTmemEnd();
     testLoadBlockRejectsSourcePastRdramEndWithoutPartialWrites();
     testLoadBlockDxtSwapsOddLineWords();
+    testLoadBlockDxtSwizzlesOddLinesForEightAndSixteenBitTexels();
     testLoadBlockDxtCarriesAtExactHalfLine();
     testLoadBlockDxtHandlesMultipleCarriesAndFractionalLines();
     testLoadBlockContinuesAcrossTextureImageRows();
