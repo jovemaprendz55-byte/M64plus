@@ -5094,6 +5094,13 @@ void testTextureRectanglePacketDecoding() {
     require(!RdpCommandDecoder::decodeTextureRectangle(invalid, unchanged) &&
             unchanged.xh == 0x55U,
             "non-texture opcode is rejected without changing output");
+
+    invalid.info = RdpCommandDecoder::decode(header(0x24U));
+    invalid.info.knownOpcode = false;
+    invalid.words[0] = header(0x24U);
+    require(!RdpCommandDecoder::decodeTextureRectangle(invalid, unchanged) &&
+            unchanged.xh == 0x55U,
+            "texture rectangle with inconsistent unknown-opcode metadata is rejected");
 }
 
 void testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists() {
