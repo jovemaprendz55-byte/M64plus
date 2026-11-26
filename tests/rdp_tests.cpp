@@ -2211,6 +2211,38 @@ void testLoadBlockRgba32WrapsBothTmemBanks() {
     }
 }
 
+void testLoadBlockCopiesPackedFourBitTexels() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t source = 0x1A80U;
+    require(bus.write8(source, 0x12U) && bus.write8(source + 1U, 0x34U),
+            "seed packed four-bit LOAD_BLOCK source");
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 32U) | source;
+    const std::uint64_t setTile = (0x35ULL << 56U);
+    const std::uint64_t loadBlock =
+        (0x33ULL << 56U) | (12ULL << 12U);
+    require(bus.write64(0xB20U, setImage) &&
+            bus.write64(0xB28U, setTile) &&
+            bus.write64(0xB30U, loadBlock),
+            "seed packed four-bit LOAD_BLOCK command sequence");
+    require(bus.write32(Bus::kDpStart, 0xB20U) &&
+            bus.write32(Bus::kDpEnd, 0xB38U),
+            "publish packed four-bit LOAD_BLOCK sequence");
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) ==
+                    RdpProcessResult::Processed,
+                "packed four-bit LOAD_BLOCK sequence executes");
+
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0x12U,
+            "four-bit LOAD_BLOCK preserves first packed byte");
+    require(state.tmem.readByte(1U, value) && value == 0x34U,
+            "four-bit LOAD_BLOCK preserves second packed byte");
+}
+
 void testLoadBlockCopiesRgba32IntoSplitTmemBanks() {
     using namespace m64plus::n64;
     Bus bus;
@@ -4634,6 +4666,7 @@ int main() {
     testLoadBlockRgba32DxtMultipleCarriesApplyOddLineSwizzle();
     testLoadBlockRgba32DxtWrapsBothTmemBanks();
     testLoadBlockRgba32WrapsBothTmemBanks();
+    testLoadBlockCopiesPackedFourBitTexels();
     testLoadBlockCopiesRgba32IntoSplitTmemBanks();
     testLoadBlockRgba32DxtFractionalLineCarry();
     testLoadBlockRgba32DxtSwapsOddLineWords();
