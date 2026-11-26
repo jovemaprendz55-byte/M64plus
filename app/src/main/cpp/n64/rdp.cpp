@@ -915,8 +915,8 @@ RdpProcessResult RdpCommandProcessor::processNext(
             return RdpProcessResult::Unsupported;
         state.lastTextureRectangle = rectangle;
         state.hasTextureRectangle = true;
-        // Packet decoding is integrated; texture sampling and rasterization remain pending.
-        return RdpProcessResult::Unsupported;
+        return rasterizeTextureRectangleRgba16(bus, state, rectangle)
+            ? RdpProcessResult::Processed : RdpProcessResult::Unsupported;
     }
     case 0x08U: // TRIANGLE
     case 0x09U:
