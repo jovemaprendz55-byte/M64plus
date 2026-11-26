@@ -434,6 +434,33 @@ void testPiCartridgeToRdramDmaAndInterrupt() {
     require(bus.write32(Bus::kPiStatus, 1U), "clear PI DMA error");
     require(!bus.write32(Bus::kPiReadLength, 3U),
             "reject RDRAM-to-read-only-ROM DMA direction");
+
+    require(bus.rdram().write32(0x400U, 0xCAFEBABEU),
+            "seed destination for PI alignment rejection tests");
+    require(bus.write32(Bus::kPiDramAddr, 0x404U) &&
+            bus.write32(Bus::kPiCartAddr, Bus::kCartridgeBase + 0x40U),
+            "set unaligned RDRAM destination");
+    require(!bus.write32(Bus::kPiWriteLength, 7U),
+            "reject PI DMA with RDRAM destination not eight-byte aligned");
+    require(bus.rdram().read32(0x400U, copied) && copied == 0xCAFEBABEU,
+            "unaligned RDRAM DMA leaves destination unchanged");
+
+    require(bus.write32(Bus::kPiStatus, 1U), "clear PI alignment error");
+    require(bus.write32(Bus::kPiDramAddr, 0x400U) &&
+            bus.write32(Bus::kPiCartAddr, Bus::kCartridgeBase + 0x41U),
+            "set unaligned cartridge source");
+    require(!bus.write32(Bus::kPiWriteLength, 7U),
+            "reject PI DMA with odd cartridge address");
+    require(bus.rdram().read32(0x400U, copied) && copied == 0xCAFEBABEU,
+            "unaligned cartridge DMA leaves destination unchanged");
+
+    require(bus.write32(Bus::kPiStatus, 1U), "clear odd-address PI error");
+    require(bus.write32(Bus::kPiCartAddr, Bus::kCartridgeBase + 0x40U),
+            "restore aligned cartridge source");
+    require(!bus.write32(Bus::kPiWriteLength, 0U),
+            "reject PI DMA with odd byte count");
+    require(bus.rdram().read32(0x400U, copied) && copied == 0xCAFEBABEU,
+            "odd-length PI DMA leaves destination unchanged");
 }
 
 void testDpResetClearsCommandStreamAndModes() {
