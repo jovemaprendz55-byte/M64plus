@@ -100,7 +100,7 @@ bool rasterizeTextureRectangleRgba16(Bus& bus, const RdpSyncState& state,
         state.textureImage.format != 0U || state.textureImage.size != 2U ||
         tile.format != 0U || tile.size != 2U || tile.line == 0U ||
         tile.maskS != 0U || tile.maskT != 0U || tile.mirrorS || tile.mirrorT ||
-        !tile.clampS || !tile.clampT || rectangle.flip ||
+        !tile.clampS || !tile.clampT ||
         (rectangle.xh & 3U) != 0U || (rectangle.yh & 3U) != 0U ||
         (rectangle.xl & 3U) != 0U || (rectangle.yl & 3U) != 0U ||
         (rectangle.s & 31) != 0 || (rectangle.t & 31) != 0 ||
@@ -145,10 +145,13 @@ bool rasterizeTextureRectangleRgba16(Bus& bus, const RdpSyncState& state,
     for (std::int32_t y = clipTop; y < clipBottom; ++y) {
         if (state.scissor.fieldEnable &&
             (y & 1) != static_cast<std::int32_t>(state.scissor.oddLine)) continue;
-        const std::int32_t texT = std::clamp(sourceT + y - top, 0, maxT);
+        const std::int32_t sourceTForRow = rectangle.flip ? sourceT + y - top : sourceT + y - top;
         for (std::int32_t x = clipLeft; x < clipRight; ++x) {
+            const std::int32_t sampleS = rectangle.flip ? sourceS + y - top : sourceS + x - left;
+            const std::int32_t sampleT = rectangle.flip ? sourceT + x - left : sourceTForRow;
             const std::uint32_t texS = static_cast<std::uint32_t>(
-                std::clamp(sourceS + x - left, 0, maxS));
+                std::clamp(sampleS, 0, maxS));
+            const std::int32_t texT = std::clamp(sampleT, 0, maxT);
             const std::uint32_t row = static_cast<std::uint32_t>(tile.tmem) * 8U +
                 static_cast<std::uint32_t>(texT) * static_cast<std::uint32_t>(tile.line) * 8U;
             const std::uint32_t logical = row + texS * 2U;
