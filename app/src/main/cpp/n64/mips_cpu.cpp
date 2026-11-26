@@ -61,13 +61,15 @@ template <typename Memory>
 bool MipsCpu::stepMemory(Memory& memory) {
     const bool inDelaySlot = pendingBranch_;
     std::uint32_t currentInstruction = 0;
-    const auto takeException = [&](ExceptionCode code, std::uint64_t badAddress = 0, bool tlbRefill = false) {
+    const auto takeException = [&](ExceptionCode code, std::uint64_t badAddress = 0,
+                                    bool tlbRefill = false, unsigned coprocessorNumber = 0) {
         hasLastException_ = true;
         reservationValid_ = false;
         lastExceptionPc_ = pc_;
         lastExceptionInstruction_ = currentInstruction;
         lastExceptionCode_ = static_cast<std::uint8_t>(code);
-        pc_ = cp0_.raiseException(code, pc_, inDelaySlot, badAddress, tlbRefill);
+        pc_ = cp0_.raiseException(code, pc_, inDelaySlot, badAddress, tlbRefill,
+                                   coprocessorNumber);
         pendingBranch_ = false;
         pendingBranchTarget_ = 0;
         cp0_.tick();
@@ -481,6 +483,11 @@ bool MipsCpu::stepMemory(Memory& memory) {
         branchTarget = scheduleBranch ? branchRelative() : sequentialPc + 4U;
         scheduleBranch = !annulDelaySlot; // ordinary branches retain their delay slot
         break;
+    // COP1 is not implemented yet, but unusable traps report Cause.CE=1.
+    case 0x11:
+        if ((cp0_.read(Cp0::kStatus) & Cp0::kStatusCu1) == 0U)
+            return takeException(ExceptionCode::CoprocessorUnusable, 0, false, 1U);
+        return takeException(ExceptionCode::ReservedInstruction);
     // COP0: MFC0, MTC0 and ERET (register select 0 only).
     case 0x10:
         if (inDelaySlot)
