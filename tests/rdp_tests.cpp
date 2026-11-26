@@ -5082,6 +5082,18 @@ void testTextureRectanglePacketDecoding() {
     require(!RdpCommandDecoder::decodeTextureRectangle(invalid, unchanged) &&
             unchanged.xh == 0x55U,
             "invalid texture rectangle packet leaves output unchanged");
+
+    invalid.words[0] = header(0x24U);
+    invalid.info.lengthWords = 1U;
+    require(!RdpCommandDecoder::decodeTextureRectangle(invalid, unchanged) &&
+            unchanged.xh == 0x55U,
+            "truncated texture rectangle metadata is rejected without changing output");
+
+    invalid.info = RdpCommandDecoder::decode(header(0x23U));
+    invalid.words[0] = header(0x23U);
+    require(!RdpCommandDecoder::decodeTextureRectangle(invalid, unchanged) &&
+            unchanged.xh == 0x55U,
+            "non-texture opcode is rejected without changing output");
 }
 
 void testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists() {
