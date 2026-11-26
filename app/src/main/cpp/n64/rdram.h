@@ -19,9 +19,12 @@ public:
     const std::uint8_t* data() const noexcept;
     std::size_t size() const noexcept;
     std::uint64_t writeEpoch() const noexcept;
+    std::uint64_t reservationEpoch(std::uint32_t address) const noexcept;
 private:
     bool contains(std::uint32_t address, std::size_t width) const noexcept;
+    void markWrite(std::uint32_t address) noexcept;
     std::vector<std::uint8_t> bytes_;
     std::uint64_t writeEpoch_ = 0;
+    std::vector<std::uint64_t> reservationEpochs_;
 };
 } // namespace m64plus::n64
