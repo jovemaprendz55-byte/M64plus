@@ -83,6 +83,20 @@ void testTriangleEdgeHeaderDecoding() {
             "zeroed triangle edge header decodes deterministically");
 }
 
+void testTriangleDecoderRejectsUnknownOpcodeMetadataAtomically() {
+    using namespace m64plus::n64;
+    RdpCommandPacket packet{};
+    packet.info = {0x08U, 4U, false};
+    packet.words[0] = header(0x08U);
+    RdpTriangleCommand command{};
+    command.edge.xLeft = 12345;
+    command.layout.wordCount = 77U;
+    require(!RdpCommandDecoder::decodeTriangleCommand(packet, command),
+            "triangle decoder rejects packets marked with unknown opcode metadata");
+    require(command.edge.xLeft == 12345 && command.layout.wordCount == 77U,
+            "unknown triangle metadata rejection leaves output unchanged");
+}
+
 void testTriangleCommandPacketDecoding() {
     using namespace m64plus::n64;
     const auto packFour = [](std::uint16_t a, std::uint16_t b,
@@ -5189,6 +5203,8 @@ void testTextureRectangleLengths() {
 } // namespace
 
 int main() {
+    testTriangleDecoderRejectsUnknownOpcodeMetadataAtomically();
+
     testSingleWordCommands();
     testTriangleCommandLengths();
     testTriangleOptionalBlockLayout();
