@@ -5878,8 +5878,67 @@ void testTextureRectangleWrapsOddSwizzledTmemRow() {
             "odd row swizzle wraps to TMEM address four");
 }
 
+
+void testTextureRectangleHonorsInterlacedFieldSelection() {
+    using namespace m64plus::n64;
+    constexpr std::uint32_t framebuffer = 0x3600U;
+    constexpr std::uint32_t stream = 0x3700U;
+    constexpr std::uint16_t sentinel = 0xDEADU;
+    for (std::uint32_t selectedParity = 0U; selectedParity < 2U; ++selectedParity) {
+        Bus bus;
+        RdpSyncState state{};
+        state.colorImage = {0U, 2U, 1U, framebuffer};
+        state.hasColorImage = true;
+        state.textureImage = {0U, 2U, 1U, 0U};
+        state.hasTextureImage = true;
+        state.tiles[0].format = 0U;
+        state.tiles[0].size = 2U;
+        state.tiles[0].line = 1U;
+        state.tiles[0].clampS = true;
+        state.tiles[0].clampT = true;
+        state.hasTile[0] = true;
+        state.tileSizes[0] = {0U, 0U, 0U, 4U};
+        state.hasTileSize[0] = true;
+        state.hasOtherModes = true;
+        state.otherModes.cycleType = 0U;
+        state.hasScissor = true;
+        state.scissor = {0U, 0U, 4U, 8U, true, selectedParity != 0U};
+        require(state.tmem.writeByte(0U, 0x12U) &&
+                state.tmem.writeByte(1U, 0x34U) &&
+                state.tmem.writeByte(12U, 0x56U) &&
+                state.tmem.writeByte(13U, 0x78U),
+                "seed even and odd interlaced texture rows");
+        require(bus.write16(framebuffer, sentinel) &&
+                bus.write16(framebuffer + 2U, sentinel),
+                "seed interlaced texture rectangle framebuffer");
+        const std::uint64_t first =
+            (0x24ULL << 56U) | (4ULL << 12U) | 8ULL;
+        const std::uint64_t second =
+            (0x0400ULL << 16U) | 0x0400ULL;
+        require(bus.write64(stream, first) && bus.write64(stream + 8U, second),
+                "write two-row interlaced texture rectangle");
+        require(bus.write32(Bus::kDpStart, stream) &&
+                bus.write32(Bus::kDpEnd, stream + 16U),
+                "publish interlaced texture rectangle");
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "texture rectangle processes selected interlaced field");
+        for (std::uint32_t y = 0U; y < 2U; ++y) {
+            std::uint16_t pixel = 0U;
+            require(bus.read16(framebuffer + y * 2U, pixel),
+                    "read interlaced texture rectangle output");
+            const bool selected = (y & 1U) == selectedParity;
+            const std::uint16_t expected = selected
+                ? (y == 0U ? 0x1234U : 0x5678U) : sentinel;
+            require(pixel == expected,
+                    "texture rectangle writes only the selected interlaced field");
+        }
+    }
+}
+
+
 int main() {
     testTextureRectangleWrapsTmemAddressAtEnd();
+    testTextureRectangleHonorsInterlacedFieldSelection();
 
     testTriangleDecoderRejectsUnknownOpcodeMetadataAtomically();
 
