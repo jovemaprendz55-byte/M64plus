@@ -6076,7 +6076,7 @@ void testFlippedTextureRectangleClampsNegativeSAlongDestinationY() {
     const std::uint64_t first = (0x25ULL << 56U) |
         (8ULL << 12U) | 8ULL;
     const std::uint64_t second =
-        (static_cast<std::uint16_t>(-32) << 48U) |
+        (0xFFE0ULL << 48U) |
         (0x0400ULL << 16U) | 0x0400ULL;
     require(bus.write64(stream, first) && bus.write64(stream + 8U, second),
             "write flipped rectangle with negative S origin");
