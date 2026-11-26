@@ -2765,6 +2765,49 @@ void testLoadBlockRejectsMismatchedRgba32TileSize() {
     }
 }
 
+void testLoadBlockRgba32DxtRejectsNonRgbaTileFormatAtomically() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0U; i < 16U; ++i)
+        require(bus.write8(0x1A00U + i, static_cast<std::uint8_t>(0x30U + i)),
+                "seed RGBA32 DXT source for mismatched tile format");
+    for (std::uint16_t i = 0U; i < 16U; ++i) {
+        require(state.tmem.writeByte(i, 0x5AU),
+                "seed lower TMEM bank before mismatched RGBA32 DXT load");
+        require(state.tmem.writeByte(static_cast<std::uint16_t>(0x800U + i), 0xC3U),
+                "seed upper TMEM bank before mismatched RGBA32 DXT load");
+    }
+
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (3ULL << 51U) | (7ULL << 32U) | 0x1A00U;
+    const std::uint64_t tile =
+        (0x35ULL << 56U) | (1ULL << 53U) | (3ULL << 51U);
+    const std::uint64_t load =
+        (0x33ULL << 56U) | (4ULL << 12U) | 0x800ULL;
+    require(bus.write64(0xCA0U, image) && bus.write64(0xCA8U, tile) &&
+            bus.write64(0xCB0U, load),
+            "seed RGBA32 DXT LOAD_BLOCK with non-RGBA tile format");
+    require(bus.write32(Bus::kDpStart, 0xCA0U) &&
+            bus.write32(Bus::kDpEnd, 0xCB8U),
+            "publish mismatched-format RGBA32 DXT LOAD_BLOCK");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TEXTURE_IMAGE configures RGBA32 source");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE accepts non-RGBA format descriptor");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "RGBA32 DXT LOAD_BLOCK rejects non-RGBA tile format");
+
+    std::uint8_t value = 0U;
+    for (std::uint16_t i = 0U; i < 16U; ++i) {
+        require(state.tmem.readByte(i, value) && value == 0x5AU,
+                "rejected mismatched-format load preserves lower TMEM bank");
+        require(state.tmem.readByte(static_cast<std::uint16_t>(0x800U + i), value) &&
+                    value == 0xC3U,
+                "rejected mismatched-format load preserves upper TMEM bank");
+    }
+}
+
 void testLoadBlockFourBitDxtRejectsSourceOverflowAtomically() {
     using namespace m64plus::n64;
     Bus bus;
@@ -5075,6 +5118,7 @@ int main() {
     testLoadBlockRejectsStartOutsideTextureImageWidth();
     testLoadBlockRgba32RejectsSourceOverflowAtomically();
     testLoadBlockRgba32DxtRejectsSourceOverflowAtomically();
+    testLoadBlockRgba32DxtRejectsNonRgbaTileFormatAtomically();
     testLoadBlockRgba32DxtMultipleCarriesApplyOddLineSwizzle();
     testLoadBlockRgba32DxtWrapsBothTmemBanks();
     testLoadBlockRgba32WrapsBothTmemBanks();
