@@ -6,11 +6,11 @@
 #include <cstdint>
 namespace m64plus::n64 {
 namespace {
-std::uint64_t memoryWriteEpoch(const Rdram& memory) noexcept {
-    return memory.writeEpoch();
+std::uint64_t memoryWriteEpoch(const Rdram& memory, std::uint32_t address) noexcept {
+    return memory.reservationEpoch(address);
 }
-std::uint64_t memoryWriteEpoch(const Bus& memory) noexcept {
-    return memory.rdramWriteEpoch();
+std::uint64_t memoryWriteEpoch(const Bus& memory, std::uint32_t address) noexcept {
+    return memory.rdramReservationEpoch(address);
 }
 std::uint64_t signExtend32(std::uint32_t value) {
     return static_cast<std::uint64_t>(static_cast<std::int64_t>(static_cast<std::int32_t>(value)));
@@ -662,7 +662,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
             if (opcode == 0x30) {
                 reservationValid_ = true;
                 reservationAddress_ = address;
-                reservationWriteEpoch_ = memoryWriteEpoch(memory);
+                reservationWriteEpoch_ = memoryWriteEpoch(memory, address);
             }
         } else {
             if (!memory.read64(address, result)) return takeException(ExceptionCode::BusData, effective);
@@ -709,7 +709,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
         bool stored = false;
         if (opcode == 0x38 || opcode == 0x3C) { // SC / SCD
             const bool reservationMatches = reservationValid_ && reservationAddress_ == address &&
-                reservationWriteEpoch_ == memoryWriteEpoch(memory);
+                reservationWriteEpoch_ == memoryWriteEpoch(memory, address);
             reservationValid_ = false;
             if (reservationMatches) {
                 stored = opcode == 0x38
