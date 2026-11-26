@@ -2249,6 +2249,50 @@ void testLoadBlockRgba32DxtMultipleCarriesApplyOddLineSwizzle() {
     }
 }
 
+void testLoadBlockRgba32DxtRejectsSourceOverflowAtomically() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint32_t source = static_cast<std::uint32_t>(Rdram::kSize - 4U);
+    for (std::uint32_t i = 0U; i < 4U; ++i)
+        require(bus.write8(source + i, static_cast<std::uint8_t>(0xD0U + i)),
+                "seed valid RGBA32 DXT source prefix at RDRAM end");
+    for (std::uint16_t i = 0U; i < 16U; ++i) {
+        require(state.tmem.writeByte(i, 0x69U),
+                "seed lower TMEM bank before overflowing RGBA32 DXT load");
+        require(state.tmem.writeByte(static_cast<std::uint16_t>(0x800U + i), 0x96U),
+                "seed upper TMEM bank before overflowing RGBA32 DXT load");
+    }
+
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (3ULL << 51U) | (7ULL << 32U) | source;
+    const std::uint64_t tile =
+        (0x35ULL << 56U) | (3ULL << 51U);
+    const std::uint64_t load =
+        (0x33ULL << 56U) | (4ULL << 12U) | 0x800ULL;
+    require(bus.write64(0xC60U, image) && bus.write64(0xC68U, tile) &&
+            bus.write64(0xC70U, load),
+            "seed overflowing RGBA32 DXT LOAD_BLOCK");
+    require(bus.write32(Bus::kDpStart, 0xC60U) &&
+            bus.write32(Bus::kDpEnd, 0xC78U),
+            "publish overflowing RGBA32 DXT LOAD_BLOCK");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TEXTURE_IMAGE configures RGBA32 DXT source");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE configures RGBA32 DXT destination");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "RGBA32 DXT LOAD_BLOCK rejects source range beyond RDRAM");
+
+    std::uint8_t value = 0U;
+    for (std::uint16_t i = 0U; i < 16U; ++i) {
+        require(state.tmem.readByte(i, value) && value == 0x69U,
+                "rejected RGBA32 DXT LOAD_BLOCK preserves lower TMEM bank");
+        require(state.tmem.readByte(static_cast<std::uint16_t>(0x800U + i), value) &&
+                    value == 0x96U,
+                "rejected RGBA32 DXT LOAD_BLOCK preserves upper TMEM bank");
+    }
+}
+
 void testLoadBlockRgba32DxtWrapsBothTmemBanks() {
     using namespace m64plus::n64;
     Bus bus;
@@ -5030,6 +5074,7 @@ int main() {
     testLoadBlockContinuesAcrossTextureImageRows();
     testLoadBlockRejectsStartOutsideTextureImageWidth();
     testLoadBlockRgba32RejectsSourceOverflowAtomically();
+    testLoadBlockRgba32DxtRejectsSourceOverflowAtomically();
     testLoadBlockRgba32DxtMultipleCarriesApplyOddLineSwizzle();
     testLoadBlockRgba32DxtWrapsBothTmemBanks();
     testLoadBlockRgba32WrapsBothTmemBanks();
