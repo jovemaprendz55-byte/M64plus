@@ -1960,6 +1960,15 @@ void testCpuMtc0RequiresKernelPrivilege() {
     }
 }
 
+void testCpuXContextWritesOnlyPteBaseField() {
+    N64Machine machine;
+    auto& cpu = machine.cpu();
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kXContext, 0xFFFFFFFFFFFFFFFFULL),
+            "write XContext PTEBase");
+    require(cpu.cp0().read(m64plus::n64::Cp0::kXContext) == 0xFFFFFFFE00000000ULL,
+            "XContext writes only the PTEBase field and preserves reserved/BadVPN2 fields");
+}
+
 void testCpuCop0TlbInstructionsWriteProbeAndReadEntry() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -3348,6 +3357,7 @@ int main() {
     testCpuMtc0StatusChangesPrivilegeForNextInstruction();
     testCpuMtc0WorksInKernelMode();
     testCpuMtc0RequiresKernelPrivilege();
+    testCpuXContextWritesOnlyPteBaseField();
     testCpuCop0TlbInstructionsWriteProbeAndReadEntry();
     testCpuCop0TlbWriteRandomHonorsWiredBoundary();
     testMachineRdpRunnerHonorsCommandBudget();
