@@ -1268,13 +1268,16 @@ void testCpuJalrUnalignedTargetFaultsAfterDelaySlot() {
 
     require(machine.stepCpu(), "JALR schedules its unaligned target");
     require(!machine.cpu().hasLastException(), "JALR does not fault before its delay slot");
-    require(machine.cpu().pc() == target, "JALR preserves the unaligned target address");
+    require(machine.cpu().pc() == 0xFFFFFFFF80000004ULL,
+            "JALR enters its delay slot before transferring to the target");
     require(machine.cpu().reg(31U) == 0xFFFFFFFF80000008ULL,
             "JALR writes the return address before its delay slot");
 
     require(machine.stepCpu(), "JALR delay slot executes before target fetch");
     require(machine.cpu().reg(9U) == 0x1234U,
             "JALR delay-slot instruction completes before the address error");
+    require(machine.cpu().pc() == target,
+            "JALR transfers to the original unaligned target after the delay slot");
     require(machine.stepCpu(), "unaligned JALR target raises fetch Address Load");
     require(machine.cpu().lastExceptionCode() == 4U,
             "unaligned JALR target raises Address Load");
