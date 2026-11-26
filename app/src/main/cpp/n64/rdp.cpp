@@ -145,10 +145,9 @@ bool rasterizeTextureRectangleRgba16(Bus& bus, const RdpSyncState& state,
     for (std::int32_t y = clipTop; y < clipBottom; ++y) {
         if (state.scissor.fieldEnable &&
             (y & 1) != static_cast<std::int32_t>(state.scissor.oddLine)) continue;
-        const std::int32_t sourceTForRow = rectangle.flip ? sourceT + y - top : sourceT + y - top;
         for (std::int32_t x = clipLeft; x < clipRight; ++x) {
             const std::int32_t sampleS = rectangle.flip ? sourceS + y - top : sourceS + x - left;
-            const std::int32_t sampleT = rectangle.flip ? sourceT + x - left : sourceTForRow;
+            const std::int32_t sampleT = rectangle.flip ? sourceT + x - left : sourceT + y - top;
             const std::uint32_t texS = static_cast<std::uint32_t>(
                 std::clamp(sampleS, 0, maxS));
             const std::int32_t texT = std::clamp(sampleT, 0, maxT);
