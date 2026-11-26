@@ -1586,6 +1586,26 @@ void testCpuRejectsInvalidCop0ReservedFields() {
     }
 }
 
+void testCpuCop1UnusableExceptionSetsCauseCoprocessorNumber() {
+    N64Machine machine;
+    require(machine.bus().write32(0U, 0x46000000U),
+            "write a COP1 instruction while CU1 is disabled");
+    auto& cpu = machine.cpu();
+    cpu.reset(0U);
+    require(machine.stepCpu(), "COP1 instruction raises Coprocessor Unusable");
+    require(cpu.hasLastException() &&
+                cpu.lastExceptionCode() ==
+                    static_cast<std::uint8_t>(m64plus::n64::ExceptionCode::CoprocessorUnusable),
+            "COP1 with CU1 disabled raises Coprocessor Unusable");
+    const std::uint64_t cause = cpu.cp0().read(m64plus::n64::Cp0::kCause);
+    require(((cause >> 2U) & 0x1FULL) == 11U,
+            "COP1 unusable exception records ExcCode 11");
+    require(((cause >> 28U) & 3ULL) == 1ULL,
+            "COP1 unusable exception records coprocessor number 1 in Cause.CE");
+    require(cpu.pc() == 0xFFFFFFFF80000180ULL,
+            "COP1 unusable exception enters the general exception vector");
+}
+
 void testCpuCop0RequiresKernelPrivilege() {
     const auto runCase = [](std::uint64_t status, bool shouldExecute,
                             const char* message) {
@@ -3515,6 +3535,7 @@ int main() {
     testCpuEretRestoresExceptionReturnAddress();
     testCpuEretReturnsToBranchAfterDelaySlotException();
     testCpuRejectsInvalidCop0ReservedFields();
+    testCpuCop1UnusableExceptionSetsCauseCoprocessorNumber();
     testCpuCop0RequiresKernelPrivilege();
     testCpuCop0PrivilegedOperationsRequireKernelPrivilege();
     testCpuUserModeCannotFetchFromKseg0OrKseg1();
