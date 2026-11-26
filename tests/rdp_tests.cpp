@@ -2271,7 +2271,7 @@ void testLoadBlockFourBitDxtSwizzlesOddWords() {
 
     const std::uint8_t expected[] = {
         1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U,
-        17U, 18U, 19U, 20U, 21U, 22U, 23U, 24U
+        13U, 14U, 15U, 16U, 9U, 10U, 11U, 12U
     };
     std::uint8_t value = 0U;
     for (std::uint16_t i = 0U; i < 16U; ++i)
