@@ -716,7 +716,7 @@ bool RdpCommandDecoder::decodeTriangleCommand(
 bool RdpCommandDecoder::decodeTextureRectangle(
     const RdpCommandPacket& packet, RdpTextureRectangleCommand& command) noexcept {
     if ((packet.info.opcode != 0x24U && packet.info.opcode != 0x25U) ||
-        packet.info.lengthWords != 2U ||
+        !packet.info.knownOpcode || packet.info.lengthWords != 2U ||
         static_cast<std::uint8_t>((packet.words[0] >> 56U) & 0x3FU) != packet.info.opcode) {
         return false;
     }
