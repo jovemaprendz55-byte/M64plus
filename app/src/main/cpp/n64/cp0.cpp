@@ -115,7 +115,7 @@ void Cp0::tick() noexcept {
 
 std::uint64_t Cp0::raiseException(ExceptionCode code, std::uint64_t instructionPc,
                                   bool inDelaySlot, std::uint64_t badAddress,
-                                  bool tlbRefill) noexcept {
+                                  bool tlbRefill, unsigned coprocessorNumber) noexcept {
     const bool wasExceptionLevel = (registers_[kStatus] & kStatusExl) != 0;
     const bool isTlbException = code == ExceptionCode::TlbLoad ||
         code == ExceptionCode::TlbStore || code == ExceptionCode::TlbModification;
@@ -139,8 +139,10 @@ std::uint64_t Cp0::raiseException(ExceptionCode code, std::uint64_t instructionP
         registers_[kEntryHi] = (registers_[kEntryHi] & 0xFFULL) |
             (badAddress & 0xFFFFE000ULL);
     }
-    if (code == ExceptionCode::CoprocessorUnusable)
-        registers_[kCause] &= ~kCauseCoprocessorMask;
+    if (code == ExceptionCode::CoprocessorUnusable) {
+        registers_[kCause] = (registers_[kCause] & ~kCauseCoprocessorMask) |
+            ((static_cast<std::uint64_t>(coprocessorNumber) & 3ULL) << 28U);
+    }
     registers_[kCause] = (registers_[kCause] & ~kCauseExcCodeMask) |
         (static_cast<std::uint64_t>(code) << 2U);
     if (code == ExceptionCode::AddressLoad || code == ExceptionCode::AddressStore ||
