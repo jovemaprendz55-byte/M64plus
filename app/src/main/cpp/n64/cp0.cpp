@@ -127,6 +127,12 @@ std::uint64_t Cp0::raiseException(ExceptionCode code, std::uint64_t instructionP
         if (isTlbException) {
             registers_[kContext] = (registers_[kContext] & ~0x7FFFF0ULL) |
                 ((badAddress >> 9U) & 0x7FFFF0ULL);
+            constexpr std::uint64_t xContextFaultMask = 0x1FFFFFFF0ULL;
+            const std::uint64_t xContextFaultFields =
+                ((badAddress >> 9U) & 0x7FFFFFF0ULL) |
+                ((badAddress >> 31U) & 0x180000000ULL);
+            registers_[kXContext] =
+                (registers_[kXContext] & ~xContextFaultMask) | xContextFaultFields;
             registers_[kEntryHi] = (registers_[kEntryHi] & 0xFFULL) |
                 (badAddress & 0xFFFFE000ULL);
         }
