@@ -34,6 +34,7 @@ public:
     static constexpr std::uint64_t kStatusKsuMask = 3ULL << 3U;
     static constexpr std::uint64_t kStatusBev = 1ULL << 22U;
     static constexpr std::uint64_t kStatusIe = 1ULL;
+    static constexpr std::uint64_t kStatusCu1 = 1ULL << 29U;
 
     Cp0();
     void reset() noexcept;
