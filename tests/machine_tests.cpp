@@ -1,4 +1,5 @@
 #include "n64/machine.h"
+#include "n64/cic.h"
 #include "n64/cp0.h"
 #include "n64/tlb.h"
 
