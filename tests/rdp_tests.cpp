@@ -5130,6 +5130,37 @@ void testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExist
     }
 }
 
+void testTextureRectangleWaitsForBothWordsWithoutConsumingPartialPacket() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpCommandPacket packet{};
+    const std::uint32_t start = 0xB80U;
+    const std::uint64_t first = (0x24ULL << 56U) |
+        (0x100ULL << 44U) | (0x200ULL << 32U) |
+        (2ULL << 24U) | (0x300ULL << 12U) | 0x400ULL;
+    require(bus.write64(start, first), "write texture rectangle first word");
+    require(bus.write32(Bus::kDpStart, start) &&
+            bus.write32(Bus::kDpEnd, start + 8U),
+            "publish incomplete texture rectangle packet");
+    require(!RdpCommandStream::fetchNext(bus, packet),
+            "incomplete texture rectangle packet is not fetched");
+    std::uint32_t current = 0U;
+    require(bus.read32(Bus::kDpCurrent, current) && current == start,
+            "incomplete texture rectangle leaves DPC cursor unchanged");
+
+    const std::uint64_t second = 0x0001000200030004ULL;
+    require(bus.write64(start + 8U, second), "write texture rectangle second word");
+    require(bus.write32(Bus::kDpEnd, start + 16U),
+            "publish complete texture rectangle packet");
+    require(RdpCommandStream::fetchNext(bus, packet),
+            "complete texture rectangle packet becomes fetchable");
+    require(packet.info.opcode == 0x24U &&
+            packet.words[0] == first && packet.words[1] == second,
+            "fetch returns both texture rectangle words intact");
+    require(bus.read32(Bus::kDpCurrent, current) && current == start + 16U,
+            "complete texture rectangle advances DPC cursor by two words");
+}
+
 void testTextureRectangleLengths() {
     require(m64plus::n64::RdpCommandDecoder::decode(header(0x24U)).lengthWords == 2U,
             "texture rectangle has two words");
@@ -5165,6 +5196,7 @@ int main() {
     testFlatFillTriangleClipsNegativeYToScissorTop();
     testFlatFillTriangleClipsNegativeFractionalYToScissorTop();
     testFlatFillTriangleClipsToScissorRectangle();
+    testTextureRectangleWaitsForBothWordsWithoutConsumingPartialPacket();
     testTextureRectangleLengths();
     testTextureRectanglePacketDecoding();
     testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
