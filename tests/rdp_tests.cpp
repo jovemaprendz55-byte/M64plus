@@ -5556,6 +5556,52 @@ void testTextureRectangleRgba16ClipsWithoutShiftingTextureOrigin() {
             "clipping preserves original S/T origin and samples bottom-right texel");
 }
 
+void testTextureRectangleRejectsFramebufferOverflowAtomically() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t stream = 0x2D00U;
+    constexpr std::uint32_t framebuffer = 8U * 1024U * 1024U - 2U;
+    constexpr std::uint16_t sentinel = 0xDEADU;
+    state.colorImage = {0U, 2U, 2U, framebuffer};
+    state.hasColorImage = true;
+    state.textureImage = {0U, 2U, 2U, 0U};
+    state.hasTextureImage = true;
+    state.tiles[0].format = 0U;
+    state.tiles[0].size = 2U;
+    state.tiles[0].line = 1U;
+    state.tiles[0].clampS = true;
+    state.tiles[0].clampT = true;
+    state.hasTile[0] = true;
+    state.tileSizes[0] = {0U, 0U, 4U, 0U};
+    state.hasTileSize[0] = true;
+    state.hasOtherModes = true;
+    state.otherModes.cycleType = 0U;
+    state.hasScissor = true;
+    state.scissor = {0U, 0U, 8U, 4U, false, false};
+    require(state.tmem.writeByte(0U, 0x11U) &&
+            state.tmem.writeByte(1U, 0x11U) &&
+            state.tmem.writeByte(2U, 0x22U) &&
+            state.tmem.writeByte(3U, 0x22U),
+            "seed texture data before framebuffer overflow");
+    require(bus.write16(framebuffer, sentinel),
+            "seed final valid framebuffer halfword");
+    const std::uint64_t first = (0x24ULL << 56U) |
+        (8ULL << 12U) | 4ULL;
+    const std::uint64_t second =
+        (0x0400ULL << 16U) | 0x0400ULL;
+    require(bus.write64(stream, first) && bus.write64(stream + 8U, second),
+            "write texture rectangle crossing end of RDRAM");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 16U),
+            "publish framebuffer-overflow texture rectangle");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "framebuffer-overflow texture rectangle is rejected");
+    std::uint16_t pixel = 0U;
+    require(bus.read16(framebuffer, pixel) && pixel == sentinel,
+            "framebuffer overflow is rejected before any partial pixel write");
+}
+
 void testTextureRectangleRejectsInvertedTileSizeWithoutWrites() {
     using namespace m64plus::n64;
     Bus bus;
@@ -5726,6 +5772,7 @@ int main() {
     testTextureRectangleRgba16ClampsNegativeTextureCoordinates();
     testTextureRectangleRgba16SwizzlesOddTmemRows();
     testTextureRectangleRgba16ClipsWithoutShiftingTextureOrigin();
+    testTextureRectangleRejectsFramebufferOverflowAtomically();
     testTextureRectangleRejectsInvertedTileSizeWithoutWrites();
     testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testDpcCommandStreamIntegration();
