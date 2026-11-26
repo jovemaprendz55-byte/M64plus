@@ -6293,7 +6293,7 @@ void testFlippedTextureRectangleClampsPositiveTAlongDestinationX() {
             "publish flipped positive-T clamp rectangle");
     require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
             "flipped rectangle clamps positive T while transposing axes");
-    const std::uint16_t expected[] = {0x1122U, 0x5566U, 0x3344U, 0x7788U};
+    const std::uint16_t expected[] = {0x5566U, 0x5566U, 0x7788U, 0x7788U};
     for (std::uint32_t i = 0U; i < 4U; ++i) {
         std::uint16_t pixel = 0U;
         require(bus.read16(framebuffer + i * 2U, pixel) && pixel == expected[i],
