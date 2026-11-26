@@ -99,7 +99,8 @@ bool Cp0::supervisorMode() const noexcept {
 bool Cp0::interruptRequested() const noexcept {
     const std::uint64_t status = registers_[kStatus];
     const std::uint64_t pending = registers_[kCause] & status & kCauseInterruptPendingMask;
-    return (status & kStatusIe) != 0 && (status & kStatusExl) == 0 && pending != 0;
+    return (status & kStatusIe) != 0 &&
+           (status & (kStatusExl | kStatusErl)) == 0 && pending != 0;
 }
 
 void Cp0::tick() noexcept {
