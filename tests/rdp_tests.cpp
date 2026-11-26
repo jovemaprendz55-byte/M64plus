@@ -679,6 +679,15 @@ void testRdpTextureMemory() {
     constexpr std::uint64_t wrappingWord = 0xFEDCBA9876543210ULL;
     require(tmem.write64(0x0FFCU, wrappingWord), "write TMEM word crossing 4 KiB boundary");
     require(tmem.read64(0x0FFCU, actual) && actual == wrappingWord, "TMEM wraps at 4 KiB boundary");
+    // Exercise every possible byte offset for an eight-byte access that
+    // crosses the final byte of TMEM, not only the aligned 0xFFC case.
+    for (std::uint16_t address = 0x0FF9U; address <= 0x0FFFU; ++address) {
+        const std::uint64_t pattern =
+            0x1020304050607080ULL ^ (static_cast<std::uint64_t>(address) << 8U);
+        require(tmem.write64(address, pattern), "write unaligned TMEM word across wrap");
+        require(tmem.read64(address, actual) && actual == pattern,
+                "unaligned TMEM word round trips across 4 KiB wrap");
+    }
     require(tmem.writeByte(0x1000U, 0x5AU), "write address beyond TMEM wraps");
     require(tmem.readByte(0U, byte) && byte == 0x5AU, "TMEM 12-bit address mask");
     tmem.reset();
