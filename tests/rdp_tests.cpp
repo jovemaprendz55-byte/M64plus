@@ -688,6 +688,13 @@ void testRdpTextureMemory() {
         require(tmem.read64(address, actual) && actual == pattern,
                 "unaligned TMEM word round trips across 4 KiB wrap");
     }
+    for (std::uint16_t address = 0x1FF9U; address <= 0x1FFFU; ++address) {
+        const std::uint64_t pattern =
+            0x8877665544332211ULL ^ static_cast<std::uint64_t>(address);
+        require(tmem.write64(address, pattern), "write TMEM word with high address bits");
+        require(tmem.read64(address, actual) && actual == pattern,
+                "high TMEM address bits alias through the 12-bit address bus");
+    }
     require(tmem.writeByte(0x1000U, 0x5AU), "write address beyond TMEM wraps");
     require(tmem.readByte(0U, byte) && byte == 0x5AU, "TMEM 12-bit address mask");
     tmem.reset();
