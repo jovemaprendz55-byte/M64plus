@@ -1068,6 +1068,27 @@ void testCpuLoadLinkedStoreConditionalIgnoresUnrelatedBusWrites() {
             "SC succeeds when only an unrelated reservation granule changed");
 }
 
+void testCpuLoadLinkedStoreConditionalDetectsWritesInSameGranule() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x2C0U;
+    const std::uint32_t program[] = {0xC1090000U, 0xE1090000U}; // LL / SC
+    for (std::uint32_t i = 0; i < 2U; ++i)
+        require(bus.write32(i * 4U, program[i]), "write same-granule LL/SC program");
+    require(bus.write32(dataAddress, 0xAABBCCDDU), "initialize same-granule LL/SC target");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(8U, dataAddress);
+    require(machine.stepCpu(), "LL establishes same-granule reservation");
+    require(bus.write32(dataAddress + 8U, 0x55667788U),
+            "external agent writes a different word in the reserved 16-byte granule");
+    require(machine.stepCpu(), "SC executes after same-granule external write");
+    std::uint32_t value = 0U;
+    require(bus.read32(dataAddress, value) && value == 0xAABBCCDDU,
+            "failed SC leaves reserved word unchanged");
+    require(machine.cpu().reg(9U) == 0U,
+            "SC fails when another word in the reservation granule changes");
+}
+
 void testCpuLoadLinkedStoreConditionalDetectsBusWrites() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -3341,6 +3362,7 @@ int main() {
     testCpuDoublewordMultiplyDivideEdgeCases();
     testCpuLoadLinkedStoreConditional();
     testCpuLoadLinkedStoreConditionalIgnoresUnrelatedBusWrites();
+    testCpuLoadLinkedStoreConditionalDetectsWritesInSameGranule();
     testCpuLoadLinkedStoreConditionalDetectsBusWrites();
     testCpuExceptionInvalidatesLoadLinkedReservation();
     testCpuInterruptInvalidatesLoadLinkedReservation();
