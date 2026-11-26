@@ -5169,6 +5169,57 @@ void testTextureRectangleRasterizesClampedRgba16Texels() {
             "texture rectangle does not write outside its right edge");
 }
 
+void testTextureRectangleRgba16ClampsNegativeTextureCoordinates() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x3000U;
+    constexpr std::uint32_t stream = 0x3100U;
+    constexpr std::uint16_t sentinel = 0xDEADU;
+    state.colorImage = {0U, 2U, 2U, framebuffer};
+    state.hasColorImage = true;
+    state.textureImage = {0U, 2U, 2U, 0U};
+    state.hasTextureImage = true;
+    state.tiles[0].format = 0U;
+    state.tiles[0].size = 2U;
+    state.tiles[0].line = 1U;
+    state.tiles[0].clampS = true;
+    state.tiles[0].clampT = true;
+    state.hasTile[0] = true;
+    state.tileSizes[0] = {0U, 0U, 4U, 0U};
+    state.hasTileSize[0] = true;
+    state.hasOtherModes = true;
+    state.otherModes.cycleType = 0U;
+    state.hasScissor = true;
+    state.scissor = {0U, 0U, 8U, 4U, false, false};
+    require(state.tmem.writeByte(0U, 0x12U) &&
+            state.tmem.writeByte(1U, 0x34U) &&
+            state.tmem.writeByte(2U, 0xABU) &&
+            state.tmem.writeByte(3U, 0xCDU),
+            "seed two texels for negative-coordinate clamp");
+    for (std::uint32_t i = 0U; i < 2U; ++i)
+        require(bus.write16(framebuffer + i * 2U, sentinel),
+                "seed negative-coordinate clamp framebuffer");
+
+    const std::uint64_t first = (0x24ULL << 56U) |
+        (8ULL << 12U) | 4ULL;
+    const std::uint64_t second =
+        (0xFFE0ULL << 48U) | (0ULL << 32U) |
+        (0x0400ULL << 16U) | 0x0400ULL;
+    require(bus.write64(stream, first) && bus.write64(stream + 8U, second),
+            "write texture rectangle starting one texel before tile");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 16U),
+            "publish negative-coordinate texture rectangle");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "negative texture coordinates clamp to tile edge");
+    std::uint16_t pixel = 0U;
+    require(bus.read16(framebuffer, pixel) && pixel == 0x1234U,
+            "negative S clamps to first tile texel");
+    require(bus.read16(framebuffer + 2U, pixel) && pixel == 0x1234U,
+            "subsequent S coordinate samples the clamped edge texel");
+}
+
 void testTextureRectangleRgba16SwizzlesOddTmemRows() {
     using namespace m64plus::n64;
     Bus bus;
@@ -5445,6 +5496,7 @@ int main() {
     testTextureRectangleLengths();
     testTextureRectanglePacketDecoding();
     testTextureRectangleRasterizesClampedRgba16Texels();
+    testTextureRectangleRgba16ClampsNegativeTextureCoordinates();
     testTextureRectangleRgba16SwizzlesOddTmemRows();
     testTextureRectangleRgba16ClipsWithoutShiftingTextureOrigin();
     testTextureRectangleRejectsInvertedTileSizeWithoutWrites();
