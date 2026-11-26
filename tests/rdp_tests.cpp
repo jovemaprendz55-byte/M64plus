@@ -1857,6 +1857,44 @@ void testLoadBlockRejectsSourcePastRdramEndWithoutPartialWrites() {
                 "rejected LOAD_BLOCK leaves all destination TMEM bytes unchanged");
 }
 
+void testLoadBlockEightBitRejectsSourceOverflowAtomically() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t source =
+        static_cast<std::uint32_t>(Rdram::kSize - 4U);
+    for (std::uint32_t i = 0U; i < 4U; ++i)
+        require(bus.write8(source + i, static_cast<std::uint8_t>(0xA0U + i)),
+                "seed valid eight-bit source prefix at RDRAM end");
+    for (std::uint16_t i = 0U; i < 8U; ++i)
+        require(state.tmem.writeByte(i, 0x5AU),
+                "seed TMEM before overflowing eight-bit LOAD_BLOCK");
+
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (1ULL << 51U) | source;
+    const std::uint64_t tile =
+        (0x35ULL << 56U) | (1ULL << 51U);
+    const std::uint64_t load = (0x33ULL << 56U) | (28ULL << 12U);
+    require(bus.write64(0xB80U, image) &&
+            bus.write64(0xB88U, tile) &&
+            bus.write64(0xB90U, load),
+            "seed overflowing eight-bit LOAD_BLOCK");
+    require(bus.write32(Bus::kDpStart, 0xB80U) &&
+            bus.write32(Bus::kDpEnd, 0xB98U),
+            "publish overflowing eight-bit LOAD_BLOCK");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TEXTURE_IMAGE configures eight-bit source");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE configures eight-bit destination");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "eight-bit LOAD_BLOCK rejects source range beyond RDRAM");
+
+    std::uint8_t value = 0U;
+    for (std::uint16_t i = 0U; i < 8U; ++i)
+        require(state.tmem.readByte(i, value) && value == 0x5AU,
+                "rejected eight-bit LOAD_BLOCK leaves TMEM unchanged");
+}
+
 void testLoadBlockSixteenBitRejectsSourceOverflowAtomically() {
     using namespace m64plus::n64;
     Bus bus;
@@ -4874,6 +4912,7 @@ int main() {
     testLoadBlockCopiesContiguousTexelsIntoTmem();
     testLoadBlockWrapsDestinationAcrossTmemEnd();
     testLoadBlockRejectsSourcePastRdramEndWithoutPartialWrites();
+    testLoadBlockEightBitRejectsSourceOverflowAtomically();
     testLoadBlockSixteenBitRejectsSourceOverflowAtomically();
     testLoadBlockFourBitRejectsSourceOverflowAtomically();
     testLoadBlockDxtSwapsOddLineWords();
