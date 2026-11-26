@@ -86,6 +86,86 @@ bool fillRectangle(Bus& bus, const RdpSyncState& state,
 }
 
 
+bool rasterizeTextureRectangleRgba16(Bus& bus, const RdpSyncState& state,
+                                     const RdpTextureRectangleCommand& rectangle) noexcept {
+    // Initial deterministic slice: aligned, non-flipped RGBA16 rectangles,
+    // nearest sampling, unit derivatives, and an unmasked/unmirrored tile.
+    if (!state.hasColorImage || !state.hasTextureImage || !state.hasTile[rectangle.tile] ||
+        !state.hasOtherModes || !state.hasScissor ||
+        state.otherModes.cycleType > 1U) return false;
+    const RdpImageState& color = state.colorImage;
+    const RdpTileState& tile = state.tiles[rectangle.tile];
+    if (color.format != 0U || color.size != 2U || color.width == 0U ||
+        state.textureImage.format != 0U || state.textureImage.size != 2U ||
+        tile.format != 0U || tile.size != 2U || tile.line == 0U ||
+        tile.maskS != 0U || tile.maskT != 0U || tile.mirrorS || tile.mirrorT ||
+        !tile.clampS || !tile.clampT || rectangle.flip ||
+        (rectangle.xh & 3U) != 0U || (rectangle.yh & 3U) != 0U ||
+        (rectangle.xl & 3U) != 0U || (rectangle.yl & 3U) != 0U ||
+        (rectangle.s & 31) != 0 || (rectangle.t & 31) != 0 ||
+        rectangle.dsdx != 0x0400 || rectangle.dtdy != 0x0400) return false;
+
+    const std::int32_t left = rectangle.xh / 4;
+    const std::int32_t top = rectangle.yh / 4;
+    const std::int32_t right = rectangle.xl / 4;
+    const std::int32_t bottom = rectangle.yl / 4;
+    if (right <= left || bottom <= top) return false;
+    const std::int32_t clipLeft = std::max(left, static_cast<std::int32_t>(state.scissor.xh / 4U));
+    const std::int32_t clipTop = std::max(top, static_cast<std::int32_t>(state.scissor.yh / 4U));
+    const std::int32_t clipRight = std::min(right, static_cast<std::int32_t>(state.scissor.xl / 4U));
+    const std::int32_t clipBottom = std::min(bottom, static_cast<std::int32_t>(state.scissor.yl / 4U));
+    if (clipRight <= clipLeft || clipBottom <= clipTop ||
+        clipRight > color.width) return false;
+
+    const std::int32_t sourceS = rectangle.s / 32;
+    const std::int32_t sourceT = rectangle.t / 32;
+    const std::int32_t maxS = static_cast<std::int32_t>(
+        (state.tileSizes[rectangle.tile].sh - state.tileSizes[rectangle.tile].sl) / 4U);
+    const std::int32_t maxT = static_cast<std::int32_t>(
+        (state.tileSizes[rectangle.tile].th - state.tileSizes[rectangle.tile].tl) / 4U);
+    if (!state.hasTileSize[rectangle.tile] || sourceS < 0 || sourceT < 0 ||
+        sourceS + (clipRight - left) - 1 > maxS ||
+        sourceT + (clipBottom - top) - 1 > maxT) return false;
+
+    const std::uint64_t memorySize = bus.rdram().size();
+    for (std::int32_t y = clipTop; y < clipBottom; ++y) {
+        if (state.scissor.fieldEnable &&
+            (y & 1) != static_cast<std::int32_t>(state.scissor.oddLine)) continue;
+        for (std::int32_t x = clipLeft; x < clipRight; ++x) {
+            const std::uint64_t pixel = static_cast<std::uint64_t>(y) * color.width +
+                static_cast<std::uint32_t>(x);
+            if (static_cast<std::uint64_t>(color.address) + pixel * 2U + 2U > memorySize)
+                return false;
+        }
+    }
+
+    for (std::int32_t y = clipTop; y < clipBottom; ++y) {
+        if (state.scissor.fieldEnable &&
+            (y & 1) != static_cast<std::int32_t>(state.scissor.oddLine)) continue;
+        const std::uint32_t texT = static_cast<std::uint32_t>(sourceT + y - top);
+        for (std::int32_t x = clipLeft; x < clipRight; ++x) {
+            const std::uint32_t texS = static_cast<std::uint32_t>(sourceS + x - left);
+            const std::uint32_t row = static_cast<std::uint32_t>(tile.tmem) * 8U +
+                texT * static_cast<std::uint32_t>(tile.line) * 8U;
+            const std::uint32_t logical = row + texS * 2U;
+            const std::uint16_t tmemAddress = static_cast<std::uint16_t>(
+                (logical & ~7U) | ((logical & 7U) ^ ((texT & 1U) != 0U ? 4U : 0U)));
+            std::uint8_t high = 0U;
+            std::uint8_t low = 0U;
+            state.tmem.readByte(tmemAddress, high);
+            state.tmem.readByte(static_cast<std::uint16_t>(tmemAddress + 1U), low);
+            const std::uint16_t texel = static_cast<std::uint16_t>(
+                (static_cast<std::uint16_t>(high) << 8U) | low);
+            const std::uint32_t address = color.address +
+                (static_cast<std::uint32_t>(y) * color.width +
+                 static_cast<std::uint32_t>(x)) * 2U;
+            if (!bus.write16(address, texel)) return false;
+        }
+    }
+    return true;
+}
+
+
 std::int64_t floorDivide(std::int64_t value, std::int64_t divisor) noexcept {
     const std::int64_t quotient = value / divisor;
     const std::int64_t remainder = value % divisor;
