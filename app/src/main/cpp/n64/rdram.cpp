@@ -7,9 +7,12 @@ void Rdram::reset(std::uint8_t value) {
     ++writeEpoch_;
     std::fill(reservationEpochs_.begin(), reservationEpochs_.end(), writeEpoch_);
 }
-void Rdram::markWrite(std::uint32_t address) noexcept {
+void Rdram::markWrite(std::uint32_t address, std::size_t width) noexcept {
     ++writeEpoch_;
-    reservationEpochs_[static_cast<std::size_t>(address) / 16U] = writeEpoch_;
+    const std::size_t first = static_cast<std::size_t>(address) / 16U;
+    const std::size_t last = (static_cast<std::size_t>(address) + width - 1U) / 16U;
+    for (std::size_t line = first; line <= last; ++line)
+        reservationEpochs_[line] = writeEpoch_;
 }
 bool Rdram::contains(std::uint32_t address, std::size_t width) const noexcept {
     const auto offset = static_cast<std::size_t>(address);
@@ -40,14 +43,14 @@ bool Rdram::read64(std::uint32_t a, std::uint64_t& v) const {
 bool Rdram::write8(std::uint32_t a, std::uint8_t v) {
     if (!contains(a, 1)) return false;
     bytes_[a] = v;
-    markWrite(a);
+    markWrite(a, 1U);
     return true;
 }
 bool Rdram::write16(std::uint32_t a, std::uint16_t v) {
     if (!contains(a, 2)) return false;
     bytes_[a] = static_cast<std::uint8_t>(v >> 8U);
     bytes_[a + 1U] = static_cast<std::uint8_t>(v);
-    markWrite(a);
+    markWrite(a, 2U);
     return true;
 }
 bool Rdram::write32(std::uint32_t a, std::uint32_t v) {
@@ -56,7 +59,7 @@ bool Rdram::write32(std::uint32_t a, std::uint32_t v) {
     bytes_[a + 1U] = static_cast<std::uint8_t>(v >> 16U);
     bytes_[a + 2U] = static_cast<std::uint8_t>(v >> 8U);
     bytes_[a + 3U] = static_cast<std::uint8_t>(v);
-    markWrite(a);
+    markWrite(a, 4U);
     return true;
 }
 bool Rdram::write64(std::uint32_t a, std::uint64_t v) {
