@@ -4631,7 +4631,7 @@ int main() {
     testLoadBlockContinuesAcrossTextureImageRows();
     testLoadBlockRejectsStartOutsideTextureImageWidth();
     testLoadBlockRgba32RejectsSourceOverflowAtomically();
-    testLoadBlockRgba32DxtMultipleCarriesKeepEvenWordOrder();
+    testLoadBlockRgba32DxtMultipleCarriesApplyOddLineSwizzle();
     testLoadBlockRgba32DxtWrapsBothTmemBanks();
     testLoadBlockRgba32WrapsBothTmemBanks();
     testLoadBlockCopiesRgba32IntoSplitTmemBanks();
