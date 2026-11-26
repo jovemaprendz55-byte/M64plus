@@ -372,13 +372,14 @@ bool loadBlockTexels(Bus& bus, RdpSyncState& state,
         (load.tl & 0x03U) != 0U || (load.sh & 0x03U) != 0U) return false;
     const RdpImageState& image = state.textureImage;
     const RdpTileState& tile = state.tiles[load.tile];
-    // LOAD_BLOCK supports 8- and 16-bit texels in the linear path. RGBA32
-    // uses the RDP's split TMEM banks and therefore has a dedicated store path.
-    if (image.size != 1U && image.size != 2U && image.size != 3U) return false;
+    // LOAD_BLOCK supports packed 4-bit, 8-bit and 16-bit texels in the
+    // linear path. RGBA32 uses the RDP's split TMEM banks and a dedicated store.
+    if (image.size > 3U) return false;
+    if (image.size == 0U && tile.size != 0U) return false;
     if (image.size == 3U &&
         (image.format != 0U || tile.size != 3U || tile.format != 0U)) return false;
-    const unsigned bitsPerTexel = image.size == 1U ? 8U
-        : (image.size == 2U ? 16U : 32U);
+    const unsigned bitsPerTexel = image.size == 0U ? 4U
+        : (image.size == 1U ? 8U : (image.size == 2U ? 16U : 32U));
     const std::uint32_t count =
         (static_cast<std::uint32_t>(load.sh - load.sl) >> 2U) + 1U;
     if (count == 0U || count > 2048U) return false;
@@ -453,6 +454,23 @@ bool loadBlockTexels(Bus& bus, RdpSyncState& state,
             state.tmem.writeByte(upper, transfer[source + 2U]);
             state.tmem.writeByte(static_cast<std::uint16_t>(upper + 1U),
                                  transfer[source + 3U]);
+        }
+    } else if (image.size == 0U) {
+        // 4-bit texels are packed high-nibble first in both RDRAM and TMEM.
+        for (std::uint32_t i = 0U; i < count; ++i) {
+            const std::uint8_t packed = transfer[i / 2U];
+            const std::uint8_t nibble = (i & 1U) == 0U
+                ? static_cast<std::uint8_t>(packed >> 4U)
+                : static_cast<std::uint8_t>(packed & 0x0FU);
+            const std::uint64_t logical = destinationBase + i / 2U;
+            const std::uint16_t address =
+                static_cast<std::uint16_t>(logical & 0x0FFFU);
+            std::uint8_t destination = 0U;
+            state.tmem.readByte(address, destination);
+            destination = (i & 1U) == 0U
+                ? static_cast<std::uint8_t>((destination & 0x0FU) | (nibble << 4U))
+                : static_cast<std::uint8_t>((destination & 0xF0U) | nibble);
+            state.tmem.writeByte(address, destination);
         }
     } else {
         for (std::uint64_t byte = 0; byte < totalBytes; ++byte) {
