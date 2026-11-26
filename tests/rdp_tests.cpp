@@ -1978,7 +1978,7 @@ void testLoadBlockSixteenBitDxtRejectsSourceOverflowAtomically() {
         (0x3DULL << 56U) | (2ULL << 51U) | (31ULL << 32U) | source;
     const std::uint64_t tile = (0x35ULL << 56U) | (2ULL << 51U);
     const std::uint64_t load =
-        (0x33ULL << 56U) | (12ULL << 12U) | 0x800ULL;
+        (0x33ULL << 56U) | (20ULL << 12U) | 0x800ULL;
     require(bus.write64(0xB20U, image) && bus.write64(0xB28U, tile) &&
             bus.write64(0xB30U, load), "seed overflowing 16-bit DXT LOAD_BLOCK");
     require(bus.write32(Bus::kDpStart, 0xB20U) &&
