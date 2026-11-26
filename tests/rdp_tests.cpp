@@ -2406,9 +2406,9 @@ void testLoadBlockRgba32DxtSwapsOddLineWords() {
     }
 }
 
-void testLoadBlockRejectsUnsupportedTexelSizes() {
+void testLoadBlockRejectsMismatchedRgba32TileSize() {
     using namespace m64plus::n64;
-    for (const std::uint32_t size : {0U, 3U}) {
+    for (const std::uint32_t size : {3U}) {
         Bus bus;
         RdpSyncState state{};
         const std::uint64_t setImage =
@@ -2428,7 +2428,7 @@ void testLoadBlockRejectsUnsupportedTexelSizes() {
         require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
                 "SET_TILE configures unsupported LOAD_BLOCK test");
         require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
-                "LOAD_BLOCK rejects 4-bit and 32-bit paths until specialized support exists");
+                "RGBA32 LOAD_BLOCK rejects a tile with a mismatched texel size");
     }
 }
 
@@ -4670,7 +4670,7 @@ int main() {
     testLoadBlockCopiesRgba32IntoSplitTmemBanks();
     testLoadBlockRgba32DxtFractionalLineCarry();
     testLoadBlockRgba32DxtSwapsOddLineWords();
-    testLoadBlockRejectsUnsupportedTexelSizes();
+    testLoadBlockRejectsMismatchedRgba32TileSize();
     testLoadTlutReplicatesEntriesIntoHighTmem();
     testLoadTlutRejectsOutOfRangeSourceWithoutPartialTmemWrites();
     testLoadTlutAcceptsCanonicalWidthOnePaletteLoad();
