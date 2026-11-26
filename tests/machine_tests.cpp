@@ -1256,6 +1256,36 @@ void testCpuDataAddressErrorPrecedesTlbFault() {
     }
 }
 
+
+void testCpuJalrUnalignedTargetFaultsAfterDelaySlot() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint64_t target = 0xFFFFFFFF80000022ULL;
+    require(bus.write32(0x000U, 0x0200F809U), "write JALR r31,r16 with unaligned target");
+    require(bus.write32(0x004U, 0x24091234U), "write ADDIU in JALR delay slot");
+    machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    machine.cpu().setRegister(16U, target);
+
+    require(machine.stepCpu(), "JALR schedules its unaligned target");
+    require(!machine.cpu().hasLastException(), "JALR does not fault before its delay slot");
+    require(machine.cpu().pc() == target, "JALR preserves the unaligned target address");
+    require(machine.cpu().reg(31U) == 0xFFFFFFFF80000008ULL,
+            "JALR writes the return address before its delay slot");
+
+    require(machine.stepCpu(), "JALR delay slot executes before target fetch");
+    require(machine.cpu().reg(9U) == 0x1234U,
+            "JALR delay-slot instruction completes before the address error");
+    require(machine.stepCpu(), "unaligned JALR target raises fetch Address Load");
+    require(machine.cpu().lastExceptionCode() == 4U,
+            "unaligned JALR target raises Address Load");
+    require(machine.cpu().cp0().read(m64plus::n64::Cp0::kBadVAddr) == target,
+            "BadVAddr records the unaligned JALR target");
+    require(machine.cpu().cp0().read(m64plus::n64::Cp0::kEpc) == target,
+            "EPC identifies the target fetch, not the JALR instruction");
+    require((machine.cpu().cp0().read(m64plus::n64::Cp0::kCause) & (1ULL << 31U)) == 0U,
+            "target-fetch Address Load does not set Cause.BD");
+}
+
 void testCpuNonCanonicalInstructionAddressRaisesAddressLoad() {
     N64Machine machine;
     constexpr std::uint64_t invalidPc = 0x0000000180000000ULL;
