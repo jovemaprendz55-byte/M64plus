@@ -5282,6 +5282,51 @@ void testTextureRectangleRgba16ClipsWithoutShiftingTextureOrigin() {
             "clipping preserves original S/T origin and samples bottom-right texel");
 }
 
+void testTextureRectangleRejectsInvertedTileSizeWithoutWrites() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x2E00U;
+    constexpr std::uint32_t stream = 0x2F00U;
+    constexpr std::uint16_t sentinel = 0xDEADU;
+    state.colorImage = {0U, 2U, 2U, framebuffer};
+    state.hasColorImage = true;
+    state.textureImage = {0U, 2U, 2U, 0U};
+    state.hasTextureImage = true;
+    state.tiles[0].format = 0U;
+    state.tiles[0].size = 2U;
+    state.tiles[0].line = 1U;
+    state.tiles[0].clampS = true;
+    state.tiles[0].clampT = true;
+    state.hasTile[0] = true;
+    state.tileSizes[0] = {4U, 0U, 4U, 4U};
+    state.hasTileSize[0] = true;
+    state.hasOtherModes = true;
+    state.otherModes.cycleType = 0U;
+    state.hasScissor = true;
+    state.scissor = {0U, 0U, 8U, 8U, false, false};
+    for (std::uint32_t i = 0U; i < 4U; ++i)
+        require(bus.write16(framebuffer + i * 2U, sentinel),
+                "seed framebuffer before inverted tile-size rejection");
+
+    const std::uint64_t first = (0x24ULL << 56U) |
+        (8ULL << 12U) | 8ULL;
+    const std::uint64_t second =
+        (0x0400ULL << 16U) | 0x0400ULL;
+    require(bus.write64(stream, first) && bus.write64(stream + 8U, second),
+            "write rectangle with inverted tile S bounds");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 16U),
+            "publish rectangle with inverted tile S bounds");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "inverted tile bounds reject texture rectangle");
+    for (std::uint32_t i = 0U; i < 4U; ++i) {
+        std::uint16_t pixel = 0U;
+        require(bus.read16(framebuffer + i * 2U, pixel) && pixel == sentinel,
+                "inverted tile bounds leave framebuffer unchanged");
+    }
+}
+
 void testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists() {
     using namespace m64plus::n64;
     for (std::uint8_t opcode : {0x24U, 0x25U}) {
@@ -5402,6 +5447,7 @@ int main() {
     testTextureRectangleRasterizesClampedRgba16Texels();
     testTextureRectangleRgba16SwizzlesOddTmemRows();
     testTextureRectangleRgba16ClipsWithoutShiftingTextureOrigin();
+    testTextureRectangleRejectsInvertedTileSizeWithoutWrites();
     testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testDpcCommandStreamIntegration();
     testRdpSynchronizationCommands();
