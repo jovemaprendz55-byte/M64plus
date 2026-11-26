@@ -92,6 +92,9 @@ public:
     std::size_t cartridgeSize() const noexcept;
     // Changes after successful writes to RDRAM, including DMA transfers.
     std::uint64_t rdramWriteEpoch() const noexcept { return rdram_.writeEpoch(); }
+    std::uint64_t rdramReservationEpoch(std::uint32_t address) const noexcept {
+        return rdram_.reservationEpoch(address);
+    }
 
     BusRegion region(std::uint32_t address) const noexcept;
     bool read8(std::uint32_t address, std::uint8_t& value) const noexcept;
