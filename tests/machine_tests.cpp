@@ -1961,12 +1961,21 @@ void testCpuMtc0RequiresKernelPrivilege() {
 }
 
 void testCpuXContextWritesOnlyPteBaseField() {
-    N64Machine machine;
-    auto& cpu = machine.cpu();
-    require(cpu.setCp0Register(m64plus::n64::Cp0::kXContext, 0xFFFFFFFFFFFFFFFFULL),
+    m64plus::n64::Cp0 cp0;
+    require(cp0.write(m64plus::n64::Cp0::kXContext, 0xFFFFFFFFFFFFFFFFULL),
             "write XContext PTEBase");
-    require(cpu.cp0().read(m64plus::n64::Cp0::kXContext) == 0xFFFFFFFE00000000ULL,
+    require(cp0.read(m64plus::n64::Cp0::kXContext) == 0xFFFFFFFE00000000ULL,
             "XContext writes only the PTEBase field and preserves reserved/BadVPN2 fields");
+
+    constexpr std::uint64_t badAddress = 0xC000123456789ABCULL;
+    const std::uint64_t expectedFaultFields =
+        ((badAddress >> 9U) & 0x7FFFFFF0ULL) |
+        ((badAddress >> 31U) & 0x180000000ULL);
+    cp0.raiseException(m64plus::n64::ExceptionCode::TlbLoad, 0xFFFFFFFF80001000ULL,
+                       false, badAddress, true);
+    require(cp0.read(m64plus::n64::Cp0::kXContext) ==
+                (0xFFFFFFFE00000000ULL | expectedFaultFields),
+            "TLB exception updates XContext R and BadVPN2 while preserving PTEBase");
 }
 
 void testCpuCop0TlbInstructionsWriteProbeAndReadEntry() {
