@@ -3080,6 +3080,34 @@ void testCpuBranchLikelyDelaySlotSemantics() {
                 "execute untaken BGEZAL branch-and-link");
 }
 
+void testCpuEretClearsLoadLinkedReservation() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t dataAddress = 0x240U;
+    constexpr std::uint32_t initial = 0x12345678U;
+    require(bus.write32(0x000U, 0xC1090000U), "write LL before ERET");
+    require(bus.write32(0x004U, 0x42000018U), "write ERET after LL");
+    require(bus.write32(0x020U, 0xE1090000U), "write SC at ERET target");
+    require(bus.write32(dataAddress, initial), "initialize ERET LL/SC target");
+
+    auto& cpu = machine.cpu();
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    cpu.setRegister(8U, dataAddress);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kEpc,
+                               0xFFFFFFFF80000020ULL),
+            "set ERET return address after LL");
+    require(machine.stepCpu(), "LL establishes reservation before ERET");
+    require(machine.stepCpu(), "ERET returns and clears reservation");
+    require(cpu.pc() == 0xFFFFFFFF80000020ULL,
+            "ERET transfers to EPC after clearing reservation");
+    require(machine.stepCpu(), "SC executes after ERET");
+    std::uint32_t value = 0;
+    require(bus.read32(dataAddress, value) && value == initial,
+            "SC after ERET does not modify reserved memory");
+    require(cpu.reg(9U) == 0U,
+            "SC reports failure because ERET cleared the LLbit");
+}
+
 void testCpuEretRestoresExceptionReturnAddress() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -3459,6 +3487,7 @@ int main() {
     testCpuRejectsInvalidBlezBgtzEncodings();
     testCpuRejectsInvalidSpecialShiftAndJumpEncodings();
     testCpuBranchLikelyDelaySlotSemantics();
+    testCpuEretClearsLoadLinkedReservation();
     testCpuEretRestoresExceptionReturnAddress();
     testCpuEretReturnsToBranchAfterDelaySlotException();
     testCpuRejectsInvalidCop0ReservedFields();
