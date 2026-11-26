@@ -2067,6 +2067,52 @@ void testLoadBlockRgba32RejectsSourceOverflowAtomically() {
     }
 }
 
+void testLoadBlockRgba32DxtWrapsBothTmemBanks() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0U; i < 32U; ++i)
+        require(bus.write8(0x1F80U + i, static_cast<std::uint8_t>(0x20U + i)),
+                "seed RGBA32 DXT data for dual-bank TMEM wrap");
+
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (3ULL << 51U) | (7ULL << 32U) | 0x1F80U;
+    const std::uint64_t tile =
+        (0x35ULL << 56U) | (3ULL << 51U) | (511ULL << 32U);
+    const std::uint64_t load =
+        (0x33ULL << 56U) | (28ULL << 12U) | 0x800ULL;
+    require(bus.write64(0xC40U, image) && bus.write64(0xC48U, tile) &&
+            bus.write64(0xC50U, load),
+            "seed RGBA32 DXT dual-bank wrap sequence");
+    require(bus.write32(Bus::kDpStart, 0xC40U) &&
+            bus.write32(Bus::kDpEnd, 0xC58U),
+            "publish RGBA32 DXT dual-bank wrap sequence");
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "RGBA32 DXT dual-bank wrap sequence executes");
+
+    const std::uint8_t order[] = {0U, 1U, 3U, 2U, 4U, 5U, 7U, 6U};
+    for (std::uint16_t i = 0U; i < 8U; ++i) {
+        const std::uint16_t lower = static_cast<std::uint16_t>(
+            (0x7F8U + i * 2U) & 0x07FFU);
+        const std::uint16_t upper = static_cast<std::uint16_t>(lower + 0x0800U);
+        const std::uint8_t texel = order[i];
+        const std::uint8_t red = static_cast<std::uint8_t>(0x20U + texel * 4U);
+        std::uint8_t value = 0U;
+        require(state.tmem.readByte(lower, value) && value == red,
+                "RGBA32 DXT lower-bank wrap preserves red texel order");
+        require(state.tmem.readByte(static_cast<std::uint16_t>(lower + 1U), value) &&
+                    value == static_cast<std::uint8_t>(red + 1U),
+                "RGBA32 DXT lower-bank wrap preserves green texel order");
+        require(state.tmem.readByte(upper, value) &&
+                    value == static_cast<std::uint8_t>(red + 2U),
+                "RGBA32 DXT upper-bank wrap preserves blue texel order");
+        require(state.tmem.readByte(static_cast<std::uint16_t>(upper + 1U), value) &&
+                    value == static_cast<std::uint8_t>(red + 3U),
+                "RGBA32 DXT upper-bank wrap preserves alpha texel order");
+    }
+}
+
 void testLoadBlockRgba32WrapsBothTmemBanks() {
     using namespace m64plus::n64;
     Bus bus;
@@ -4543,6 +4589,7 @@ int main() {
     testLoadBlockContinuesAcrossTextureImageRows();
     testLoadBlockRejectsStartOutsideTextureImageWidth();
     testLoadBlockRgba32RejectsSourceOverflowAtomically();
+    testLoadBlockRgba32DxtWrapsBothTmemBanks();
     testLoadBlockRgba32WrapsBothTmemBanks();
     testLoadBlockCopiesRgba32IntoSplitTmemBanks();
     testLoadBlockRgba32DxtFractionalLineCarry();
