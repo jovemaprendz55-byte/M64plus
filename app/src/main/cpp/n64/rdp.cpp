@@ -401,17 +401,38 @@ bool loadBlockTexels(Bus& bus, RdpSyncState& state,
     }
 
     std::array<std::uint8_t, RdpTextureMemory::kSize> transfer{};
-    const unsigned bytesPerTexel = bitsPerTexel / 8U;
-    for (std::uint32_t i = 0; i < count; ++i) {
-        const std::uint64_t sourceTexel = firstTexel + i;
-        for (unsigned byte = 0; byte < bytesPerTexel; ++byte) {
+    if (bitsPerTexel == 4U) {
+        // The first texel may begin in either half of its source byte
+        // (for example, an odd image width can start the next row low-nibble).
+        for (std::uint64_t byte = 0U; byte < sourceBytes; ++byte) {
             const std::uint64_t sourceAddress =
-                static_cast<std::uint64_t>(image.address) +
-                sourceTexel * bytesPerTexel + byte;
+                static_cast<std::uint64_t>(image.address) + sourceFirstByte + byte;
             if (sourceAddress > UINT32_MAX ||
                 !bus.read8(static_cast<std::uint32_t>(sourceAddress),
-                           transfer[static_cast<std::size_t>(i) * bytesPerTexel + byte]))
-                return false;
+                           transfer[static_cast<std::size_t>(byte)])) return false;
+        }
+        if ((sourceFirstBit & 4U) != 0U) {
+            for (std::uint64_t byte = 0U; byte < totalBytes; ++byte) {
+                const std::uint8_t current = transfer[static_cast<std::size_t>(byte)];
+                const std::uint8_t next = byte + 1U < sourceBytes
+                    ? transfer[static_cast<std::size_t>(byte + 1U)] : 0U;
+                transfer[static_cast<std::size_t>(byte)] =
+                    static_cast<std::uint8_t>((current << 4U) | (next >> 4U));
+            }
+        }
+    } else {
+        const unsigned bytesPerTexel = bitsPerTexel / 8U;
+        for (std::uint32_t i = 0; i < count; ++i) {
+            const std::uint64_t sourceTexel = firstTexel + i;
+            for (unsigned byte = 0; byte < bytesPerTexel; ++byte) {
+                const std::uint64_t sourceAddress =
+                    static_cast<std::uint64_t>(image.address) +
+                    sourceTexel * bytesPerTexel + byte;
+                if (sourceAddress > UINT32_MAX ||
+                    !bus.read8(static_cast<std::uint32_t>(sourceAddress),
+                               transfer[static_cast<std::size_t>(i) * bytesPerTexel + byte]))
+                    return false;
+            }
         }
     }
 
