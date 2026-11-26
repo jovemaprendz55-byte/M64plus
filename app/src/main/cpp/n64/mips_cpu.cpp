@@ -669,7 +669,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
             if (opcode == 0x34) {
                 reservationValid_ = true;
                 reservationAddress_ = address;
-                reservationWriteEpoch_ = memoryWriteEpoch(memory);
+                reservationWriteEpoch_ = memoryWriteEpoch(memory, address);
             }
         }
         destination = rt;
