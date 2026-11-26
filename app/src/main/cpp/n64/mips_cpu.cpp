@@ -346,7 +346,6 @@ bool MipsCpu::stepMemory(Memory& memory) {
             scheduleBranch = true; branchTarget = a; break;
         case 0x09:
             if (inDelaySlot) return takeException(ExceptionCode::ReservedInstruction);
-            if ((a & 3U) != 0) return takeException(ExceptionCode::AddressLoad, a);
             destination = rd;
             result = sequentialPc + 4U; writeRegister = true;
             scheduleBranch = true; branchTarget = a; break;
