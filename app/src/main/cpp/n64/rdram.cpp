@@ -1,10 +1,15 @@
 #include "n64/rdram.h"
 #include <algorithm>
 namespace m64plus::n64 {
-Rdram::Rdram() : bytes_(kSize, 0) {}
+Rdram::Rdram() : bytes_(kSize, 0), reservationEpochs_(kSize / 16U, 0) {}
 void Rdram::reset(std::uint8_t value) {
     std::fill(bytes_.begin(), bytes_.end(), value);
     ++writeEpoch_;
+    std::fill(reservationEpochs_.begin(), reservationEpochs_.end(), writeEpoch_);
+}
+void Rdram::markWrite(std::uint32_t address) noexcept {
+    ++writeEpoch_;
+    reservationEpochs_[static_cast<std::size_t>(address) / 16U] = writeEpoch_;
 }
 bool Rdram::contains(std::uint32_t address, std::size_t width) const noexcept {
     const auto offset = static_cast<std::size_t>(address);
@@ -35,14 +40,14 @@ bool Rdram::read64(std::uint32_t a, std::uint64_t& v) const {
 bool Rdram::write8(std::uint32_t a, std::uint8_t v) {
     if (!contains(a, 1)) return false;
     bytes_[a] = v;
-    ++writeEpoch_;
+    markWrite(a);
     return true;
 }
 bool Rdram::write16(std::uint32_t a, std::uint16_t v) {
     if (!contains(a, 2)) return false;
     bytes_[a] = static_cast<std::uint8_t>(v >> 8U);
     bytes_[a + 1U] = static_cast<std::uint8_t>(v);
-    ++writeEpoch_;
+    markWrite(a);
     return true;
 }
 bool Rdram::write32(std::uint32_t a, std::uint32_t v) {
@@ -50,7 +55,9 @@ bool Rdram::write32(std::uint32_t a, std::uint32_t v) {
     bytes_[a] = static_cast<std::uint8_t>(v >> 24U);
     bytes_[a + 1U] = static_cast<std::uint8_t>(v >> 16U);
     bytes_[a + 2U] = static_cast<std::uint8_t>(v >> 8U);
-    bytes_[a + 3U] = static_cast<std::uint8_t>(v); return true;
+    bytes_[a + 3U] = static_cast<std::uint8_t>(v);
+    markWrite(a);
+    return true;
 }
 bool Rdram::write64(std::uint32_t a, std::uint64_t v) {
     if (!contains(a, 8)) return false;
@@ -60,4 +67,7 @@ bool Rdram::write64(std::uint32_t a, std::uint64_t v) {
 const std::uint8_t* Rdram::data() const noexcept { return bytes_.data(); }
 std::size_t Rdram::size() const noexcept { return bytes_.size(); }
 std::uint64_t Rdram::writeEpoch() const noexcept { return writeEpoch_; }
+std::uint64_t Rdram::reservationEpoch(std::uint32_t address) const noexcept {
+    return contains(address, 1U) ? reservationEpochs_[static_cast<std::size_t>(address) / 16U] : 0U;
+}
 } // namespace m64plus::n64
