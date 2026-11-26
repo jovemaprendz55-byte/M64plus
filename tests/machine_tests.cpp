@@ -1224,6 +1224,19 @@ void testCpuBusDataFaultInvalidatesLoadLinkedReservation() {
             "SC reports failure because bus data fault invalidated reservation");
 }
 
+void testCpuNonCanonicalInstructionAddressRaisesAddressLoad() {
+    N64Machine machine;
+    constexpr std::uint64_t invalidPc = 0x0000000180000000ULL;
+    machine.cpu().reset(invalidPc);
+
+    require(machine.stepCpu(), "non-canonical instruction address raises an exception");
+    require(machine.cpu().hasLastException(), "CPU records instruction address exception");
+    require(machine.cpu().lastExceptionCode() == 4U,
+            "non-canonical instruction fetch raises Address Load, not Bus Instruction");
+    require(machine.cpu().cp0().read(m64plus::n64::Cp0::kBadVAddr) == invalidPc,
+            "BadVAddr records the non-canonical instruction address");
+}
+
 void testCpuBusInstructionFaultInvalidatesLoadLinkedReservation() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -3388,6 +3401,7 @@ int main() {
     testCpuInterruptInvalidatesLoadLinkedReservation();
     testCpuMemoryFaultInvalidatesLoadLinkedReservation();
     testCpuBusDataFaultInvalidatesLoadLinkedReservation();
+    testCpuNonCanonicalInstructionAddressRaisesAddressLoad();
     testCpuBusInstructionFaultInvalidatesLoadLinkedReservation();
     testCpuAddressStoreFaultInvalidatesLoadLinkedReservation();
     testCpuBusStoreFaultInvalidatesLoadLinkedReservation();
