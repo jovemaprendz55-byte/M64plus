@@ -2259,7 +2259,7 @@ void testLoadBlockFourBitStartsAtOddSourceNibble() {
         (0x3DULL << 56U) | (2ULL << 32U) | source;
     const std::uint64_t setTile = (0x35ULL << 56U);
     const std::uint64_t loadBlock =
-        (0x33ULL << 56U) | (4ULL << 44U) | (12ULL << 12U);
+        (0x33ULL << 56U) | (4ULL << 32U) | (12ULL << 12U);
     require(bus.write64(0xB80U, setImage) &&
             bus.write64(0xB88U, setTile) &&
             bus.write64(0xB90U, loadBlock),
