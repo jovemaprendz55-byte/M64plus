@@ -5169,6 +5169,60 @@ void testTextureRectangleRasterizesClampedRgba16Texels() {
             "texture rectangle does not write outside its right edge");
 }
 
+void testTextureRectangleFlipRasterizesRgba16TransposedCoordinates() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x3200U;
+    constexpr std::uint32_t stream = 0x3300U;
+    state.colorImage = {0U, 2U, 2U, framebuffer};
+    state.hasColorImage = true;
+    state.textureImage = {0U, 2U, 2U, 0U};
+    state.hasTextureImage = true;
+    state.tiles[0].format = 0U;
+    state.tiles[0].size = 2U;
+    state.tiles[0].line = 2U;
+    state.tiles[0].clampS = true;
+    state.tiles[0].clampT = true;
+    state.hasTile[0] = true;
+    state.tileSizes[0] = {0U, 0U, 4U, 4U};
+    state.hasTileSize[0] = true;
+    state.hasOtherModes = true;
+    state.otherModes.cycleType = 0U;
+    state.hasScissor = true;
+    state.scissor = {0U, 0U, 8U, 8U, false, false};
+
+    require(state.tmem.writeByte(0U, 0x11U) &&
+            state.tmem.writeByte(1U, 0x11U) &&
+            state.tmem.writeByte(2U, 0x22U) &&
+            state.tmem.writeByte(3U, 0x22U) &&
+            state.tmem.writeByte(20U, 0x33U) &&
+            state.tmem.writeByte(21U, 0x33U) &&
+            state.tmem.writeByte(22U, 0x44U) &&
+            state.tmem.writeByte(23U, 0x44U),
+            "seed 2x2 RGBA16 texture with odd-row TMEM swizzle");
+    const std::uint64_t first = (0x25ULL << 56U) | (8ULL << 12U) | 8ULL;
+    const std::uint64_t second =
+        (0x0400ULL << 16U) | 0x0400ULL;
+    require(bus.write64(stream, first) && bus.write64(stream + 8U, second),
+            "write flipped RGBA16 texture rectangle command");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 16U),
+            "publish flipped RGBA16 texture rectangle command");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "flipped RGBA16 texture rectangle rasterizes");
+
+    std::uint16_t pixel = 0U;
+    require(bus.read16(framebuffer, pixel) && pixel == 0x1111U,
+            "flipped rectangle top-left samples texture top-left");
+    require(bus.read16(framebuffer + 2U, pixel) && pixel == 0x3333U,
+            "flipped rectangle advances T across framebuffer X");
+    require(bus.read16(framebuffer + 4U, pixel) && pixel == 0x2222U,
+            "flipped rectangle advances S across framebuffer Y");
+    require(bus.read16(framebuffer + 6U, pixel) && pixel == 0x4444U,
+            "flipped rectangle samples bottom-right texel");
+}
+
 void testTextureRectangleRgba16ClampsNegativeTextureCoordinates() {
     using namespace m64plus::n64;
     Bus bus;
@@ -5496,6 +5550,7 @@ int main() {
     testTextureRectangleLengths();
     testTextureRectanglePacketDecoding();
     testTextureRectangleRasterizesClampedRgba16Texels();
+    testTextureRectangleFlipRasterizesRgba16TransposedCoordinates();
     testTextureRectangleRgba16ClampsNegativeTextureCoordinates();
     testTextureRectangleRgba16SwizzlesOddTmemRows();
     testTextureRectangleRgba16ClipsWithoutShiftingTextureOrigin();
