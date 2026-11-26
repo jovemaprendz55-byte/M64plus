@@ -694,6 +694,13 @@ void testRdpTextureMemory() {
         require(tmem.write64(address, pattern), "write TMEM word with high address bits");
         require(tmem.read64(address, actual) && actual == pattern,
                 "high TMEM address bits alias through the 12-bit address bus");
+        require(tmem.read64(static_cast<std::uint16_t>(address & 0x0FFFU), actual) &&
+                actual == pattern, "high-address TMEM writes are visible at masked addresses");
+        const std::uint64_t lowPattern = ~pattern;
+        require(tmem.write64(static_cast<std::uint16_t>(address & 0x0FFFU), lowPattern),
+                "write TMEM word through masked low address");
+        require(tmem.read64(address, actual) && actual == lowPattern,
+                "masked low-address writes are visible through high addresses");
     }
     require(tmem.writeByte(0x1000U, 0x5AU), "write address beyond TMEM wraps");
     require(tmem.readByte(0U, byte) && byte == 0x5AU, "TMEM 12-bit address mask");
