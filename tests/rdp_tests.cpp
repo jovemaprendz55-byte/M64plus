@@ -2243,6 +2243,42 @@ void testLoadBlockRgba32WrapsBothTmemBanks() {
     }
 }
 
+void testLoadBlockFourBitRejectsSourceOverflowAtomically() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t source =
+        static_cast<std::uint32_t>(Rdram::kSize - 1U);
+    require(bus.write8(source, 0xABU),
+            "seed valid four-bit source prefix at RDRAM end");
+    for (std::uint16_t i = 0U; i < 4U; ++i)
+        require(state.tmem.writeByte(i, 0x5AU),
+                "seed TMEM before overflowing four-bit LOAD_BLOCK");
+
+    const std::uint64_t image =
+        (0x3DULL << 56U) | source;
+    const std::uint64_t tile = (0x35ULL << 56U);
+    const std::uint64_t load = (0x33ULL << 56U) | (12ULL << 12U);
+    require(bus.write64(0xB40U, image) &&
+            bus.write64(0xB48U, tile) &&
+            bus.write64(0xB50U, load),
+            "seed overflowing four-bit LOAD_BLOCK");
+    require(bus.write32(Bus::kDpStart, 0xB40U) &&
+            bus.write32(Bus::kDpEnd, 0xB58U),
+            "publish overflowing four-bit LOAD_BLOCK");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TEXTURE_IMAGE configures four-bit source");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE configures four-bit destination");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "four-bit LOAD_BLOCK rejects source range beyond RDRAM");
+
+    std::uint8_t value = 0U;
+    for (std::uint16_t i = 0U; i < 4U; ++i)
+        require(state.tmem.readByte(i, value) && value == 0x5AU,
+                "rejected four-bit LOAD_BLOCK leaves TMEM unchanged");
+}
+
 void testLoadBlockCopiesPackedFourBitTexels() {
     using namespace m64plus::n64;
     Bus bus;
