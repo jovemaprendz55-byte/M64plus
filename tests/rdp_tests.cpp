@@ -2067,6 +2067,47 @@ void testLoadBlockRgba32RejectsSourceOverflowAtomically() {
     }
 }
 
+void testLoadBlockRgba32DxtMultipleCarriesKeepEvenWordOrder() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    for (std::uint32_t i = 0U; i < 16U; ++i)
+        require(bus.write8(0x1E80U + i, static_cast<std::uint8_t>(0x40U + i)),
+                "seed RGBA32 maximum-DXT transfer words");
+
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (3ULL << 51U) | (3ULL << 32U) | 0x1E80U;
+    const std::uint64_t tile =
+        (0x35ULL << 56U) | (3ULL << 51U);
+    const std::uint64_t load =
+        (0x33ULL << 56U) | (12ULL << 12U) | 0xFFFULL;
+    require(bus.write64(0xC80U, image) && bus.write64(0xC88U, tile) &&
+            bus.write64(0xC90U, load),
+            "seed RGBA32 multiple-carry DXT sequence");
+    require(bus.write32(Bus::kDpStart, 0xC80U) &&
+            bus.write32(Bus::kDpEnd, 0xC98U),
+            "publish RGBA32 multiple-carry DXT sequence");
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "RGBA32 multiple-carry DXT sequence executes");
+
+    for (std::uint16_t i = 0U; i < 4U; ++i) {
+        const std::uint16_t lower = static_cast<std::uint16_t>(i * 2U);
+        const std::uint16_t upper = static_cast<std::uint16_t>(0x800U + lower);
+        const std::uint8_t red = static_cast<std::uint8_t>(0x40U + i * 4U);
+        std::uint8_t value = 0U;
+        require(state.tmem.readByte(lower, value) && value == red &&
+                state.tmem.readByte(static_cast<std::uint16_t>(lower + 1U), value) &&
+                value == static_cast<std::uint8_t>(red + 1U),
+                "two DXT carries per word preserve lower-bank texel order");
+        require(state.tmem.readByte(upper, value) &&
+                value == static_cast<std::uint8_t>(red + 2U) &&
+                state.tmem.readByte(static_cast<std::uint16_t>(upper + 1U), value) &&
+                value == static_cast<std::uint8_t>(red + 3U),
+                "two DXT carries per word preserve upper-bank texel order");
+    }
+}
+
 void testLoadBlockRgba32DxtWrapsBothTmemBanks() {
     using namespace m64plus::n64;
     Bus bus;
@@ -4589,6 +4630,7 @@ int main() {
     testLoadBlockContinuesAcrossTextureImageRows();
     testLoadBlockRejectsStartOutsideTextureImageWidth();
     testLoadBlockRgba32RejectsSourceOverflowAtomically();
+    testLoadBlockRgba32DxtMultipleCarriesKeepEvenWordOrder();
     testLoadBlockRgba32DxtWrapsBothTmemBanks();
     testLoadBlockRgba32WrapsBothTmemBanks();
     testLoadBlockCopiesRgba32IntoSplitTmemBanks();
