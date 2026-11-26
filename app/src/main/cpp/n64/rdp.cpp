@@ -113,10 +113,11 @@ bool rasterizeTextureRectangleRgba16(Bus& bus, const RdpSyncState& state,
     if (right <= left || bottom <= top) return false;
     const std::int32_t clipLeft = std::max(left, static_cast<std::int32_t>(state.scissor.xh / 4U));
     const std::int32_t clipTop = std::max(top, static_cast<std::int32_t>(state.scissor.yh / 4U));
-    const std::int32_t clipRight = std::min(right, static_cast<std::int32_t>(state.scissor.xl / 4U));
+    const std::int32_t clipRight = std::min(
+        std::min(right, static_cast<std::int32_t>(state.scissor.xl / 4U)),
+        static_cast<std::int32_t>(color.width));
     const std::int32_t clipBottom = std::min(bottom, static_cast<std::int32_t>(state.scissor.yl / 4U));
-    if (clipRight <= clipLeft || clipBottom <= clipTop ||
-        clipRight > color.width) return false;
+    if (clipRight <= clipLeft || clipBottom <= clipTop) return false;
 
     if (!state.hasTileSize[rectangle.tile]) return false;
     const RdpTileSizeState& tileSize = state.tileSizes[rectangle.tile];
