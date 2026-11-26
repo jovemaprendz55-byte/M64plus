@@ -5223,6 +5223,64 @@ void testTextureRectangleFlipRasterizesRgba16TransposedCoordinates() {
             "flipped rectangle samples bottom-right texel");
 }
 
+void testTextureRectangleFlipHonorsInterlacedFieldSelection() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x3400U;
+    constexpr std::uint32_t stream = 0x3500U;
+    constexpr std::uint16_t sentinel = 0xDEADU;
+    state.colorImage = {0U, 2U, 2U, framebuffer};
+    state.hasColorImage = true;
+    state.textureImage = {0U, 2U, 2U, 0U};
+    state.hasTextureImage = true;
+    state.tiles[0].format = 0U;
+    state.tiles[0].size = 2U;
+    state.tiles[0].line = 2U;
+    state.tiles[0].clampS = true;
+    state.tiles[0].clampT = true;
+    state.hasTile[0] = true;
+    state.tileSizes[0] = {0U, 0U, 4U, 4U};
+    state.hasTileSize[0] = true;
+    state.hasOtherModes = true;
+    state.otherModes.cycleType = 0U;
+    state.hasScissor = true;
+    state.scissor = {0U, 0U, 8U, 8U, true, true};
+
+    require(state.tmem.writeByte(0U, 0x11U) &&
+            state.tmem.writeByte(1U, 0x11U) &&
+            state.tmem.writeByte(2U, 0x22U) &&
+            state.tmem.writeByte(3U, 0x22U) &&
+            state.tmem.writeByte(20U, 0x33U) &&
+            state.tmem.writeByte(21U, 0x33U) &&
+            state.tmem.writeByte(22U, 0x44U) &&
+            state.tmem.writeByte(23U, 0x44U),
+            "seed flipped texture data for odd-field rendering");
+    for (std::uint32_t i = 0U; i < 4U; ++i)
+        require(bus.write16(framebuffer + i * 2U, sentinel),
+                "seed interlaced flip framebuffer");
+
+    const std::uint64_t first = (0x25ULL << 56U) | (8ULL << 12U) | 8ULL;
+    const std::uint64_t second = (0x0400ULL << 16U) | 0x0400ULL;
+    require(bus.write64(stream, first) && bus.write64(stream + 8U, second),
+            "write interlaced flipped texture rectangle");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 16U),
+            "publish interlaced flipped texture rectangle");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "interlaced flipped texture rectangle rasterizes");
+
+    std::uint16_t pixel = 0U;
+    require(bus.read16(framebuffer, pixel) && pixel == sentinel,
+            "odd-field selection preserves the even top-left pixel");
+    require(bus.read16(framebuffer + 2U, pixel) && pixel == sentinel,
+            "odd-field selection preserves the even top-right pixel");
+    require(bus.read16(framebuffer + 4U, pixel) && pixel == 0x2222U,
+            "odd-field flipped rectangle samples S on the bottom-left pixel");
+    require(bus.read16(framebuffer + 6U, pixel) && pixel == 0x4444U,
+            "odd-field flipped rectangle samples S/T on the bottom-right pixel");
+}
+
 void testTextureRectangleRgba16ClampsNegativeTextureCoordinates() {
     using namespace m64plus::n64;
     Bus bus;
@@ -5551,6 +5609,7 @@ int main() {
     testTextureRectanglePacketDecoding();
     testTextureRectangleRasterizesClampedRgba16Texels();
     testTextureRectangleFlipRasterizesRgba16TransposedCoordinates();
+    testTextureRectangleFlipHonorsInterlacedFieldSelection();
     testTextureRectangleRgba16ClampsNegativeTextureCoordinates();
     testTextureRectangleRgba16SwizzlesOddTmemRows();
     testTextureRectangleRgba16ClipsWithoutShiftingTextureOrigin();
