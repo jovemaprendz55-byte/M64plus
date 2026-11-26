@@ -619,7 +619,7 @@ bool RdpCommandDecoder::decodeTriangleCommand(
     const RdpCommandPacket& packet, RdpTriangleCommand& command) noexcept {
     const std::uint8_t opcode =
         static_cast<std::uint8_t>((packet.words[0] >> 56U) & 0x3FU);
-    if (packet.info.opcode != opcode) return false;
+    if (!packet.info.knownOpcode || packet.info.opcode != opcode) return false;
 
     RdpTriangleCommand candidate{};
     if (!decodeTriangleLayout(opcode, candidate.layout) ||
