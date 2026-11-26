@@ -2243,6 +2243,41 @@ void testLoadBlockCopiesPackedFourBitTexels() {
             "four-bit LOAD_BLOCK preserves second packed byte");
 }
 
+void testLoadBlockFourBitStartsAtOddSourceNibble() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t source = 0x1AE0U;
+    require(bus.write8(source, 0x12U) &&
+            bus.write8(source + 1U, 0x34U) &&
+            bus.write8(source + 2U, 0x56U) &&
+            bus.write8(source + 3U, 0x78U),
+            "seed odd-nibble four-bit LOAD_BLOCK source");
+
+    // Width three makes T=1, S=0 begin at texel three (the low nibble).
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (2ULL << 32U) | source;
+    const std::uint64_t setTile = (0x35ULL << 56U);
+    const std::uint64_t loadBlock =
+        (0x33ULL << 56U) | (4ULL << 44U) | (12ULL << 12U);
+    require(bus.write64(0xB80U, setImage) &&
+            bus.write64(0xB88U, setTile) &&
+            bus.write64(0xB90U, loadBlock),
+            "seed odd-nibble four-bit LOAD_BLOCK sequence");
+    require(bus.write32(Bus::kDpStart, 0xB80U) &&
+            bus.write32(Bus::kDpEnd, 0xB98U),
+            "publish odd-nibble four-bit LOAD_BLOCK sequence");
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "odd-nibble four-bit LOAD_BLOCK sequence executes");
+
+    std::uint8_t value = 0U;
+    require(state.tmem.readByte(0U, value) && value == 0x45U,
+            "four-bit LOAD_BLOCK begins with the source low nibble");
+    require(state.tmem.readByte(1U, value) && value == 0x67U,
+            "four-bit LOAD_BLOCK continues from the following source nibbles");
+}
+
 void testLoadBlockFourBitDxtSwizzlesOddWords() {
     using namespace m64plus::n64;
     Bus bus;
@@ -4703,6 +4738,7 @@ int main() {
     testLoadBlockRgba32DxtWrapsBothTmemBanks();
     testLoadBlockRgba32WrapsBothTmemBanks();
     testLoadBlockCopiesPackedFourBitTexels();
+    testLoadBlockFourBitStartsAtOddSourceNibble();
     testLoadBlockFourBitDxtSwizzlesOddWords();
     testLoadBlockCopiesRgba32IntoSplitTmemBanks();
     testLoadBlockRgba32DxtFractionalLineCarry();
