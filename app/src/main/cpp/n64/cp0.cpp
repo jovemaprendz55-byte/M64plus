@@ -13,7 +13,7 @@ constexpr std::uint64_t kStatusWritableMask = 0xFFFFFFFFULL;
 constexpr std::uint64_t kEntryLoMask = 0x03FFFFFFULL;
 constexpr std::uint64_t kEntryHiMask = 0xFFFFE0FFULL;
 constexpr std::uint64_t kContextMask = 0xFFFFFFFFFF800000ULL;
-constexpr std::uint64_t kXContextMask = 0xFFFFFFFFFF800000ULL;
+constexpr std::uint64_t kXContextMask = 0xFFFFFFFE00000000ULL;
 }
 
 Cp0::Cp0() { reset(); }
