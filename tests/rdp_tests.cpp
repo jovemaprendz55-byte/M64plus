@@ -2721,6 +2721,41 @@ void testLoadBlockRejectsMismatchedRgba32TileSize() {
     }
 }
 
+void testLoadBlockFourBitDxtRejectsSourceOverflowAtomically() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint32_t source = static_cast<std::uint32_t>(Rdram::kSize - 8U);
+    for (std::uint32_t i = 0U; i < 8U; ++i)
+        require(bus.write8(source + i, static_cast<std::uint8_t>(0xC0U + i)),
+                "seed valid four-bit DXT source prefix at RDRAM end");
+    for (std::uint16_t i = 0U; i < 32U; ++i)
+        require(state.tmem.writeByte(i, 0x7CU),
+                "seed TMEM before overflowing four-bit DXT LOAD_BLOCK");
+
+    const std::uint64_t image =
+        (0x3DULL << 56U) | (31ULL << 32U) | source;
+    const std::uint64_t tile = (0x35ULL << 56U);
+    const std::uint64_t load =
+        (0x33ULL << 56U) | (92ULL << 12U) | 0x800ULL;
+    require(bus.write64(0xB40U, image) && bus.write64(0xB48U, tile) &&
+            bus.write64(0xB50U, load), "seed overflowing four-bit DXT LOAD_BLOCK");
+    require(bus.write32(Bus::kDpStart, 0xB40U) &&
+            bus.write32(Bus::kDpEnd, 0xB58U),
+            "publish overflowing four-bit DXT LOAD_BLOCK");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TEXTURE_IMAGE configures four-bit DXT source");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "SET_TILE configures four-bit DXT destination");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
+            "four-bit DXT LOAD_BLOCK rejects source range beyond RDRAM");
+
+    std::uint8_t value = 0U;
+    for (std::uint16_t i = 0U; i < 32U; ++i)
+        require(state.tmem.readByte(i, value) && value == 0x7CU,
+                "rejected four-bit DXT LOAD_BLOCK leaves TMEM unchanged");
+}
+
 void testLoadBlockDxtSwapsOddLineWords() {
     using namespace m64plus::n64;
     Bus bus;
@@ -4987,6 +5022,7 @@ int main() {
     testLoadBlockSixteenBitRejectsSourceOverflowAtomically();
     testLoadBlockSixteenBitDxtRejectsSourceOverflowAtomically();
     testLoadBlockFourBitRejectsSourceOverflowAtomically();
+    testLoadBlockFourBitDxtRejectsSourceOverflowAtomically();
     testLoadBlockDxtSwapsOddLineWords();
     testLoadBlockDxtSwizzlesOddLinesForEightAndSixteenBitTexels();
     testLoadBlockDxtCarriesAtExactHalfLine();
