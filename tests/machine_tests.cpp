@@ -30,8 +30,8 @@ void testTlbPairedPagesAsidGlobalAndPermissions() {
                 m64plus::n64::TlbResult::Success && physical == 0x00100123U,
             "TLB translates even 4 KiB page with its offset");
     require(tlb.translate(0xFFFFFFFF80400123ULL, 0x12U, false, physical) ==
-                m64plus::n64::TlbResult::Success && physical == 0x00100123U,
-            "TLB accepts canonical sign-extended KSEG0 address");
+                m64plus::n64::TlbResult::Success && physical == 0x00400123U,
+            "TLB accepts canonical sign-extended KSEG0 direct mapping");
     require(tlb.translate(0x0000000180400123ULL, 0x12U, false, physical) ==
                 m64plus::n64::TlbResult::Miss,
             "TLB rejects noncanonical upper address bits");
