@@ -2044,6 +2044,8 @@ void testCpuNestedTlbExceptionUpdatesFaultAddressRegisters() {
     constexpr std::uint64_t badAddress = 0xC000123456789ABCULL;
     require(cp0.write(m64plus::n64::Cp0::kEntryHi, initialAsid),
             "set initial EntryHi ASID before nested exception");
+    require(cp0.write(m64plus::n64::Cp0::kXContext, 0xFFFFFFFFFFFFFFFFULL),
+            "seed XContext PTEBase before nested exception");
     cp0.raiseException(m64plus::n64::ExceptionCode::Syscall, firstPc, true);
     const std::uint64_t firstEpc = cp0.read(m64plus::n64::Cp0::kEpc);
     const std::uint64_t firstCause = cp0.read(m64plus::n64::Cp0::kCause);
