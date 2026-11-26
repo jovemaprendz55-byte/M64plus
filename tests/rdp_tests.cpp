@@ -5602,6 +5602,58 @@ void testTextureRectangleRejectsFramebufferOverflowAtomically() {
             "framebuffer overflow is rejected before any partial pixel write");
 }
 
+void testTextureRectangleFlipClipsToColorImageWidth() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x2C00U;
+    constexpr std::uint32_t stream = 0x2D80U;
+    constexpr std::uint16_t sentinel = 0xDEADU;
+    state.colorImage = {0U, 2U, 2U, framebuffer};
+    state.hasColorImage = true;
+    state.textureImage = {0U, 2U, 2U, 0U};
+    state.hasTextureImage = true;
+    state.tiles[0].format = 0U;
+    state.tiles[0].size = 2U;
+    state.tiles[0].line = 1U;
+    state.tiles[0].clampS = true;
+    state.tiles[0].clampT = true;
+    state.hasTile[0] = true;
+    state.tileSizes[0] = {0U, 0U, 0U, 4U};
+    state.hasTileSize[0] = true;
+    state.hasOtherModes = true;
+    state.otherModes.cycleType = 0U;
+    state.hasScissor = true;
+    state.scissor = {0U, 0U, 12U, 4U, false, false};
+    require(state.tmem.writeByte(0U, 0x11U) &&
+            state.tmem.writeByte(1U, 0x11U) &&
+            state.tmem.writeByte(12U, 0x22U) &&
+            state.tmem.writeByte(13U, 0x22U),
+            "seed flipped texture rows for framebuffer-width clipping");
+    require(bus.write16(framebuffer, sentinel) &&
+            bus.write16(framebuffer + 2U, sentinel) &&
+            bus.write16(framebuffer + 4U, sentinel),
+            "seed framebuffer before flipped width clipping");
+    const std::uint64_t first = (0x25ULL << 56U) |
+        (12ULL << 12U) | 4ULL;
+    const std::uint64_t second =
+        (0x0400ULL << 16U) | 0x0400ULL;
+    require(bus.write64(stream, first) && bus.write64(stream + 8U, second),
+            "write flipped texture rectangle extending past image width");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 16U),
+            "publish flipped framebuffer-width-clipped rectangle");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "flipped rectangle clips to color image width");
+    std::uint16_t pixel = 0U;
+    require(bus.read16(framebuffer, pixel) && pixel == 0x1111U,
+            "flipped rectangle writes first in-bounds pixel");
+    require(bus.read16(framebuffer + 2U, pixel) && pixel == 0x2222U,
+            "flipped rectangle preserves transposed texture coordinate at right edge");
+    require(bus.read16(framebuffer + 4U, pixel) && pixel == sentinel,
+            "flipped rectangle leaves pixel beyond color image width untouched");
+}
+
 void testTextureRectangleRejectsInvertedTileSizeWithoutWrites() {
     using namespace m64plus::n64;
     Bus bus;
@@ -5773,6 +5825,7 @@ int main() {
     testTextureRectangleRgba16SwizzlesOddTmemRows();
     testTextureRectangleRgba16ClipsWithoutShiftingTextureOrigin();
     testTextureRectangleRejectsFramebufferOverflowAtomically();
+    testTextureRectangleFlipClipsToColorImageWidth();
     testTextureRectangleRejectsInvertedTileSizeWithoutWrites();
     testTextureRectangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testDpcCommandStreamIntegration();
