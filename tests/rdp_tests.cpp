@@ -2243,6 +2243,42 @@ void testLoadBlockCopiesPackedFourBitTexels() {
             "four-bit LOAD_BLOCK preserves second packed byte");
 }
 
+void testLoadBlockFourBitDxtSwizzlesOddWords() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t source = 0x1AC0U;
+    for (std::uint32_t i = 0U; i < 16U; ++i)
+        require(bus.write8(source + i, static_cast<std::uint8_t>(i + 1U)),
+                "seed packed four-bit DXT source bytes");
+
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (1ULL << 32U) | source;
+    const std::uint64_t setTile = (0x35ULL << 56U);
+    const std::uint64_t loadBlock =
+        (0x33ULL << 56U) | (124ULL << 12U) | 0x800ULL;
+    require(bus.write64(0xB60U, setImage) &&
+            bus.write64(0xB68U, setTile) &&
+            bus.write64(0xB70U, loadBlock),
+            "seed packed four-bit DXT command sequence");
+    require(bus.write32(Bus::kDpStart, 0xB60U) &&
+            bus.write32(Bus::kDpEnd, 0xB78U),
+            "publish packed four-bit DXT sequence");
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) ==
+                    RdpProcessResult::Processed,
+                "packed four-bit DXT LOAD_BLOCK sequence executes");
+
+    const std::uint8_t expected[] = {
+        1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U,
+        17U, 18U, 19U, 20U, 21U, 22U, 23U, 24U
+    };
+    std::uint8_t value = 0U;
+    for (std::uint16_t i = 0U; i < 16U; ++i)
+        require(state.tmem.readByte(i, value) && value == expected[i],
+                "four-bit DXT odd word swaps its 32-bit halves");
+}
+
 void testLoadBlockCopiesRgba32IntoSplitTmemBanks() {
     using namespace m64plus::n64;
     Bus bus;
@@ -4667,6 +4703,7 @@ int main() {
     testLoadBlockRgba32DxtWrapsBothTmemBanks();
     testLoadBlockRgba32WrapsBothTmemBanks();
     testLoadBlockCopiesPackedFourBitTexels();
+    testLoadBlockFourBitDxtSwizzlesOddWords();
     testLoadBlockCopiesRgba32IntoSplitTmemBanks();
     testLoadBlockRgba32DxtFractionalLineCarry();
     testLoadBlockRgba32DxtSwapsOddLineWords();
