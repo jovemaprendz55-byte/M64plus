@@ -546,7 +546,11 @@ bool Bus::writePiRegister(std::uint32_t address, std::uint32_t value) noexcept {
 
 bool Bus::performPiCartridgeToRdramDma(std::uint32_t lengthRegister) noexcept {
     const std::uint64_t length = static_cast<std::uint64_t>(lengthRegister) + 1U;
-    if (piCartAddr_ < kCartridgeBase || piDramAddr_ >= Rdram::kSize ||
+    // PI DMA uses an 8-byte-aligned RDRAM address, a 2-byte-aligned
+    // cartridge address, and an even transfer length.
+    if ((piDramAddr_ & 7U) != 0U || (piCartAddr_ & 1U) != 0U ||
+        (length & 1U) != 0U || piCartAddr_ < kCartridgeBase ||
+        piDramAddr_ >= Rdram::kSize ||
         static_cast<std::uint64_t>(piDramAddr_) + length > Rdram::kSize)
         return false;
     const std::uint64_t cartridgeOffset =
