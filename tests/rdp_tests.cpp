@@ -2278,6 +2278,48 @@ void testLoadBlockFourBitStartsAtOddSourceNibble() {
             "four-bit LOAD_BLOCK continues from the following source nibbles");
 }
 
+void testLoadBlockFourBitOddNibbleDxtSwizzlesOddLine() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t source = 0x1B20U;
+    const std::uint8_t sourceBytes[] = {
+        0x12U, 0x34U, 0x56U, 0x78U, 0x9AU, 0xBCU, 0xDEU, 0xF0U,
+        0x12U, 0x34U, 0x56U, 0x78U, 0x9AU, 0xBCU, 0xDEU, 0xF0U,
+        0x12U
+    };
+    for (std::uint32_t i = 0U; i < sizeof(sourceBytes); ++i)
+        require(bus.write8(source + i, sourceBytes[i]),
+                "seed odd-nibble DXT four-bit source");
+
+    // Width three and T=1 start at the low nibble of source byte one.
+    const std::uint64_t setImage =
+        (0x3DULL << 56U) | (2ULL << 32U) | source;
+    const std::uint64_t setTile = (0x35ULL << 56U);
+    const std::uint64_t loadBlock =
+        (0x33ULL << 56U) | (4ULL << 32U) | (124ULL << 12U) | 0x800ULL;
+    require(bus.write64(0xBB0U, setImage) &&
+            bus.write64(0xBB8U, setTile) &&
+            bus.write64(0xBC0U, loadBlock),
+            "seed odd-nibble DXT LOAD_BLOCK sequence");
+    require(bus.write32(Bus::kDpStart, 0xBB0U) &&
+            bus.write32(Bus::kDpEnd, 0xBC8U),
+            "publish odd-nibble DXT LOAD_BLOCK sequence");
+    for (unsigned i = 0U; i < 3U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "odd-nibble DXT LOAD_BLOCK sequence executes");
+
+    const std::uint8_t expected[] = {
+        0x45U, 0x67U, 0x89U, 0xABU, 0xCDU, 0xEFU, 0x01U, 0x23U,
+        0xCDU, 0xEFU, 0x01U, 0x23U, 0x45U, 0x67U, 0x89U, 0xABU
+    };
+    for (std::uint16_t i = 0U; i < sizeof(expected); ++i) {
+        std::uint8_t value = 0U;
+        require(state.tmem.readByte(i, value) && value == expected[i],
+                "odd-nibble source alignment combines with DXT odd-line swizzle");
+    }
+}
+
 void testLoadBlockFourBitDxtSwizzlesOddWords() {
     using namespace m64plus::n64;
     Bus bus;
@@ -4739,6 +4781,7 @@ int main() {
     testLoadBlockRgba32WrapsBothTmemBanks();
     testLoadBlockCopiesPackedFourBitTexels();
     testLoadBlockFourBitStartsAtOddSourceNibble();
+    testLoadBlockFourBitOddNibbleDxtSwizzlesOddLine();
     testLoadBlockFourBitDxtSwizzlesOddWords();
     testLoadBlockCopiesRgba32IntoSplitTmemBanks();
     testLoadBlockRgba32DxtFractionalLineCarry();
