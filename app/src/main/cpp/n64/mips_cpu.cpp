@@ -519,12 +519,25 @@ bool MipsCpu::stepMemory(Memory& memory) {
             if ((instruction & 0x7FFU) != 0U)
                 return takeException(ExceptionCode::ReservedInstruction);
             destination = rt;
-            result = signExtend32(fpr_[rd]);
+            result = signExtend32(static_cast<std::uint32_t>(fpr_[rd]));
             writeRegister = true;
         } else if (rs == 0x04U) { // MTC1: transfer the low GPR word to an FPR.
             if ((instruction & 0x7FFU) != 0U)
                 return takeException(ExceptionCode::ReservedInstruction);
-            fpr_[rd] = static_cast<std::uint32_t>(gpr_[rt]);
+            fpr_[rd] = (fpr_[rd] & 0xFFFFFFFF00000000ULL) |
+                       static_cast<std::uint32_t>(gpr_[rt]);
+        } else if (rs == 0x01U) { // DMFC1: 64-bit transfer requires FR=1.
+            if ((instruction & 0x7FFU) != 0U ||
+                (cp0_.read(Cp0::kStatus) & Cp0::kStatusFr) == 0U)
+                return takeException(ExceptionCode::ReservedInstruction);
+            destination = rt;
+            result = fpr_[rd];
+            writeRegister = true;
+        } else if (rs == 0x05U) { // DMTC1: 64-bit transfer requires FR=1.
+            if ((instruction & 0x7FFU) != 0U ||
+                (cp0_.read(Cp0::kStatus) & Cp0::kStatusFr) == 0U)
+                return takeException(ExceptionCode::ReservedInstruction);
+            fpr_[rd] = gpr_[rt];
         } else {
             return takeException(ExceptionCode::ReservedInstruction);
         }
