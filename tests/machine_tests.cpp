@@ -1866,6 +1866,33 @@ void testCpuCop1WordRegisterTransfers() {
             "MFC1 checks CU1 before accessing FPR state");
     require(((cpu.cp0().read(m64plus::n64::Cp0::kCause) >> 28U) & 3ULL) == 1ULL,
             "MFC1 CU1-disabled exception reports CE=1");
+
+    // FR=1 exposes each FPR as a full 64-bit register for DMFC1/DMTC1.
+    cpu.reset(0U);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                               m64plus::n64::Cp0::kStatusCu1 |
+                               m64plus::n64::Cp0::kStatusFr),
+            "enable CU1 and FR=1 for doubleword FPR transfers");
+    cpu.setRegister(8U, 0xFEDCBA9876543210ULL);
+    require(bus.write32(0U, cop1(5U, 8U, 6U)), "write DMTC1 instruction");
+    require(bus.write32(4U, cop1(1U, 9U, 6U)), "write DMFC1 instruction");
+    require(machine.stepCpu(), "DMTC1 transfers a full GPR doubleword into an FPR");
+    require(machine.stepCpu(), "DMFC1 transfers a full FPR doubleword into a GPR");
+    require(!cpu.hasLastException() && cpu.reg(9U) == 0xFEDCBA9876543210ULL,
+            "DMTC1 and DMFC1 preserve all 64 FPR bits");
+
+    // FR=0 does not permit the 64-bit transfer forms.
+    cpu.reset(0U);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                               m64plus::n64::Cp0::kStatusCu1),
+            "enable CU1 with FR=0");
+    require(bus.write32(0U, cop1(1U, 9U, 6U)), "write DMFC1 with FR=0");
+    require(machine.stepCpu(), "DMFC1 with FR=0 raises Reserved Instruction");
+    require(cpu.hasLastException() &&
+                cpu.lastExceptionCode() ==
+                    static_cast<std::uint8_t>(
+                        m64plus::n64::ExceptionCode::ReservedInstruction),
+            "DMFC1 is rejected when FR=0");
 }
 
 void testCpuCop1InstructionClassesHaveCorrectExceptionBehavior() {
