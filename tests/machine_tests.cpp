@@ -2877,6 +2877,10 @@ void testHleBootMapsKseg1EntryToPhysicalRdram() {
             fallthroughMachine.cpu().reg(11U) == 3U &&
             fallthroughMachine.cpu().reg(12U) == 0U,
             "KSEG1 BEQ falls through after its delay slot");
+    require(fallthroughMachine.stepCpu() &&
+            !fallthroughMachine.cpu().hasLastException() &&
+            fallthroughMachine.cpu().reg(12U) == 4U,
+            "KSEG1 fallthrough continues into the following instruction");
 }
 
 void testCartridgeHleBootInitializesRdramDmemAndCpuState() {
