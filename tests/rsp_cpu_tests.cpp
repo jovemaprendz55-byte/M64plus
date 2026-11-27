@@ -320,30 +320,21 @@ void testVectorQuantizedMultiplyAndAccumulatorRounding() {
 }
 
 
-void testReservedVzeroVectorOpcodeFamily() {
-    Bus bus;
-    RspCpu rsp;
+void testReservedVectorOpcodesFault() {
     const unsigned opcodes[] = {
         0x12U, 0x16U, 0x17U, 0x18U, 0x19U, 0x1AU, 0x1BU, 0x1CU,
         0x1EU, 0x1FU, 0x2EU, 0x2FU,
-        0x38U, 0x39U, 0x3AU, 0x3BU, 0x3CU, 0x3DU, 0x3EU
+        0x38U, 0x39U, 0x3AU, 0x3BU, 0x3CU, 0x3DU, 0x3EU, 0x3FU
     };
-    for (unsigned lane = 0; lane < 8U; ++lane) {
-        rsp.setVectorLane(1, lane, static_cast<std::uint16_t>(0x1000U + lane));
-        rsp.setVectorLane(2, lane, static_cast<std::uint16_t>(0x2000U + lane));
-    }
-    for (unsigned i = 0; i < sizeof(opcodes) / sizeof(opcodes[0]); ++i) {
-        const std::uint32_t pc = i * 8U;
-        put(bus, pc, vType(0, 2, 1, 5, opcodes[i]));
-        put(bus, pc + 4U, vType(0, 0, 0, 6, 0x1D)); // VSAR ACC_LO
-        require(rsp.step(bus), "execute reserved VZERO-family opcode");
-        for (unsigned lane = 0; lane < 8U; ++lane)
-            require(rsp.vectorLane(5, lane) == 0U,
-                    "VZERO-family opcode clears destination vector");
-        require(rsp.step(bus), "read VZERO-family ACC_LO result");
-        for (unsigned lane = 0; lane < 8U; ++lane)
-            require(rsp.vectorLane(6, lane) == 0x3000U + lane * 2U,
-                    "VZERO-family opcode stores vs+vt in ACC_LO");
+    for (unsigned opcode : opcodes) {
+        Bus bus;
+        RspCpu rsp;
+        put(bus, 0, vType(0, 2, 1, 5, opcode));
+        require(!rsp.step(bus), "reserved vector opcode reports failure");
+        require(rsp.halted() && rsp.faulted(),
+                "reserved vector opcode latches an execution fault");
+        require(rsp.instructionsExecuted() == 0U,
+                "reserved vector opcode is not counted as executed");
     }
 }
 
@@ -1263,7 +1254,7 @@ int main() {
     testRegimmBranches();
     testRegimmLinkBranches();
     testVectorArithmetic();
-    testReservedVzeroVectorOpcodeFamily();
+    testReservedVectorOpcodesFault();
     testVectorQuantizedMultiplyAndAccumulatorRounding();
     testVectorCarryAndLogic();
     testVectorAccumulatorLowAndVsar();
