@@ -97,6 +97,21 @@ void testCp0TlbRefillVectorsRespectBevAndExceptionLevel() {
     require((cp0.read(Cp0::kStatus) & (Cp0::kStatusExl | Cp0::kStatusErl)) ==
                 (Cp0::kStatusExl | Cp0::kStatusErl),
             "TLB refill while ERL is set enters EXL and preserves ERL");
+
+    cp0.reset();
+    constexpr std::uint64_t modificationFaultAddress = 0x0000000000605000ULL;
+    cp0.write(Cp0::kStatus, Cp0::kStatusErl);
+    cp0.write(Cp0::kErrorEpc, errorReturnAddress);
+    vector = cp0.raiseException(ExceptionCode::TlbModification,
+                                0xFFFFFFFF80006000ULL, false,
+                                modificationFaultAddress, true);
+    require(vector == 0xFFFFFFFF80000180ULL,
+            "TLB modification while ERL is set uses the general exception vector");
+    require(cp0.read(Cp0::kEpc) == 0xFFFFFFFF80006000ULL &&
+                cp0.read(Cp0::kErrorEpc) == errorReturnAddress,
+            "TLB modification while ERL is set records EPC and preserves ErrorEPC");
+    require(cp0.read(Cp0::kBadVAddr) == modificationFaultAddress,
+            "TLB modification while ERL is set records BadVAddr");
 }
 
 void testCp0EffectivePrivilegeControls64BitMode() {
