@@ -2810,6 +2810,11 @@ void testHleBootMapsKseg1EntryToPhysicalRdram() {
     rom[0x1001U] = 0x08U;
     rom[0x1002U] = 0x12U;
     rom[0x1003U] = 0x34U;
+    // addiu t1, t0, 1: verify sequential execution remains on KSEG1.
+    rom[0x1004U] = 0x25U;
+    rom[0x1005U] = 0x09U;
+    rom[0x1006U] = 0x00U;
+    rom[0x1007U] = 0x01U;
     require(machine.bus().loadCartridge(rom.data(), rom.size()),
             "load cartridge with KSEG1 entry point");
     require(machine.bootCartridgeHle(), "HLE accepts a valid KSEG1 entry point");
@@ -2820,9 +2825,13 @@ void testHleBootMapsKseg1EntryToPhysicalRdram() {
     require(machine.cpu().pc() == 0xFFFFFFFFA0000400ULL,
             "HLE retains the canonical KSEG1 virtual entry point");
     require(machine.stepCpu() && !machine.cpu().hasLastException(),
-            "HLE-booted CPU fetches and executes through KSEG1");
+            "HLE-booted CPU fetches and executes its first instruction through KSEG1");
     require(machine.cpu().reg(8U) == 0x1234U,
             "KSEG1 boot entry executes its first cartridge instruction");
+    require(machine.stepCpu() && !machine.cpu().hasLastException(),
+            "KSEG1 CPU continues fetching the next sequential cartridge instruction");
+    require(machine.cpu().reg(9U) == 0x1235U,
+            "KSEG1 sequential execution updates the second destination register");
 }
 
 void testCartridgeHleBootInitializesRdramDmemAndCpuState() {
