@@ -2102,3 +2102,41 @@ A inspeção de `mips_cpu.cpp`, `mips_cpu.h` e `cp0.cpp` confirma que o núcleo 
 5. Preservar a semântica já testada de exceções e branch delay slots enquanto o mecanismo temporal é desenvolvido; uma exceção não deve ser contabilizada como instrução aposentada.
 
 **Status:** auditoria do executor concluída. Foi confirmado que o núcleo ainda não possui temporização de pipeline e que CP0 Count/Random avançam por chamada funcional. Nenhum comportamento executável foi alterado nesta etapa; a próxima mudança funcional deve introduzir uma interface temporal testável antes de conectar o agendador aos dispositivos.
+
+
+### 18.56 Dependências HI/LO e restrições do VR4300 (27/11/2026)
+
+A consulta ao capítulo 16 do manual NEC VR4300 identificou uma regra de dependência que ainda não está representada pelo executor funcional.
+
+**Regra de leitura/escrita HI/LO**
+
+- Para MULT, MULTU, DIV, DIVU, DMULT, DMULTU, DDIV e DDIVU, o manual alerta que resultados de MFHI/MFLO podem ser indefinidos quando essas instruções aparecem imediatamente antes da operação multi-ciclo.
+- A regra descrita é inserir pelo menos duas outras instruções entre MFHI/MFLO e a operação MULT/DIV correspondente. O texto aparece nas descrições individuais das instruções no capítulo 16.
+- As tabelas de operação também mostram HI/LO indefinidos em T−2 e T−1 para algumas operações de 64 bits, antes de o resultado ser válido em T.
+- Isso não é apenas uma questão de atrasar o agendador: o núcleo precisa representar a disponibilidade temporal dos registradores especiais HI/LO ou documentar claramente que ainda não modela esse hazard.
+
+**Restrições de modo**
+
+- O manual declara DMULT/DMULTU e DDIV/DDIVU definidos em modo de 64 bits e em modo Kernel de 32 bits.
+- Executar essas operações em User ou Supervisor de 32 bits deve gerar Reserved Instruction.
+- O executor atual decodifica e calcula essas operações sem uma verificação explícita dessas restrições de modo. A implementação de modo/status ainda precisa ser comparada integralmente com os bits de modo VR4300 antes de corrigir esse ponto.
+
+**Estado atual observado**
+
+- O código calcula HI/LO imediatamente dentro do mesmo `stepMemory()`.
+- MFHI/MFLO leem os valores atuais sem verificar se uma operação anterior ainda está em andamento.
+- Não existe contador de instruções intervenientes, disponibilidade futura de HI/LO ou estado de operação multi-ciclo.
+- Portanto, a semântica aritmética básica existe, mas o comportamento temporal e algumas restrições de modo ainda não estão completos.
+
+**Decisão técnica**
+
+1. Não simular os dois ciclos de dependência apenas com um atraso fixo no host.
+2. Na futura camada temporal, modelar a validade de HI/LO em PCycles e testar sequências MFHI/MFLO próximas de cada classe MULT/DIV.
+3. Antes de alterar a decodificação de DMULT/DDIV, completar a auditoria dos bits KX/SX/UX e do modo efetivo do VR4300 para evitar exceções incorretas.
+4. Manter os resultados indefinidos como comportamento não garantido; não criar um valor determinístico artificial e apresentá-lo como especificação do hardware.
+
+**Fonte primária**
+
+- NEC VR4300 User's Manual, U10504EJ7V0UM00, capítulo 16: descrições de DIV, DIVU, DMULT, DMULTU, DDIV e DDIVU: https://hack64.net/docs/VR43XX.pdf
+
+**Status:** hazard HI/LO e restrições de modo identificados na documentação do fabricante. Nenhuma mudança executável foi feita nesta etapa; a correção exige primeiro fechar o modelo de modo/status e o estado temporal de HI/LO.
