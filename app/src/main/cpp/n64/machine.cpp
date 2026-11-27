@@ -89,6 +89,7 @@ void N64Machine::reset() noexcept {
     cpu_.reset();
     rsp_.reset();
     rdp_ = RdpSyncState{};
+    eventScheduler_.reset();
 }
 
 bool N64Machine::stepCpu() noexcept {
@@ -156,5 +157,7 @@ RspCpu& N64Machine::rsp() noexcept { return rsp_; }
 const RspCpu& N64Machine::rsp() const noexcept { return rsp_; }
 RdpSyncState& N64Machine::rdp() noexcept { return rdp_; }
 const RdpSyncState& N64Machine::rdp() const noexcept { return rdp_; }
+EventScheduler& N64Machine::eventScheduler() noexcept { return eventScheduler_; }
+const EventScheduler& N64Machine::eventScheduler() const noexcept { return eventScheduler_; }
 
 } // namespace m64plus::n64
