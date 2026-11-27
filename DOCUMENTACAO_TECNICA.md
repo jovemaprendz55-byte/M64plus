@@ -1969,3 +1969,47 @@ Em `MainActivity.java`, o worker `M64plus-CPU` executa o seguinte ciclo:
 Não foi alterado o loop Android nem introduzido um contador de ciclos fictício. O primeiro componente de código a implementar deverá ser um agendador de eventos determinístico, independente dos budgets de CPU/RSP/RDP, acompanhado por testes unitários. A integração de DMA virá depois, usando esse contrato.
 
 **Status:** análise do worker Android e contrato de arquitetura documentados; nenhuma mudança funcional no agendador.
+
+
+### 18.52 Domínios de relógio N64 e escolha de uma base inteira comum (27/11/2026)
+
+**Fatos de relógio documentados**
+
+- O VR4300/CPU opera a 93,75 MHz.
+- O RCP, que contém SP/RSP e DP/RDP, opera a 62,5 MHz.
+- A relação nominal CPU:RCP é 3:2.
+- O registrador CP0 Count avança a metade da frequência PClock do VR4300: 46,875 MHz.
+- O guia do RSP informa taxa máxima de DMA de 8 bytes por ciclo RSP e overhead de configuração de 6 a 12 clocks. O mesmo guia descreve DMA duplamente bufferizado: uma requisição ativa e uma pendente; FULL indica que ambas as posições estão ocupadas.
+
+**Derivação de uma unidade inteira comum**
+
+Uma base de 187,5 milhões de ticks por segundo é o menor múltiplo inteiro comum dessas três frequências:
+
+- CPU: 93,75 MHz = um ciclo a cada 2 ticks da base.
+- RCP/RSP: 62,5 MHz = um ciclo a cada 3 ticks.
+- CP0 Count: 46,875 MHz = um incremento a cada 4 ticks.
+
+Essa base é uma escolha de representação temporal para o núcleo, derivada das frequências e da relação 3:2 documentadas. Ela não afirma que cada instrução MIPS consome um ciclo, nem resolve por si só latências de memória, contenção de barramento, fases relativas de clock ou custos de instruções multi-ciclo.
+
+**Consequência para a implementação**
+
+O tipo inteiro de tempo do `EventScheduler` pode representar essa base sem ponto flutuante. Entretanto, o agendador ainda não deve avançar automaticamente um ou dois ticks por instrução aposentada: o executor MIPS atual não fornece custo de ciclo por instrução e ainda não modela todos os stalls/cache/barramento.
+
+Para o SP DMA, o teto de 8 bytes por ciclo RSP e o overhead de 6–12 clocks fornecem limites documentados para uma futura estimativa de duração, não uma latência universal exata. A implementação deverá considerar o arredondamento para blocos de 8 bytes, filas ativa/pendente, acesso concorrente à DMEM/IMEM e regras de arbitragem antes de afirmar tempos exatos.
+
+**Decisão desta etapa**
+
+1. Registrar 187,5 MHz como candidato de unidade-base inteira para o agendador.
+2. Preservar a distinção entre ciclo CPU, ciclo RCP/RSP e incremento CP0 Count.
+3. Não alterar ainda o avanço do relógio por instrução e não converter o DMA síncrono em assíncrono com uma latência fixa.
+4. Antes da integração temporal, instrumentar o executor para reportar custos de ciclo documentados e definir o modelo de arbitragem de RDRAM/RCP.
+5. Usar testes de razão de divisores (2:3:4), overflow, ordenação e eventos simultâneos antes de migrar dispositivos.
+
+**Fontes consultadas**
+
+- Nintendo, Technical Details — CPU 93,75 MHz e RCP 62,5 MHz: https://www.nintendo.com/en-gb/Hardware/Nintendo-History/Nintendo-64/Technical-Details/Technical-Details-627050.html
+- NEC VR4300 User's Manual, U10504EJ7V0UM — registradores CP0 e frequência de Count: https://n64dev.org/p/U10504EJ7V0UMJ1.pdf
+- SGI/Nintendo, Nintendo 64 RSP Programmer's Guide, seção DMA — alinhamento, taxa máxima, overhead e double buffering: https://ultra64.ca/files/documentation/silicon-graphics/SGI_Nintendo_64_RSP_Programmers_Guide.pdf
+- Nintendo 64 Programming Manual, Hardware Overview — CPU, RCP e DMA engines: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro09/09-02.html
+
+**Status:** análise documental e derivação da base temporal concluídas; nenhuma temporização aproximada foi introduzida no código executável.
