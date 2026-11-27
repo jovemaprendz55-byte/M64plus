@@ -1897,13 +1897,18 @@ void testCpuCop1InstructionClassesHaveCorrectExceptionBehavior() {
         require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
                                    m64plus::n64::Cp0::kStatusCu1),
                 "enable CU1 for COP1 instruction class test");
-        require(machine.stepCpu(),
-                "unimplemented COP1 class with CU1 enabled raises an exception");
-        require(cpu.hasLastException() &&
-                    cpu.lastExceptionCode() ==
-                        static_cast<std::uint8_t>(
-                            m64plus::n64::ExceptionCode::ReservedInstruction),
-                "unimplemented COP1 instruction classes raise Reserved Instruction when CU1 is set");
+        const bool stepResult = machine.stepCpu();
+        if (format == 0U || format == 4U) {
+            require(stepResult && !cpu.hasLastException(),
+                    "implemented MFC1/MTC1 transfers execute when CU1 is set");
+        } else {
+            require(stepResult &&
+                        cpu.hasLastException() &&
+                        cpu.lastExceptionCode() ==
+                            static_cast<std::uint8_t>(
+                                m64plus::n64::ExceptionCode::ReservedInstruction),
+                    "unimplemented COP1 instruction classes raise Reserved Instruction when CU1 is set");
+        }
     }
 }
 
