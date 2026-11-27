@@ -2511,6 +2511,24 @@ void testCp0RandomCyclesWithinWiredBoundary() {
 }
 
 
+void testCp0CountAndRandomCanAdvanceIndependently() {
+    m64plus::n64::Cp0 cp0;
+    require(cp0.write(m64plus::n64::Cp0::kCount, 10U), "initialize Count");
+    require(cp0.write(m64plus::n64::Cp0::kCompare, 11U), "set Compare");
+    cp0.tickRandom();
+    require(cp0.read(m64plus::n64::Cp0::kCount) == 10U,
+            "Random-only tick leaves Count unchanged");
+    require(cp0.read(m64plus::n64::Cp0::kRandom) == 30U,
+            "Random-only tick advances Random");
+    cp0.tickCount();
+    require(cp0.read(m64plus::n64::Cp0::kCount) == 11U,
+            "Count-only tick advances Count");
+    require((cp0.read(m64plus::n64::Cp0::kCause) & (1ULL << 15U)) != 0,
+            "Count-only tick raises timer pending at Compare");
+    require(cp0.read(m64plus::n64::Cp0::kRandom) == 30U,
+            "Count-only tick leaves Random unchanged");
+}
+
 void testCp0ErrorLevelMasksInterrupts() {
     m64plus::n64::Cp0 cp0;
     cp0.setExternalInterrupt(true);
@@ -3542,6 +3560,7 @@ int main() {
     testMachineResetClearsCpuAndMiInterruptState();
     testTlbPairedPagesAsidGlobalAndPermissions();
     testCp0RandomCyclesWithinWiredBoundary();
+    testCp0CountAndRandomCanAdvanceIndependently();
     testCp0ErrorLevelMasksInterrupts();
     testCp0CountCompareTimerInterrupt();
     testMiExternalInterruptReachesMainCpu();
