@@ -3576,6 +3576,7 @@ void testEventSchedulerOrdersCancelsAndAdvancesDeterministically() {
     std::vector<int> order;
     const auto later = scheduler.scheduleAt(12U, [&order] { order.push_back(3); });
     require(later != 0U, "schedule event at later deadline");
+    require(!scheduler.cancel(999U), "cannot cancel an unknown event identifier");
     require(scheduler.scheduleAt(5U, [&order] { order.push_back(1); }) != 0U,
             "schedule first event at shared deadline");
     require(scheduler.scheduleAt(5U, [&order] { order.push_back(2); }) != 0U,
@@ -3591,6 +3592,7 @@ void testEventSchedulerOrdersCancelsAndAdvancesDeterministically() {
     require(scheduler.advanceTo(12U), "advance across cancelled deadline");
     require(order.size() == 2U && !scheduler.hasPendingEvents(),
             "cancelled event is not executed and queue becomes empty");
+    require(!scheduler.cancel(later), "cannot cancel an event after its deadline");
 
     require(scheduler.scheduleAt(13U, [&scheduler, &order] {
         order.push_back(4);
