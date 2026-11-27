@@ -40,6 +40,10 @@ public:
     void reset() noexcept;
     std::uint64_t read(unsigned index) const noexcept;
     bool write(unsigned index, std::uint64_t value) noexcept;
+    // Advance the architectural timers independently for future cycle scheduling.
+    void tickCount() noexcept;
+    void tickRandom() noexcept;
+    // Compatibility helper: one legacy CPU-step tick advances both counters.
     void tick() noexcept;
     void setExternalInterrupt(bool asserted) noexcept;
     bool interruptRequested() const noexcept;
