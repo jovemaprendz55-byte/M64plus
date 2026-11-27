@@ -1924,3 +1924,48 @@ Não atribuir duração em ciclos ao DMA nesta etapa. Primeiro é necessário in
 - Implementação de referência Mupen64Plus RSP CXD4, `su.c`: https://github.com/libretro/parallel-n64/blob/master/mupen64plus-rsp-cxd4/su.c
 
 **Status:** auditoria documental concluída. Nenhum ciclo de hardware foi presumido e nenhuma implementação de DMA assíncrono foi feita nesta etapa.
+
+
+### 18.51 Fronteira atual de execução Android e contrato proposto para o agendador (27/11/2026)
+
+**Fluxo efetivamente observado**
+
+Em `MainActivity.java`, o worker `M64plus-CPU` executa o seguinte ciclo:
+1. Adquire `nativeMachineLock`.
+2. Executa até 2048 passos da CPU MIPS por chamada JNI.
+3. Somente se a CPU aposentou pelo menos uma instrução, executa até 1024 passos RSP e até 256 comandos RDP.
+4. Lê PC e informações de exceção enquanto ainda mantém o lock.
+5. Libera o lock e, se a CPU avançou, dorme 1 ms antes da próxima fatia.
+
+**Consequências comprovadas pelo fluxo**
+
+- Os valores 2048, 1024 e 256 são limites de trabalho por chamada, não quantidades equivalentes de ciclos do hardware.
+- RSP e RDP não recebem oportunidade de execução numa iteração em que a CPU não aposentou instrução.
+- O atraso de 1 ms é uma pausa do worker Android, não um avanço do relógio emulado.
+- O lock serializa as chamadas JNI observadas nesse trecho, mas não estabelece uma relação temporal entre CPU, RSP, RDP e DMA.
+- O RDP consome comandos por orçamento e pode consumir comandos ainda não suportados; consumo de comando não significa renderização concluída.
+- O retorno de uma fatia não informa, por si só, quanto tempo de hardware transcorreu nem quando um dispositivo deveria sinalizar conclusão.
+
+**Contrato mínimo recomendado antes de introduzir temporização**
+
+1. Separar explicitamente “trabalho executado” de “tempo de hardware avançado”; não renomear orçamento de instruções como ciclos.
+2. Fazer o núcleo, e não o worker Java, ser o proprietário da ordem dos eventos emulados.
+3. Definir uma unidade interna de tempo somente depois de documentar a relação de relógios e divisores dos dispositivos envolvidos.
+4. Permitir que dispositivos registrem eventos futuros (por exemplo, conclusão de DMA) sem executar a transferência inteira no momento da escrita MMIO.
+5. Em cada avanço do relógio, processar eventos vencidos numa ordem determinística e atualizar interrupções/registradores antes de a CPU observar o próximo estado.
+6. Manter limites de trabalho para evitar que uma chamada JNI monopolize a thread; esses limites são salvaguardas de execução do host, não temporização do N64.
+7. Garantir progresso de dispositivos mesmo quando a CPU estiver parada, em exceção ou aguardando, conforme as regras de hardware documentadas.
+
+**Testes que devem preceder a migração**
+
+- Um evento futuro não dispara antes do prazo e dispara exatamente uma vez quando o relógio o alcança.
+- Dois eventos com o mesmo prazo seguem uma ordem de prioridade documentada e reproduzível.
+- Um evento agendado pode ser cancelado/resetado sem reaparecer após reset.
+- O avanço do relógio processa todos os eventos vencidos sem depender de uma instrução MIPS aposentada.
+- Limites de trabalho do host não alteram o resultado determinístico da sequência de eventos.
+
+**Decisão desta etapa**
+
+Não foi alterado o loop Android nem introduzido um contador de ciclos fictício. O primeiro componente de código a implementar deverá ser um agendador de eventos determinístico, independente dos budgets de CPU/RSP/RDP, acompanhado por testes unitários. A integração de DMA virá depois, usando esse contrato.
+
+**Status:** análise do worker Android e contrato de arquitetura documentados; nenhuma mudança funcional no agendador.
