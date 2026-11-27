@@ -145,6 +145,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
         case 0x18: case 0x19: // DADDI / DADDIU
         case 0x1A: case 0x1B: // LDL / LDR
         case 0x2C: case 0x2D: // SDL / SDR
+        case 0x27: // LWU
         case 0x34: case 0x37: // LLD / LD
         case 0x3C: case 0x3F: // SCD / SD
             return true;
