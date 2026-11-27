@@ -2798,6 +2798,27 @@ void testHleBootAcceptsPayloadEndingExactlyAtRdramBoundary() {
             "HLE preserves the KSEG0 virtual entry point while copying to physical RDRAM");
 }
 
+void testHleBootMapsKseg1EntryToPhysicalRdram() {
+    N64Machine machine;
+    std::vector<std::uint8_t> rom(0x1008U, 0U);
+    rom[0] = 0x80U; rom[1] = 0x37U; rom[2] = 0x12U; rom[3] = 0x40U;
+    // KSEG1 entry 0xA0000400 aliases physical RDRAM address 0x400.
+    rom[8] = 0xA0U; rom[9] = 0x00U; rom[10] = 0x04U; rom[11] = 0x00U;
+    rom[0x1000U] = 0xDEU;
+    rom[0x1001U] = 0xADU;
+    rom[0x1002U] = 0xBEU;
+    rom[0x1003U] = 0xEFU;
+    require(machine.bus().loadCartridge(rom.data(), rom.size()),
+            "load cartridge with KSEG1 entry point");
+    require(machine.bootCartridgeHle(), "HLE accepts a valid KSEG1 entry point");
+
+    std::uint32_t value = 0U;
+    require(machine.bus().rdram().read32(0x400U, value) && value == 0xDEADBEEFU,
+            "KSEG1 entry payload is copied to its physical RDRAM alias");
+    require(machine.cpu().pc() == 0xFFFFFFFFA0000400ULL,
+            "HLE retains the canonical KSEG1 virtual entry point");
+}
+
 void testCartridgeHleBootInitializesRdramDmemAndCpuState() {
     N64Machine machine;
     std::vector<std::uint8_t> rom(0x1008U, 0U);
@@ -4145,6 +4166,7 @@ int main() {
     testHleBootRejectsInvalidEntryWithoutResettingMachine();
     testHleBootRejectsPayloadBeyondRdramWithoutResettingMachine();
     testHleBootAcceptsPayloadEndingExactlyAtRdramBoundary();
+    testHleBootMapsKseg1EntryToPhysicalRdram();
     testCartridgeHleBootInitializesRdramDmemAndCpuState();
     testHleBootDetectsCicAndPalRegionFromRom();
     testMachineDoesNotRetryUnsupportedRspInstruction();
