@@ -140,7 +140,7 @@ bool MipsCpu::stepMemory(Memory& memory) {
                                    std::uint64_t difference) {
         return (((left ^ right) & (left ^ difference)) >> 63U) != 0U;
     };
-    const auto requires64BitMode = [&]() {
+    const auto requiresMips3InstructionMode = [&]() {
         switch (opcode) {
         case 0x18: case 0x19: // DADDI / DADDIU
         case 0x1A: case 0x1B: // LDL / LDR
@@ -164,7 +164,8 @@ bool MipsCpu::stepMemory(Memory& memory) {
             return false;
         }
     };
-    if (requires64BitMode() && !cp0_.supports64BitMode())
+    if (requiresMips3InstructionMode() &&
+        !cp0_.kernelMode() && !cp0_.supports64BitMode())
         return takeException(ExceptionCode::ReservedInstruction);
     switch (opcode) {
     case 0x00:
