@@ -519,6 +519,41 @@ void testVectorMultiplyUnsignedLowSignedResults() {
     }
 }
 
+void testVectorUnsignedMultiplyAccumulateSaturationBoundaries() {
+    {
+        Bus bus;
+        RspCpu rsp;
+        rsp.setVectorLane(1, 0, 0x7FFFU);
+        rsp.setVectorLane(2, 0, 0x7FFFU);
+        put(bus, 0, vType(0, 2, 1, 3, 0x07)); // VMUDH: positive value above signed 32-bit range after scaling.
+        put(bus, 4, vType(0, 0, 0, 4, 0x0C)); // VMADL adds zero and clamps the 48-bit accumulator.
+        put(bus, 8, vType(0, 0, 0, 5, 0x0E)); // VMADN uses the same unsigned clamp path.
+        require(rsp.step(bus), "prepare positive overflowing accumulator with VMUDH");
+        require(rsp.step(bus), "execute VMADL on positive overflowing accumulator");
+        require(rsp.vectorLane(4, 0) == 0xFFFFU,
+                "VMADL saturates positive accumulator overflow to 0xFFFF");
+        require(rsp.step(bus), "execute VMADN on positive overflowing accumulator");
+        require(rsp.vectorLane(5, 0) == 0xFFFFU,
+                "VMADN saturates positive accumulator overflow to 0xFFFF");
+    }
+    {
+        Bus bus;
+        RspCpu rsp;
+        rsp.setVectorLane(1, 0, 0x8000U); // -32768
+        rsp.setVectorLane(2, 0, 0x7FFFU); // +32767
+        put(bus, 0, vType(0, 2, 1, 3, 0x07)); // VMUDH: negative value below signed 32-bit range after scaling.
+        put(bus, 4, vType(0, 0, 0, 4, 0x0C)); // VMADL adds zero and clamps the 48-bit accumulator.
+        put(bus, 8, vType(0, 0, 0, 5, 0x0E)); // VMADN uses the same unsigned clamp path.
+        require(rsp.step(bus), "prepare negative overflowing accumulator with VMUDH");
+        require(rsp.step(bus), "execute VMADL on negative overflowing accumulator");
+        require(rsp.vectorLane(4, 0) == 0U,
+                "VMADL saturates negative accumulator overflow to zero");
+        require(rsp.step(bus), "execute VMADN on negative overflowing accumulator");
+        require(rsp.vectorLane(5, 0) == 0U,
+                "VMADN saturates negative accumulator overflow to zero");
+    }
+}
+
 void testVectorMultiplyDoubleAccumulate() {
     {
         Bus bus; RspCpu rsp;
@@ -1288,6 +1323,7 @@ int main() {
     testVectorMultiplyAccumulateUnsigned();
     testVectorMultiplyDoublePrecision();
     testVectorMultiplyUnsignedLowSignedResults();
+    testVectorUnsignedMultiplyAccumulateSaturationBoundaries();
     testVectorMultiplyDoubleAccumulate();
     testVectorComparisonsAndMerge();
     testVectorClipHigh();
