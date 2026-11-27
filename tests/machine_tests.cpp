@@ -3583,6 +3583,12 @@ void testEventSchedulerOrdersCancelsAndAdvancesDeterministically() {
             "schedule second event at shared deadline");
     require(scheduler.cancel(later), "cancel pending event");
     require(!scheduler.cancel(later), "cancellation is accepted only once");
+    m64plus::n64::EventScheduler cancelledOnly;
+    const auto cancelledId = cancelledOnly.scheduleAt(99U, [] {});
+    require(cancelledOnly.cancel(cancelledId),
+            "cancel the only scheduled event");
+    require(!cancelledOnly.hasPendingEvents(),
+            "cancelled events are excluded from pending event state");
     require(scheduler.advanceTo(5U), "advance scheduler to first deadline");
     require(order.size() == 2U && order[0] == 1 && order[1] == 2,
             "same-deadline events execute once in insertion order");
