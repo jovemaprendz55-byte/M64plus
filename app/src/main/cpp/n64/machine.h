@@ -12,8 +12,9 @@
 namespace m64plus::n64 {
 
 // Shared machine state for the main MIPS CPU and the RSP.
-// Scheduling is instruction-budget based for now; hardware cycle timing,
-// cartridge boot, and RDP execution are not implemented yet.
+// Execution is bounded by instruction/command budgets. Cartridge startup uses
+// an HLE handoff profile, and the RDP command processor handles a limited subset;
+// cycle-accurate scheduling and complete device emulation are still pending.
 class N64Machine final {
 public:
     N64Machine();
