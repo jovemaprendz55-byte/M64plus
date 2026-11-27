@@ -71,31 +71,41 @@ void testCp0EffectivePrivilegeControls64BitMode() {
             "reserved KSU encoding does not grant a valid 64-bit mode");
 }
 
-void testCpuRejects64BitInstructionWhenKernelKxIsDisabled() {
+void testCpuMips3InstructionModeRestrictions() {
     N64Machine machine;
     Bus& bus = machine.bus();
-    constexpr std::uint32_t daddi = 0x61090001U; // DADDIU t1,t0,1
-    require(bus.write32(0U, daddi), "write DADDIU mode-check instruction");
+    constexpr std::uint32_t daddi = 0x61090001U; // DADDI t1,t0,1
+    require(bus.write32(0U, daddi), "write DADDI mode-check instruction");
 
     auto& cpu = machine.cpu();
     cpu.reset(0xFFFFFFFF80000000ULL);
     cpu.setRegister(8U, 0x123456789ABCDEF0ULL);
-    require(machine.stepCpu(), "32-bit Kernel mode handles DADDIU as Reserved Instruction");
-    require(cpu.hasLastException() && cpu.lastExceptionCode() == 10U,
-            "DADDIU raises Reserved Instruction when Kernel KX is clear");
-    require(cpu.reg(9U) == 0U,
-            "rejected DADDIU does not modify its destination register");
-
-    cpu.reset(0xFFFFFFFF80000000ULL);
-    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
-                               m64plus::n64::Cp0::kStatusKx),
-            "enable Kernel 64-bit mode before retrying DADDIU");
-    cpu.setRegister(8U, 0x123456789ABCDEF0ULL);
-    require(machine.stepCpu(), "64-bit Kernel mode executes DADDIU");
+    require(machine.stepCpu(), "32-bit Kernel mode executes MIPS III DADDI");
     require(!cpu.hasLastException() &&
             cpu.reg(9U) == 0x123456789ABCDEF1ULL,
-            "DADDIU executes and preserves the full 64-bit result when KX is enabled");
+            "Kernel mode permits MIPS III instructions even when KX is clear");
+
+    cpu.reset(0U);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 2ULL << 3U),
+            "select 32-bit User mode with UX clear");
+    cpu.setRegister(8U, 0x123456789ABCDEF0ULL);
+    require(machine.stepCpu(), "32-bit User mode handles DADDI as Reserved Instruction");
+    require(cpu.hasLastException() && cpu.lastExceptionCode() == 10U,
+            "DADDI raises Reserved Instruction in 32-bit User mode");
+    require(cpu.reg(9U) == 0U,
+            "rejected User-mode DADDI does not modify its destination register");
+
+    cpu.reset(0U);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                               (2ULL << 3U) | m64plus::n64::Cp0::kStatusUx),
+            "enable 64-bit User mode with UX");
+    cpu.setRegister(8U, 0x123456789ABCDEF0ULL);
+    require(machine.stepCpu(), "64-bit User mode executes DADDI");
+    require(!cpu.hasLastException() &&
+            cpu.reg(9U) == 0x123456789ABCDEF1ULL,
+            "User mode executes MIPS III DADDI when UX is enabled");
 }
+
 
 void testN64ClockTimebaseUsesExactIntegerRatios() {
     using namespace m64plus::n64;
@@ -3777,7 +3787,7 @@ void testEventSchedulerOrdersCancelsAndAdvancesDeterministically() {
 
 int main() {
     testCp0EffectivePrivilegeControls64BitMode();
-    testCpuRejects64BitInstructionWhenKernelKxIsDisabled();
+    testCpuMips3InstructionModeRestrictions();
     testN64ClockTimebaseUsesExactIntegerRatios();
     testMachineOwnsAndResetsEventScheduler();
     testEventSchedulerOrdersCancelsAndAdvancesDeterministically();
