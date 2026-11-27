@@ -380,6 +380,44 @@ void testOutOfRangeIsRejectedBeforeCopy() {
     require(spAddress == 0x80U, "failed DMA does not advance SP address");
 }
 
+void testMultirowDmaRejectsBeforeAnyRowIsCopied() {
+    Bus bus;
+    constexpr std::uint32_t spStart = 0x80U;
+    const std::uint32_t dramStart =
+        static_cast<std::uint32_t>(m64plus::n64::Rdram::kSize - 8U);
+
+    for (std::uint32_t i = 0U; i < 16U; ++i) {
+        require(bus.write8(Bus::kSpDmemBase + spStart + i, 0xCCU),
+                "seed SP destination before rejected multirow DMA");
+    }
+    for (std::uint32_t i = 0U; i < 8U; ++i) {
+        require(bus.rdram().write8(dramStart + i, static_cast<std::uint8_t>(0x40U + i)),
+                "seed final valid RDRAM row");
+    }
+
+    require(bus.write32(Bus::kSpMemAddr, spStart),
+            "set SP address for rejected multirow DMA");
+    require(bus.write32(Bus::kSpDramAddr, dramStart),
+            "set DRAM address for rejected multirow DMA");
+    // The first 8-byte row is valid, but the second begins exactly past RDRAM.
+    require(!bus.write32(Bus::kSpReadLength, 0x00001007U),
+            "reject multirow DMA when a later row exceeds RDRAM");
+
+    for (std::uint32_t i = 0U; i < 16U; ++i) {
+        std::uint8_t actual = 0U;
+        require(bus.read8(Bus::kSpDmemBase + spStart + i, actual),
+                "read SP destination after rejected multirow DMA");
+        require(actual == 0xCCU,
+                "rejected multirow DMA copies none of its earlier valid rows");
+    }
+
+    std::uint32_t address = 0U;
+    require(bus.read32(Bus::kSpMemAddr, address) && address == spStart,
+            "rejected multirow DMA preserves SP address");
+    require(bus.read32(Bus::kSpDramAddr, address) && address == dramStart,
+            "rejected multirow DMA preserves DRAM address");
+}
+
 void testPiCartridgeToRdramDmaAndInterrupt() {
     Bus bus;
     std::uint8_t rom[72]{};
@@ -558,6 +596,7 @@ int main() {
     testRowsAndSkip();
     testImemBankAndWrapping();
     testOutOfRangeIsRejectedBeforeCopy();
+    testMultirowDmaRejectsBeforeAnyRowIsCopied();
     testSpStatusCommandBits();
     std::cout << "All SP DMA host tests passed.\n";
     return 0;
