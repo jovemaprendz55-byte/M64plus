@@ -2511,6 +2511,24 @@ void testCp0RandomCyclesWithinWiredBoundary() {
 }
 
 
+void testCpuExceptionAdvancesCp0TimersWithoutRetiringInstruction() {
+    N64Machine machine;
+    require(machine.bus().write32(0U, 0x7000003FU),
+            "write reserved instruction for CP0 timer exception test");
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kCount, 40U),
+            "initialize Count before exception");
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kCompare, 100U),
+            "set Compare away from exception test Count");
+
+    require(machine.stepCpu(), "CPU handles reserved instruction exception");
+    require(machine.cpu().instructionsExecuted() == 0U,
+            "exception does not retire an instruction");
+    require(machine.cpu().cp0().read(m64plus::n64::Cp0::kCount) == 41U,
+            "exception advances CP0 Count exactly once");
+    require(machine.cpu().cp0().read(m64plus::n64::Cp0::kRandom) == 30U,
+            "legacy exception tick advances CP0 Random exactly once");
+}
+
 void testCp0CountAndRandomCanAdvanceIndependently() {
     m64plus::n64::Cp0 cp0;
     require(cp0.write(m64plus::n64::Cp0::kCount, 10U), "initialize Count");
@@ -3560,6 +3578,7 @@ int main() {
     testMachineResetClearsCpuAndMiInterruptState();
     testTlbPairedPagesAsidGlobalAndPermissions();
     testCp0RandomCyclesWithinWiredBoundary();
+    testCpuExceptionAdvancesCp0TimersWithoutRetiringInstruction();
     testCp0CountAndRandomCanAdvanceIndependently();
     testCp0ErrorLevelMasksInterrupts();
     testCp0CountCompareTimerInterrupt();
