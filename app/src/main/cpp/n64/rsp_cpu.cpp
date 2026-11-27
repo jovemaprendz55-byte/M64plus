@@ -177,25 +177,6 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
         }
         return true;
     }
-    const bool vzeroOpcode = function == 0x12U ||
-        (function >= 0x16U && function <= 0x1CU) ||
-        function == 0x1EU || function == 0x1FU ||
-        function == 0x2EU || function == 0x2FU ||
-        (function >= 0x38U && function <= 0x3EU);
-    if (vzeroOpcode) {
-        std::array<std::uint16_t, 8> left{};
-        std::array<std::uint16_t, 8> right{};
-        for (unsigned lane = 0; lane < 8U; ++lane) {
-            left[lane] = vr_[vs][lane];
-            right[lane] = vr_[vt][kElementMap[element][lane]];
-        }
-        for (unsigned lane = 0; lane < 8U; ++lane) {
-            accumulator_[lane].lo = static_cast<std::uint16_t>(
-                left[lane] + right[lane]);
-            vr_[vd][lane] = 0U;
-        }
-        return true;
-    }
     if (function == 0x1DU) { // VSAR: read one 16-bit accumulator slice.
         if (element > 2U) return false;
         for (unsigned lane = 0; lane < 8U; ++lane) {
