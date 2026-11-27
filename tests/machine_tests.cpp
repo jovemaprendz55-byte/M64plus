@@ -571,6 +571,9 @@ void testCpuDoublewordMultiplyDivide() {
         require(bus.write32(i * 4U, program[i]), "load 64-bit multiply/divide program");
 
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
+        require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                                m64plus::n64::Cp0::kStatusKx),
+                "enable Kernel 64-bit mode for doubleword instruction test");
     machine.cpu().setRegister(8U, 0xFFFFFFFFFFFFFFFEULL);
     machine.cpu().setRegister(9U, 3U);
     for (unsigned i = 0; i < 3U; ++i)
@@ -581,6 +584,9 @@ void testCpuDoublewordMultiplyDivide() {
             "DMULT stores signed high 64 bits in HI");
 
     machine.cpu().reset(0xFFFFFFFF8000000CU);
+        require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                                m64plus::n64::Cp0::kStatusKx),
+                "enable Kernel 64-bit mode for doubleword instruction test");
     machine.cpu().setRegister(8U, UINT64_MAX);
     machine.cpu().setRegister(9U, 2U);
     for (unsigned i = 0; i < 3U; ++i)
@@ -591,6 +597,9 @@ void testCpuDoublewordMultiplyDivide() {
             "DMULTU stores high 64 bits of unsigned product in HI");
 
     machine.cpu().reset(0xFFFFFFFF80000018ULL);
+        require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                                m64plus::n64::Cp0::kStatusKx),
+                "enable Kernel 64-bit mode for doubleword instruction test");
     machine.cpu().setRegister(8U, UINT64_MAX - 6U); // -7
     machine.cpu().setRegister(9U, 3U);
     for (unsigned i = 0; i < 3U; ++i)
@@ -601,6 +610,9 @@ void testCpuDoublewordMultiplyDivide() {
             "DDIV stores signed remainder -1 in HI");
 
     machine.cpu().reset(0xFFFFFFFF80000024ULL);
+        require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                                m64plus::n64::Cp0::kStatusKx),
+                "enable Kernel 64-bit mode for doubleword instruction test");
     machine.cpu().setRegister(8U, UINT64_MAX);
     machine.cpu().setRegister(9U, 3U);
     for (unsigned i = 0; i < 3U; ++i)
@@ -626,6 +638,9 @@ void testCpuDoublewordMultiplyDivideEdgeCases() {
         require(bus.write32(0x1004U, readHiLo[0]), "write edge-case MFLO");
         require(bus.write32(0x1008U, readHiLo[1]), "write edge-case MFHI");
         machine.cpu().reset(0xFFFFFFFF80001000ULL);
+        require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                                m64plus::n64::Cp0::kStatusKx),
+                "enable Kernel 64-bit mode for doubleword instruction test");
         machine.cpu().setRegister(8U, left);
         machine.cpu().setRegister(9U, right);
         require(machine.stepCpu() && machine.stepCpu() && machine.stepCpu(),
@@ -1107,6 +1122,9 @@ void testCpuDoublewordLoadLinkedStoreConditional() {
         require(bus.write32(i * 4U, program[i]), "write LLD/SCD test program");
     require(bus.write64(dataAddress, initial), "initialize LLD/SCD target doubleword");
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
+        require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                                m64plus::n64::Cp0::kStatusKx),
+                "enable Kernel 64-bit mode for doubleword instruction test");
     machine.cpu().setRegister(8U, dataAddress);
     require(machine.stepCpu(), "LLD loads linked doubleword");
     require(machine.cpu().reg(9U) == initial, "LLD loads full 64-bit value");
@@ -1544,6 +1562,9 @@ void testCpuUnalignedDoublewordMemoryOperations() {
         require(bus.write64(0U, initialMemory), "initialize LDL/LDR memory");
         require(bus.write32(0x1000U, 0x68090000U | offset), "write LDL instruction");
         machine.cpu().reset(0xFFFFFFFF80001000ULL);
+        require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                                m64plus::n64::Cp0::kStatusKx),
+                "enable Kernel 64-bit mode for doubleword instruction test");
         machine.cpu().setRegister(9U, initialRegister);
         require(machine.stepCpu(), "execute LDL at each byte offset");
         require(machine.cpu().reg(9U) == expectedLdl[offset],
@@ -1551,6 +1572,9 @@ void testCpuUnalignedDoublewordMemoryOperations() {
 
         require(bus.write32(0x1000U, 0x6C090000U | offset), "write LDR instruction");
         machine.cpu().reset(0xFFFFFFFF80001000ULL);
+        require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                                m64plus::n64::Cp0::kStatusKx),
+                "enable Kernel 64-bit mode for doubleword instruction test");
         machine.cpu().setRegister(9U, initialRegister);
         require(machine.stepCpu(), "execute LDR at each byte offset");
         require(machine.cpu().reg(9U) == expectedLdr[offset],
@@ -1559,6 +1583,9 @@ void testCpuUnalignedDoublewordMemoryOperations() {
         require(bus.write64(0U, initialMemory), "reset SDL memory");
         require(bus.write32(0x1000U, 0xB0090000U | offset), "write SDL instruction");
         machine.cpu().reset(0xFFFFFFFF80001000ULL);
+        require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                                m64plus::n64::Cp0::kStatusKx),
+                "enable Kernel 64-bit mode for doubleword instruction test");
         machine.cpu().setRegister(9U, initialRegister);
         require(machine.stepCpu(), "execute SDL at each byte offset");
         require(bus.read64(0U, loaded) && loaded == expectedSdl[offset],
@@ -1567,6 +1594,9 @@ void testCpuUnalignedDoublewordMemoryOperations() {
         require(bus.write64(0U, initialMemory), "reset SDR memory");
         require(bus.write32(0x1000U, 0xB4090000U | offset), "write SDR instruction");
         machine.cpu().reset(0xFFFFFFFF80001000ULL);
+        require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                                m64plus::n64::Cp0::kStatusKx),
+                "enable Kernel 64-bit mode for doubleword instruction test");
         machine.cpu().setRegister(9U, initialRegister);
         require(machine.stepCpu(), "execute SDR at each byte offset");
         require(bus.read64(0U, loaded) && loaded == expectedSdr[offset],
@@ -1590,6 +1620,9 @@ void testCpuUnalignedDoublewordMemoryBoundaryFaults() {
     for (std::uint32_t opcode : opcodes) {
         require(bus.write32(0x1000U, opcode), "write boundary access instruction");
         machine.cpu().reset(0xFFFFFFFF80001000ULL);
+        require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                                m64plus::n64::Cp0::kStatusKx),
+                "enable Kernel 64-bit mode for doubleword instruction test");
         machine.cpu().setRegister(8U, 0x00800000ULL);
         machine.cpu().setRegister(9U, sentinel);
         require(machine.stepCpu(), "boundary access raises a handled CPU exception");
