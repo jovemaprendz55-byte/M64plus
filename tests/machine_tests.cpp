@@ -124,6 +124,36 @@ void testCpuMips3InstructionModeRestrictions() {
 }
 
 
+void testCpuCop0DoublewordTransfers() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    auto& cpu = machine.cpu();
+    constexpr std::uint64_t value = 0x123456789ABCDEF0ULL;
+    const auto cop0 = [](unsigned move, unsigned rt, unsigned rd) {
+        return (0x10U << 26U) | (move << 21U) | (rt << 16U) | (rd << 11U);
+    };
+
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    cpu.setRegister(8U, value);
+    require(bus.write32(0U, cop0(5U, 8U, m64plus::n64::Cp0::kEpc)),
+            "write DMTC0 instruction");
+    require(bus.write32(4U, cop0(1U, 9U, m64plus::n64::Cp0::kEpc)),
+            "write DMFC0 instruction");
+    require(machine.stepCpu(), "Kernel mode executes DMTC0");
+    require(machine.stepCpu(), "Kernel mode executes DMFC0");
+    require(!cpu.hasLastException() && cpu.reg(9U) == value,
+            "DMTC0 and DMFC0 preserve the full 64-bit CP0 value");
+
+    cpu.reset(0U);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
+            "select Supervisor mode for COP0 privilege test");
+    require(bus.write32(0U, cop0(1U, 9U, m64plus::n64::Cp0::kEpc)),
+            "write Supervisor DMFC0 instruction");
+    require(machine.stepCpu(), "Supervisor DMFC0 raises a handled exception");
+    require(cpu.hasLastException() && cpu.lastExceptionCode() == 11U,
+            "DMFC0 remains privileged and raises Coprocessor Unusable outside Kernel mode");
+}
+
 void testN64ClockTimebaseUsesExactIntegerRatios() {
     using namespace m64plus::n64;
 
@@ -3805,6 +3835,7 @@ void testEventSchedulerOrdersCancelsAndAdvancesDeterministically() {
 int main() {
     testCp0EffectivePrivilegeControls64BitMode();
     testCpuMips3InstructionModeRestrictions();
+    testCpuCop0DoublewordTransfers();
     testN64ClockTimebaseUsesExactIntegerRatios();
     testMachineOwnsAndResetsEventScheduler();
     testEventSchedulerOrdersCancelsAndAdvancesDeterministically();
