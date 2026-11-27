@@ -585,6 +585,39 @@ void testDpResetClearsCommandStreamAndModes() {
             "DPC reset restores RDRAM command mode");
 }
 
+void testCartridgeByteOrderNormalization() {
+    const std::uint8_t bigEndianRom[64] = {
+        0x80U, 0x37U, 0x12U, 0x40U, 0x11U, 0x22U, 0x33U, 0x44U
+    };
+    const std::uint8_t byteSwappedRom[64] = {
+        0x37U, 0x80U, 0x40U, 0x12U, 0x22U, 0x11U, 0x44U, 0x33U
+    };
+    const std::uint8_t wordSwappedRom[64] = {
+        0x40U, 0x12U, 0x37U, 0x80U, 0x44U, 0x33U, 0x22U, 0x11U
+    };
+
+    Bus bus;
+    std::uint32_t value = 0U;
+    require(bus.loadCartridge(bigEndianRom, sizeof(bigEndianRom)),
+            "load big-endian z64 ROM");
+    require(bus.read32(Bus::kCartridgeBase + 4U, value) && value == 0x11223344U,
+            "z64 ROM data remains in canonical byte order");
+
+    require(bus.loadCartridge(byteSwappedRom, sizeof(byteSwappedRom)),
+            "load byte-swapped v64 ROM");
+    require(bus.read32(Bus::kCartridgeBase, value) && value == Bus::kN64RomMagic,
+            "v64 header is normalized to canonical byte order");
+    require(bus.read32(Bus::kCartridgeBase + 4U, value) && value == 0x11223344U,
+            "v64 payload is normalized to canonical byte order");
+
+    require(bus.loadCartridge(wordSwappedRom, sizeof(wordSwappedRom)),
+            "load word-swapped n64 ROM");
+    require(bus.read32(Bus::kCartridgeBase, value) && value == Bus::kN64RomMagic,
+            "n64 header is normalized to canonical byte order");
+    require(bus.read32(Bus::kCartridgeBase + 4U, value) && value == 0x11223344U,
+            "n64 payload is normalized to canonical byte order");
+}
+
 void testCartridgeRomMappingAndValidation() {
     Bus bus;
     const std::uint8_t rom[] = {
@@ -629,6 +662,7 @@ int main() {
     testMiVersionRegisterReportsRcpRevision();
     testDpRegisterWindow();
     testDpResetClearsCommandStreamAndModes();
+    testCartridgeByteOrderNormalization();
     testCartridgeRomMappingAndValidation();
     testPiCartridgeToRdramDmaAndInterrupt();
     testDpCommandStreamFromRdramAndDmem();
