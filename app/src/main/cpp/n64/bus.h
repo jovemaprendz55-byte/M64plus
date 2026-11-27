@@ -86,7 +86,7 @@ public:
 
     Bus();
     void reset() noexcept;
-    // Loads a big-endian .z64 image. Existing cartridge is preserved on failure.
+    // Loads .z64, byte-swapped .v64, or word-swapped .n64; stores canonical big-endian bytes.
     bool loadCartridge(const std::uint8_t* data, std::size_t size);
     void unloadCartridge() noexcept;
     std::size_t cartridgeSize() const noexcept;
