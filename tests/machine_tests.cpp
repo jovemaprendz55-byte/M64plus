@@ -79,6 +79,24 @@ void testCp0TlbRefillVectorsRespectBevAndExceptionLevel() {
                                 false, 0x0000000000404000ULL, true);
     require(vector == 0xFFFFFFFF80000180ULL,
             "nested TLB refill while EXL is set uses the general exception vector");
+
+    cp0.reset();
+    constexpr std::uint64_t errorReturnAddress = 0xFFFFFFFFBFC01000ULL;
+    constexpr std::uint64_t tlbFaultAddress = 0x0000000000405000ULL;
+    cp0.write(Cp0::kStatus, Cp0::kStatusErl);
+    cp0.write(Cp0::kErrorEpc, errorReturnAddress);
+    vector = cp0.raiseException(ExceptionCode::TlbLoad, 0xFFFFFFFF80005000ULL,
+                                false, tlbFaultAddress, true);
+    require(vector == 0xFFFFFFFF80000000ULL,
+            "TLB refill while ERL is set uses the refill vector when EXL was clear");
+    require(cp0.read(Cp0::kEpc) == 0xFFFFFFFF80005000ULL &&
+                cp0.read(Cp0::kErrorEpc) == errorReturnAddress,
+            "TLB refill while ERL is set records EPC without changing ErrorEPC");
+    require(cp0.read(Cp0::kBadVAddr) == tlbFaultAddress,
+            "TLB refill while ERL is set records BadVAddr");
+    require((cp0.read(Cp0::kStatus) & (Cp0::kStatusExl | Cp0::kStatusErl)) ==
+                (Cp0::kStatusExl | Cp0::kStatusErl),
+            "TLB refill while ERL is set enters EXL and preserves ERL");
 }
 
 void testCp0EffectivePrivilegeControls64BitMode() {
