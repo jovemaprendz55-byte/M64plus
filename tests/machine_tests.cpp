@@ -3187,6 +3187,29 @@ void testCpuDefersTimerInterruptUntilAfterBranchDelaySlot() {
             "target instruction does not execute before deferred interrupt handler");
 }
 
+void testCpuGeneralExceptionUsesBootVectorWhenBevIsSet() {
+    N64Machine machine;
+    require(machine.bus().write32(0U, 0x0000000CU),
+            "write SYSCALL for BEV exception-vector test");
+
+    auto& cpu = machine.cpu();
+    cpu.reset(0xFFFFFFFF80000000ULL);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                               m64plus::n64::Cp0::kStatusBev),
+            "enable BEV before raising general exception");
+
+    require(machine.stepCpu(), "CPU handles SYSCALL with BEV enabled");
+    require(cpu.hasLastException() && cpu.lastExceptionCode() == 8U,
+            "BEV test records the SYSCALL exception");
+    require(cpu.pc() == 0xFFFFFFFFBFC00380ULL,
+            "general exception with BEV set enters boot exception vector");
+    require(cpu.cp0().read(m64plus::n64::Cp0::kEpc) ==
+                0xFFFFFFFF80000000ULL,
+            "BEV exception preserves the faulting instruction address in EPC");
+    require(cpu.cp0().exceptionLevel(),
+            "BEV exception sets EXL before entering boot vector");
+}
+
 void testCpuSyscallAndBreakpointExceptions() {
     const struct ExceptionCase {
         std::uint32_t instruction;
@@ -4158,6 +4181,7 @@ int main() {
     testMiInterruptSourcesRemainAggregatedWhenOneMaskIsCleared();
     testCpuAcceptsCp0TimerInterruptBetweenInstructions();
     testCpuDefersTimerInterruptUntilAfterBranchDelaySlot();
+    testCpuGeneralExceptionUsesBootVectorWhenBevIsSet();
     testCpuSyscallAndBreakpointExceptions();
     testCpuSyscallAndBreakpointInBranchDelaySlot();
     testCpuSpecialTrapInstructions();
