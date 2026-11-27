@@ -2046,3 +2046,35 @@ Para o SP DMA, o teto de 8 bytes por ciclo RSP e o overhead de 6–12 clocks for
 - NEC VR4300 User's Manual, U10504EJ7V0UM00, tabela 3-12 (custos de MULT/DIV) e capítulo 4 (pipeline): https://n64dev.org/p/U10504EJ7V0UMJ1.pdf
 
 **Status:** custos de stall MULT/DIV identificados em fonte primária e registrados; nenhuma temporização executável foi alterada nesta etapa.
+
+
+### 18.54 Latência e throughput do pipeline VR4300: distinção necessária (27/11/2026)
+
+A leitura conjunta dos capítulos 2 e 3 do manual NEC VR4300 corrige uma possível interpretação simplificada dos números da seção 18.53.
+
+**Pipeline normal**
+
+- O VR4300 possui cinco estágios: IC (Instruction Cache Fetch), RF (Register Fetch), EX (Execution), DC (Data Cache Fetch) e WB (Write Back).
+- Cada estágio ocupa um PCycle. Uma instrução isolada leva pelo menos cinco PCycles para atravessar o pipeline.
+- Depois que o pipeline está cheio, até uma instrução pode completar por PCycle: as cinco instruções estão em estágios diferentes simultaneamente.
+- Portanto, cinco PCycles de latência de uma instrução não significam cinco PCycles de intervalo entre instruções aposentadas. Um executor funcional sem pipeline não pode simplesmente multiplicar toda instrução por cinco ciclos.
+
+**Interlocks e stalls**
+
+- A tabela 3-12 da seção 18.53 descreve PCycles em que o pipeline inteiro fica parado por instruções MULT/DIV. São stalls adicionais, não a duração total desde a busca até WB.
+- O manual também descreve stalls por load interlock, cache miss/busy, operações CACHE, bypass CP0 e outras condições. A duração de vários desses eventos depende do estado das caches e da interface de memória.
+- O capítulo 4 informa que uma exceção de pipeline causa dois PCycles de stall e aborta a instrução causadora e as posteriores no pipeline. Não se deve cobrar stalls de instruções que foram abortadas.
+- O manual especifica ainda que interrupções são aceitas em condições de fronteira de PCycle, não simplesmente em qualquer ponto arbitrário entre chamadas C++.
+
+**Consequência arquitetural**
+
+1. O futuro modelo temporal deverá distinguir latência de pipeline, throughput de aposentadoria e stalls.
+2. Não se deve atribuir cinco PCycles a cada chamada de step() nem somar cegamente os valores de MULT/DIV à duração completa de cada instrução sem definir o modelo de aposentadoria.
+3. Um primeiro modelo simplificado pode representar o fluxo ideal como uma aposentadoria por PCycle após o enchimento, mas deverá explicitar como reset, exceções, branches, load delays, stalls e eventos concorrentes afetam esse fluxo.
+4. O executor atual é funcional e não possui estados IC/RF/EX/DC/WB; assim, não é seguro conectar diretamente os tempos de stall ao agendador nesta etapa.
+
+**Fonte primária**
+
+- NEC VR4300 User's Manual, U10504EJ7V0UM00: capítulo 2, seção 2.1 (cinco estágios e throughput após enchimento), seção 2.5 (interlocks), seção 2.7 (exceções de pipeline); capítulo 3, tabela 3-12 (MULT/DIV): https://hack64.net/docs/VR43XX.pdf
+
+**Status:** distinção entre latência, throughput e stall documentada; modelo temporal executável permanece inalterado.
