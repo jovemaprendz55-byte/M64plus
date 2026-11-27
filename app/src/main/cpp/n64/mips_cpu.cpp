@@ -140,6 +140,31 @@ bool MipsCpu::stepMemory(Memory& memory) {
                                    std::uint64_t difference) {
         return (((left ^ right) & (left ^ difference)) >> 63U) != 0U;
     };
+    const auto requires64BitMode = [&]() {
+        switch (opcode) {
+        case 0x18: case 0x19: // DADDI / DADDIU
+        case 0x1A: case 0x1B: // LDL / LDR
+        case 0x2C: case 0x2D: // SDL / SDR
+        case 0x34: case 0x37: // LLD / LD
+        case 0x3C: case 0x3F: // SCD / SD
+            return true;
+        case 0x00:
+            switch (function) {
+            case 0x14: case 0x16: case 0x17: // DSLLV / DSRLV / DSRAV
+            case 0x1C: case 0x1D: case 0x1E: case 0x1F: // DMULT / DMULTU / DDIV / DDIVU
+            case 0x2C: case 0x2D: case 0x2E: case 0x2F: // DADD / DADDU / DSUB / DSUBU
+            case 0x38: case 0x3A: case 0x3B: // DSLL / DSRL / DSRA
+            case 0x3C: case 0x3E: case 0x3F: // DSLL32 / DSRL32 / DSRA32
+                return true;
+            default:
+                return false;
+            }
+        default:
+            return false;
+        }
+    };
+    if (requires64BitMode() && !cp0_.supports64BitMode())
+        return takeException(ExceptionCode::ReservedInstruction);
     switch (opcode) {
     case 0x00:
         // Reserved fields must be zero for fixed/variable shifts and jumps.
