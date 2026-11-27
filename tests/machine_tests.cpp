@@ -3658,6 +3658,7 @@ void testEventSchedulerOrdersCancelsAndAdvancesDeterministically() {
 } // namespace
 
 int main() {
+    testN64ClockTimebaseUsesExactIntegerRatios();
     testMachineOwnsAndResetsEventScheduler();
     testEventSchedulerOrdersCancelsAndAdvancesDeterministically();
     testMachineResetClearsPiAndSpDmaRegisters();
