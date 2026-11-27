@@ -508,6 +508,16 @@ void testPiCartridgeToRdramDmaAndInterrupt() {
             "reject PI DMA that exceeds cartridge image");
     require(bus.rdram().read32(0x300U, copied) && copied == 0xAABBCCDDU,
             "failed PI DMA leaves destination unchanged");
+    require(bus.read32(Bus::kPiDramAddr, copied) && copied == 0x300U,
+            "failed PI DMA preserves the DRAM address");
+    require(bus.read32(Bus::kPiCartAddr, copied) &&
+            copied == Bus::kCartridgeBase + 68U,
+            "failed PI DMA preserves the cartridge address");
+    require(bus.read32(Bus::kPiStatus, copied) &&
+            (copied & Bus::kPiStatusInterrupt) == 0U,
+            "failed PI DMA does not assert the PI interrupt");
+    require(!bus.miInterruptPending(),
+            "failed PI DMA does not assert the MI PI interrupt");
     require(bus.read32(Bus::kPiStatus, copied) &&
             (copied & Bus::kPiStatusError) != 0U,
             "failed PI DMA sets PI error status");
