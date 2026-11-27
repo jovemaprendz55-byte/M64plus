@@ -476,7 +476,7 @@ void testVectorMultiplyDoublePrecision() {
         put(bus, 0, vType(0, 2, 1, 3, 0x06)); // VMUDN
         put(bus, 4, vType(0, 0, 0, 4, 0x1D)); // ACC_LO
         require(rsp.step(bus), "execute VMUDN");
-        require(rsp.vectorLane(3, 0) == 0U, "VMUDN clamps negative unsigned result");
+        require(rsp.vectorLane(3, 0) == 0xFFFAU, "VMUDN returns ACC_LO for sign-extended negative product");
         require(rsp.step(bus), "read VMUDN accumulator low slice");
         require(rsp.vectorLane(4, 0) == 0xFFFAU, "VMUDN stores signed product low bits");
     }
