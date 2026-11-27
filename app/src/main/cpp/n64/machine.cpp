@@ -18,7 +18,9 @@ bool N64Machine::bootCartridgeHle() noexcept {
     if (bus_.cartridgeSize() < kRomPayloadOffset + 4U) return false;
     std::uint32_t entryPoint = 0;
     if (!bus_.read32(Bus::kCartridgeBase + 8U, entryPoint)) return false;
-    if (entryPoint < 0x80000000U || entryPoint >= 0xA0000000U ||
+    // Accept both cached KSEG0 and uncached KSEG1 virtual addresses.
+    // Both segments alias the same physical RDRAM range after masking.
+    if (entryPoint < 0x80000000U || entryPoint >= 0xC0000000U ||
         (entryPoint & 3U) != 0U) return false;
 
     const std::size_t available = bus_.cartridgeSize() - kRomPayloadOffset;
