@@ -21,6 +21,56 @@ void require(bool condition, const char* message) {
     }
 }
 
+
+void testCp0EffectivePrivilegeControls64BitMode() {
+    using m64plus::n64::Cp0;
+    Cp0 cp0;
+
+    require(!cp0.supports64BitMode(),
+            "reset Kernel mode starts with 64-bit mode disabled when KX is clear");
+    require(cp0.write(Cp0::kStatus, Cp0::kStatusKx),
+            "enable 64-bit mode for Kernel privilege");
+    require(cp0.kernelMode() && cp0.supports64BitMode(),
+            "Kernel mode uses KX to enable 64-bit operations");
+
+    require(cp0.write(Cp0::kStatus, (1ULL << 3U) | Cp0::kStatusSx),
+            "select Supervisor privilege and enable SX");
+    require(cp0.supervisorMode() && cp0.supports64BitMode(),
+            "Supervisor mode uses SX to enable 64-bit operations");
+    require(cp0.write(Cp0::kStatus, 1ULL << 3U),
+            "clear SX while remaining in Supervisor privilege");
+    require(!cp0.supports64BitMode(),
+            "Supervisor mode remains 32-bit when SX is clear");
+
+    require(cp0.write(Cp0::kStatus, (2ULL << 3U) | Cp0::kStatusUx),
+            "select User privilege and enable UX");
+    require(!cp0.kernelMode() && !cp0.supervisorMode() &&
+            cp0.supports64BitMode(),
+            "User mode uses UX to enable 64-bit operations");
+    require(cp0.write(Cp0::kStatus, 2ULL << 3U),
+            "clear UX while remaining in User privilege");
+    require(!cp0.supports64BitMode(),
+            "User mode remains 32-bit when UX is clear");
+
+    require(cp0.write(Cp0::kStatus, (2ULL << 3U) | Cp0::kStatusUx |
+                                      Cp0::kStatusExl),
+            "set EXL while saved KSU selects User mode");
+    require(cp0.kernelMode() && !cp0.supports64BitMode(),
+            "EXL overrides User privilege and uses Kernel KX, not UX");
+    require(cp0.write(Cp0::kStatus, (2ULL << 3U) | Cp0::kStatusKx |
+                                      Cp0::kStatusErl),
+            "set ERL while saved KSU selects User mode");
+    require(cp0.kernelMode() && cp0.supports64BitMode(),
+            "ERL overrides User privilege and uses Kernel KX");
+
+    require(cp0.write(Cp0::kStatus, (3ULL << 3U) | Cp0::kStatusKx |
+                                      Cp0::kStatusSx | Cp0::kStatusUx),
+            "select reserved KSU encoding with all mode-enable bits set");
+    require(!cp0.kernelMode() && !cp0.supervisorMode() &&
+            !cp0.supports64BitMode(),
+            "reserved KSU encoding does not grant a valid 64-bit mode");
+}
+
 void testN64ClockTimebaseUsesExactIntegerRatios() {
     using namespace m64plus::n64;
 
@@ -3658,6 +3708,7 @@ void testEventSchedulerOrdersCancelsAndAdvancesDeterministically() {
 } // namespace
 
 int main() {
+    testCp0EffectivePrivilegeControls64BitMode();
     testN64ClockTimebaseUsesExactIntegerRatios();
     testMachineOwnsAndResetsEventScheduler();
     testEventSchedulerOrdersCancelsAndAdvancesDeterministically();

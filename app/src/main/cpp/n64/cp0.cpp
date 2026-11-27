@@ -96,6 +96,21 @@ bool Cp0::supervisorMode() const noexcept {
     return (registers_[kStatus] & kStatusKsuMask) == (1ULL << 3U);
 }
 
+bool Cp0::supports64BitMode() const noexcept {
+    const std::uint64_t status = registers_[kStatus];
+    // EXL/ERL force Kernel privilege regardless of the saved KSU field.
+    if ((status & (kStatusExl | kStatusErl)) != 0 ||
+        (status & kStatusKsuMask) == 0) {
+        return (status & kStatusKx) != 0;
+    }
+    if ((status & kStatusKsuMask) == (1ULL << 3U))
+        return (status & kStatusSx) != 0;
+    if ((status & kStatusKsuMask) == (2ULL << 3U))
+        return (status & kStatusUx) != 0;
+    // KSU=3 is reserved and must not enable 64-bit execution.
+    return false;
+}
+
 bool Cp0::interruptRequested() const noexcept {
     const std::uint64_t status = registers_[kStatus];
     const std::uint64_t pending = registers_[kCause] & status & kCauseInterruptPendingMask;

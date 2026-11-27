@@ -32,6 +32,9 @@ public:
     static constexpr std::uint64_t kStatusExl = 1ULL << 1U;
     static constexpr std::uint64_t kStatusErl = 1ULL << 2U;
     static constexpr std::uint64_t kStatusKsuMask = 3ULL << 3U;
+    static constexpr std::uint64_t kStatusUx = 1ULL << 5U;
+    static constexpr std::uint64_t kStatusSx = 1ULL << 6U;
+    static constexpr std::uint64_t kStatusKx = 1ULL << 7U;
     static constexpr std::uint64_t kStatusBev = 1ULL << 22U;
     static constexpr std::uint64_t kStatusIe = 1ULL;
     static constexpr std::uint64_t kStatusCu1 = 1ULL << 29U;
@@ -49,6 +52,8 @@ public:
     bool interruptRequested() const noexcept;
     bool kernelMode() const noexcept;
     bool supervisorMode() const noexcept;
+    // True when the current privilege level is configured for 64-bit operation.
+    bool supports64BitMode() const noexcept;
     std::uint64_t raiseException(ExceptionCode code, std::uint64_t instructionPc,
                                  bool inDelaySlot = false,
                                  std::uint64_t badAddress = 0,
