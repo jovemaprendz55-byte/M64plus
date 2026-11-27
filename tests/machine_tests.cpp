@@ -22,6 +22,39 @@ void require(bool condition, const char* message) {
 }
 
 
+void testCp0TlbRefillVectorsRespectBevAndExceptionLevel() {
+    using m64plus::n64::Cp0;
+    using m64plus::n64::ExceptionCode;
+
+    Cp0 cp0;
+    require(cp0.write(Cp0::kStatus, Cp0::kStatusBev),
+            "enable BEV before TLB refill exception");
+    auto vector = cp0.raiseException(ExceptionCode::TlbLoad, 0xFFFFFFFF80001000ULL,
+                                     false, 0x0000000000401000ULL, true);
+    require(vector == 0xFFFFFFFFBFC00200ULL,
+            "TLB refill with BEV set uses the bootstrap refill vector");
+
+    cp0.reset();
+    vector = cp0.raiseException(ExceptionCode::TlbStore, 0xFFFFFFFF80002000ULL,
+                                false, 0x0000000000402000ULL, true);
+    require(vector == 0xFFFFFFFF80000000ULL,
+            "TLB refill with BEV clear uses the normal refill vector");
+
+    cp0.reset();
+    cp0.write(Cp0::kStatus, Cp0::kStatusBev);
+    vector = cp0.raiseException(ExceptionCode::TlbModification, 0xFFFFFFFF80003000ULL,
+                                false, 0x0000000000403000ULL, true);
+    require(vector == 0xFFFFFFFFBFC00380ULL,
+            "TLB modification uses the general bootstrap exception vector");
+
+    cp0.reset();
+    cp0.write(Cp0::kStatus, Cp0::kStatusExl);
+    vector = cp0.raiseException(ExceptionCode::TlbLoad, 0xFFFFFFFF80004000ULL,
+                                false, 0x0000000000404000ULL, true);
+    require(vector == 0xFFFFFFFF80000180ULL,
+            "nested TLB refill while EXL is set uses the general exception vector");
+}
+
 void testCp0EffectivePrivilegeControls64BitMode() {
     using m64plus::n64::Cp0;
     Cp0 cp0;
@@ -4182,6 +4215,7 @@ int main() {
     testCpuAcceptsCp0TimerInterruptBetweenInstructions();
     testCpuDefersTimerInterruptUntilAfterBranchDelaySlot();
     testCpuGeneralExceptionUsesBootVectorWhenBevIsSet();
+    testCp0TlbRefillVectorsRespectBevAndExceptionLevel();
     testCpuSyscallAndBreakpointExceptions();
     testCpuSyscallAndBreakpointInBranchDelaySlot();
     testCpuSpecialTrapInstructions();
