@@ -112,6 +112,25 @@ void testCp0TlbRefillVectorsRespectBevAndExceptionLevel() {
             "TLB modification while ERL is set records EPC and preserves ErrorEPC");
     require(cp0.read(Cp0::kBadVAddr) == modificationFaultAddress,
             "TLB modification while ERL is set records BadVAddr");
+
+    cp0.reset();
+    constexpr std::uint64_t firstExceptionPc = 0xFFFFFFFF80007000ULL;
+    constexpr std::uint64_t nestedFaultPc = 0xFFFFFFFF80008000ULL;
+    constexpr std::uint64_t nestedFaultAddress = 0x0000000000705000ULL;
+    cp0.write(Cp0::kStatus, Cp0::kStatusExl | Cp0::kStatusBev);
+    cp0.write(Cp0::kEpc, firstExceptionPc);
+    cp0.write(Cp0::kCause, 1ULL << 31U);
+    vector = cp0.raiseException(ExceptionCode::TlbModification, nestedFaultPc,
+                                true, nestedFaultAddress, true);
+    require(vector == 0xFFFFFFFFBFC00380ULL,
+            "nested TLB modification with BEV set uses the general bootstrap vector");
+    require(cp0.read(Cp0::kEpc) == firstExceptionPc &&
+                (cp0.read(Cp0::kCause) & (1ULL << 31U)) != 0U,
+            "nested TLB modification preserves the original EPC and delay-slot flag");
+    require(cp0.read(Cp0::kBadVAddr) == nestedFaultAddress &&
+                ((cp0.read(Cp0::kCause) >> 2U) & 0x1FULL) ==
+                    static_cast<std::uint64_t>(ExceptionCode::TlbModification),
+            "nested TLB modification updates BadVAddr and the exception code");
 }
 
 void testCp0EffectivePrivilegeControls64BitMode() {
