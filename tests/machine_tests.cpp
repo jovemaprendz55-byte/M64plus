@@ -86,6 +86,23 @@ void testCpuMips3InstructionModeRestrictions() {
             "Kernel mode permits MIPS III instructions even when KX is clear");
 
     cpu.reset(0U);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
+            "select 32-bit Supervisor mode with SX clear");
+    require(machine.stepCpu(), "32-bit Supervisor mode handles DADDI as Reserved Instruction");
+    require(cpu.hasLastException() && cpu.lastExceptionCode() == 10U,
+            "DADDI raises Reserved Instruction in 32-bit Supervisor mode");
+
+    cpu.reset(0U);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                               (1ULL << 3U) | m64plus::n64::Cp0::kStatusSx),
+            "enable 64-bit Supervisor mode with SX");
+    cpu.setRegister(8U, 0x123456789ABCDEF0ULL);
+    require(machine.stepCpu(), "64-bit Supervisor mode executes DADDI");
+    require(!cpu.hasLastException() &&
+            cpu.reg(9U) == 0x123456789ABCDEF1ULL,
+            "Supervisor mode executes MIPS III DADDI when SX is enabled");
+
+    cpu.reset(0U);
     require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 2ULL << 3U),
             "select 32-bit User mode with UX clear");
     cpu.setRegister(8U, 0x123456789ABCDEF0ULL);
