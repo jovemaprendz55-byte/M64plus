@@ -42,12 +42,24 @@ void Bus::reset() noexcept {
 bool Bus::loadCartridge(const std::uint8_t* data, std::size_t size) {
     if (data == nullptr || size < 0x40U || size > kMaxCartridgeSize ||
         (size & 3U) != 0U) return false;
+    const bool byteSwapped = data[0] == 0x37U && data[1] == 0x80U &&
+        data[2] == 0x40U && data[3] == 0x12U;
+    const bool wordSwapped = data[0] == 0x40U && data[1] == 0x12U &&
+        data[2] == 0x37U && data[3] == 0x80U;
     const std::uint32_t magic = (static_cast<std::uint32_t>(data[0]) << 24U) |
         (static_cast<std::uint32_t>(data[1]) << 16U) |
         (static_cast<std::uint32_t>(data[2]) << 8U) | data[3];
-    if (magic != kN64RomMagic) return false;
+    if (magic != kN64RomMagic && !byteSwapped && !wordSwapped) return false;
     try {
         std::vector<std::uint8_t> replacement(data, data + size);
+        if (byteSwapped) {
+            for (std::size_t i = 0; i < size; i += 2U)
+                std::swap(replacement[i], replacement[i + 1U]);
+        } else if (wordSwapped) {
+            for (std::size_t i = 0; i < size; i += 4U)
+                std::reverse(replacement.begin() + static_cast<std::ptrdiff_t>(i),
+                             replacement.begin() + static_cast<std::ptrdiff_t>(i + 4U));
+        }
         cartridge_.swap(replacement);
     } catch (const std::bad_alloc&) {
         return false;
