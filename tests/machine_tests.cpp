@@ -1893,6 +1893,30 @@ void testCpuCop1WordRegisterTransfers() {
                     static_cast<std::uint8_t>(
                         m64plus::n64::ExceptionCode::ReservedInstruction),
             "DMFC1 is rejected when FR=0");
+
+    // Verify the word transfer updates only the low half of an FPR.
+    cpu.reset(0U);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                               m64plus::n64::Cp0::kStatusCu1 |
+                               m64plus::n64::Cp0::kStatusFr),
+            "enable FR=1 to seed a doubleword FPR value");
+    cpu.setRegister(8U, 0x1122334455667788ULL);
+    require(bus.write32(0U, cop1(5U, 8U, 6U)), "write DMTC1 seed instruction");
+    require(machine.stepCpu(), "seed FPR upper and lower words with DMTC1");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                               m64plus::n64::Cp0::kStatusCu1),
+            "switch to FR=0 for MTC1 preservation check");
+    cpu.setRegister(8U, 0xAABBCCDDEEFF0011ULL);
+    require(bus.write32(4U, cop1(4U, 8U, 6U)), "write MTC1 low-word update");
+    require(machine.stepCpu(), "MTC1 updates FPR low word in FR=0");
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                               m64plus::n64::Cp0::kStatusCu1 |
+                               m64plus::n64::Cp0::kStatusFr),
+            "switch back to FR=1 to inspect full FPR");
+    require(bus.write32(8U, cop1(1U, 9U, 6U)), "write DMFC1 verification");
+    require(machine.stepCpu(), "read updated FPR with DMFC1");
+    require(!cpu.hasLastException() && cpu.reg(9U) == 0x11223344EEFF0011ULL,
+            "MTC1 preserves the FPR upper word while replacing its lower word");
 }
 
 void testCpuCop1InstructionClassesHaveCorrectExceptionBehavior() {
