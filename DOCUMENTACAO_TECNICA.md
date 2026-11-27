@@ -2078,3 +2078,27 @@ A leitura conjunta dos capítulos 2 e 3 do manual NEC VR4300 corrige uma possív
 - NEC VR4300 User's Manual, U10504EJ7V0UM00: capítulo 2, seção 2.1 (cinco estágios e throughput após enchimento), seção 2.5 (interlocks), seção 2.7 (exceções de pipeline); capítulo 3, tabela 3-12 (MULT/DIV): https://hack64.net/docs/VR43XX.pdf
 
 **Status:** distinção entre latência, throughput e stall documentada; modelo temporal executável permanece inalterado.
+
+
+### 18.55 Auditoria do passo funcional da CPU e limites do CP0 Count (27/11/2026)
+
+A inspeção de `mips_cpu.cpp`, `mips_cpu.h` e `cp0.cpp` confirma que o núcleo ainda executa instruções funcionalmente, sem representar o pipeline VR4300 como uma linha temporal.
+
+**Comportamento observado no código**
+
+- Cada chamada bem-sucedida a `MipsCpu::step()` executa no máximo uma instrução e incrementa `executed_` uma vez ao final do caminho normal.
+- MULT, MULTU, DIV, DIVU, DMULT, DMULTU, DDIV e DDIVU calculam HI/LO imediatamente no mesmo passo C++; não existe estado de operação em andamento, bloqueio de leitura de HI/LO ou contador de stall.
+- O caminho normal chama `cp0_.tick()` uma vez por instrução concluída. O caminho de exceção também chama `cp0_.tick()` uma vez, embora não incremente `executed_`. Portanto, o Count atual acompanha chamadas concluídas do executor (incluindo uma chamada que entrega exceção), não PCycles reais do VR4300.
+- `Cp0::tick()` incrementa Count e atualiza Random na mesma chamada. O incremento de Count não está conectado à base de 187,5 MHz nem ao EventScheduler.
+- `N64Machine::runCpuInstructions()` limita a fatia por quantidade de instruções aposentadas e interrompe a fatia quando uma exceção é tratada sem aposentadoria. Esse orçamento é uma política de execução do host, não uma duração em ciclos do console.
+- O cabeçalho `MipsCpu` não mantém estágios IC/RF/EX/DC/WB, fila de instruções em voo, ciclos decorridos, nem estado de stall.
+
+**Consequências para a próxima implementação**
+
+1. Não converter o `cp0_.tick()` atual diretamente em avanço temporal: isso perpetuaria a equivalência incorreta entre uma instrução e um incremento de Count.
+2. Separar a aposentadoria funcional da contabilização temporal. A CPU deve informar ao futuro mecanismo temporal eventos explícitos (instrução aposentada, exceção, operação multi-ciclo/interlock), sem que o executor funcional invente a duração.
+3. Antes de modelar bloqueios HI/LO, confirmar no manual as regras de interlock e a disponibilidade dos resultados para MFHI/MFLO após cada classe MULT/DIV.
+4. Ao introduzir ciclos, atualizar Count segundo a relação documentada com o PClock e fazer Random avançar segundo sua regra de hardware, não necessariamente junto de cada chamada funcional.
+5. Preservar a semântica já testada de exceções e branch delay slots enquanto o mecanismo temporal é desenvolvido; uma exceção não deve ser contabilizada como instrução aposentada.
+
+**Status:** auditoria do executor concluída. Foi confirmado que o núcleo ainda não possui temporização de pipeline e que CP0 Count/Random avançam por chamada funcional. Nenhum comportamento executável foi alterado nesta etapa; a próxima mudança funcional deve introduzir uma interface temporal testável antes de conectar o agendador aos dispositivos.
