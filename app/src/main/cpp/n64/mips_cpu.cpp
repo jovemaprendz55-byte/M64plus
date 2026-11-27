@@ -23,6 +23,7 @@ std::uint64_t signExtend16(std::uint16_t value) {
 MipsCpu::MipsCpu() { reset(); }
 void MipsCpu::reset(std::uint64_t pc) {
     gpr_.fill(0);
+    fpr_.fill(0);
     pc_ = pc;
     executed_ = 0;
     hi_ = 0;
@@ -510,11 +511,24 @@ bool MipsCpu::stepMemory(Memory& memory) {
         branchTarget = scheduleBranch ? branchRelative() : sequentialPc + 4U;
         scheduleBranch = !annulDelaySlot; // ordinary branches retain their delay slot
         break;
-    // COP1 is not implemented yet, but unusable traps report Cause.CE=1.
+    // COP1 register transfers (single-word FPR storage; arithmetic is not implemented).
     case 0x11:
         if ((cp0_.read(Cp0::kStatus) & Cp0::kStatusCu1) == 0U)
             return takeException(ExceptionCode::CoprocessorUnusable, 0, false, 1U);
-        return takeException(ExceptionCode::ReservedInstruction);
+        if (rs == 0x00U) { // MFC1: sign-extend the selected FPR word.
+            if ((instruction & 0x7FFU) != 0U)
+                return takeException(ExceptionCode::ReservedInstruction);
+            destination = rt;
+            result = signExtend32(fpr_[rd]);
+            writeRegister = true;
+        } else if (rs == 0x04U) { // MTC1: transfer the low GPR word to an FPR.
+            if ((instruction & 0x7FFU) != 0U)
+                return takeException(ExceptionCode::ReservedInstruction);
+            fpr_[rd] = static_cast<std::uint32_t>(gpr_[rt]);
+        } else {
+            return takeException(ExceptionCode::ReservedInstruction);
+        }
+        break;
     // COP0: MFC0, MTC0 and ERET (register select 0 only).
     case 0x10:
         if (inDelaySlot)
