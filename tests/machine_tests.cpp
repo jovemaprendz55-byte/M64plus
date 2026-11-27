@@ -2450,6 +2450,9 @@ void testCpuNestedTlbExceptionUpdatesFaultAddressRegisters() {
     require((cp0.read(m64plus::n64::Cp0::kCause) & (1ULL << 31U)) ==
                 (firstCause & (1ULL << 31U)),
             "nested TLB exception preserves the first Cause.BD state");
+    require(((cp0.read(m64plus::n64::Cp0::kCause) >> 2U) & 0x1FULL) ==
+                static_cast<std::uint64_t>(m64plus::n64::ExceptionCode::TlbLoad),
+            "nested TLB exception updates Cause.ExcCode while preserving first EPC and BD");
 }
 
 void testCpuXContextWritesOnlyPteBaseField() {
