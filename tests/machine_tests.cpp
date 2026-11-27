@@ -1831,6 +1831,45 @@ void testCpuCop1WithCu1EnabledIsStillUnimplemented() {
             "Reserved Instruction does not report a false coprocessor number");
 }
 
+void testCpuCop1InstructionClassesHaveCorrectExceptionBehavior() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    auto& cpu = machine.cpu();
+    const std::vector<unsigned> cop1Formats = {
+        0U, 1U, 2U, 4U, 5U, 6U, 8U, 16U, 17U, 20U, 21U, 22U
+    };
+
+    for (const unsigned format : cop1Formats) {
+        const std::uint32_t instruction =
+            (0x11U << 26U) | (format << 21U);
+        require(bus.write32(0U, instruction),
+                "write COP1 instruction class for CU1-disabled test");
+        cpu.reset(0U);
+        require(machine.stepCpu(),
+                "COP1 instruction with CU1 disabled raises an exception");
+        require(cpu.hasLastException() &&
+                    cpu.lastExceptionCode() ==
+                        static_cast<std::uint8_t>(
+                            m64plus::n64::ExceptionCode::CoprocessorUnusable),
+                "all COP1 instruction classes trap as Coprocessor Unusable when CU1 is clear");
+        const std::uint64_t cause = cpu.cp0().read(m64plus::n64::Cp0::kCause);
+        require(((cause >> 28U) & 3ULL) == 1ULL,
+                "all CU1-disabled COP1 classes report CE=1");
+
+        cpu.reset(0U);
+        require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                                   m64plus::n64::Cp0::kStatusCu1),
+                "enable CU1 for COP1 instruction class test");
+        require(machine.stepCpu(),
+                "unimplemented COP1 class with CU1 enabled raises an exception");
+        require(cpu.hasLastException() &&
+                    cpu.lastExceptionCode() ==
+                        static_cast<std::uint8_t>(
+                            m64plus::n64::ExceptionCode::ReservedInstruction),
+                "unimplemented COP1 instruction classes raise Reserved Instruction when CU1 is set");
+    }
+}
+
 void testCpuCop0RequiresKernelPrivilege() {
     const auto runCase = [](std::uint64_t status, bool shouldExecute,
                             const char* message) {
@@ -3870,6 +3909,7 @@ int main() {
     testCpuRejectsInvalidCop0ReservedFields();
     testCpuCop1UnusableExceptionSetsCauseCoprocessorNumber();
     testCpuCop1WithCu1EnabledIsStillUnimplemented();
+    testCpuCop1InstructionClassesHaveCorrectExceptionBehavior();
     testCpuCop0RequiresKernelPrivilege();
     testCpuCop0PrivilegedOperationsRequireKernelPrivilege();
     testCpuUserModeCannotFetchFromKseg0OrKseg1();
