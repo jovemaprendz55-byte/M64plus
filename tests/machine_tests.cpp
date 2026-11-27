@@ -22,6 +22,32 @@ void require(bool condition, const char* message) {
 }
 
 
+void testCp0ExceptionWhileErrorLevelSetPreservesErrorEpc() {
+    using m64plus::n64::Cp0;
+    using m64plus::n64::ExceptionCode;
+
+    Cp0 cp0;
+    constexpr std::uint64_t errorReturnAddress = 0xFFFFFFFFBFC00000ULL;
+    constexpr std::uint64_t exceptionPc = 0xFFFFFFFF80001234ULL;
+    require(cp0.write(Cp0::kStatus, Cp0::kStatusErl),
+            "set ERL before a general exception");
+    require(cp0.write(Cp0::kErrorEpc, errorReturnAddress),
+            "seed ErrorEPC before a general exception");
+
+    const auto vector = cp0.raiseException(ExceptionCode::Syscall, exceptionPc,
+                                           false, 0U, false);
+    require(vector == 0xFFFFFFFF80000180ULL,
+            "general exception while ERL is set uses the normal exception vector");
+    require(cp0.read(Cp0::kEpc) == exceptionPc,
+            "general exception records EPC when EXL was clear even if ERL was set");
+    require(cp0.read(Cp0::kErrorEpc) == errorReturnAddress,
+            "general exception preserves the separate ErrorEPC register");
+    const std::uint64_t status = cp0.read(Cp0::kStatus);
+    require((status & Cp0::kStatusExl) != 0U &&
+                (status & Cp0::kStatusErl) != 0U,
+            "general exception sets EXL without clearing the existing ERL state");
+}
+
 void testCp0TlbRefillVectorsRespectBevAndExceptionLevel() {
     using m64plus::n64::Cp0;
     using m64plus::n64::ExceptionCode;
@@ -4215,6 +4241,7 @@ int main() {
     testCpuAcceptsCp0TimerInterruptBetweenInstructions();
     testCpuDefersTimerInterruptUntilAfterBranchDelaySlot();
     testCpuGeneralExceptionUsesBootVectorWhenBevIsSet();
+    testCp0ExceptionWhileErrorLevelSetPreservesErrorEpc();
     testCp0TlbRefillVectorsRespectBevAndExceptionLevel();
     testCpuSyscallAndBreakpointExceptions();
     testCpuSyscallAndBreakpointInBranchDelaySlot();
