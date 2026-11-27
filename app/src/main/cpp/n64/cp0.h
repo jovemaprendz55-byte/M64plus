@@ -35,6 +35,7 @@ public:
     static constexpr std::uint64_t kStatusUx = 1ULL << 5U;
     static constexpr std::uint64_t kStatusSx = 1ULL << 6U;
     static constexpr std::uint64_t kStatusKx = 1ULL << 7U;
+    static constexpr std::uint64_t kStatusFr = 1ULL << 26U;
     static constexpr std::uint64_t kStatusBev = 1ULL << 22U;
     static constexpr std::uint64_t kStatusIe = 1ULL;
     static constexpr std::uint64_t kStatusCu1 = 1ULL << 29U;
