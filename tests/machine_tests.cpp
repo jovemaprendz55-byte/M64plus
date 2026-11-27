@@ -2843,7 +2843,7 @@ void testHleBootMapsKseg1EntryToPhysicalRdram() {
     // A not-taken ordinary branch must still execute its delay slot and
     // continue with the sequential instruction rather than the target.
     N64Machine fallthroughMachine;
-    std::vector<std::uint8_t> fallthroughRom(0x1010U, 0U);
+    std::vector<std::uint8_t> fallthroughRom(0x1014U, 0U);
     fallthroughRom[0] = 0x80U; fallthroughRom[1] = 0x37U;
     fallthroughRom[2] = 0x12U; fallthroughRom[3] = 0x40U;
     fallthroughRom[8] = 0xA0U; fallthroughRom[9] = 0x00U;
