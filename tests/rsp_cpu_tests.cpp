@@ -495,6 +495,30 @@ void testVectorMultiplyDoublePrecision() {
     }
 }
 
+void testVectorMultiplyUnsignedLowSignedResults() {
+    {
+        Bus bus;
+        RspCpu rsp;
+        rsp.setVectorLane(1, 0, 2U);       // unsigned VS
+        rsp.setVectorLane(2, 0, 0xFFFFU);  // signed VT = -1
+        put(bus, 0, vType(0, 2, 1, 3, 0x06)); // VMUDN
+        require(rsp.step(bus), "execute negative VMUDN product");
+        require(rsp.vectorLane(3, 0) == 0xFFFEU,
+                "VMUDN preserves low result for sign-extended negative accumulator");
+    }
+    {
+        Bus bus;
+        RspCpu rsp;
+        rsp.setVectorLane(1, 0, 2U);
+        rsp.setVectorLane(2, 0, 0xFFFFU);
+        put(bus, 0, vType(0, 2, 1, 3, 0x06)); // VMUDN initializes ACC to -2.
+        put(bus, 4, vType(0, 2, 1, 4, 0x0E)); // VMADN adds another -2.
+        require(rsp.step(bus) && rsp.step(bus), "execute negative VMUDN/VMADN pair");
+        require(rsp.vectorLane(4, 0) == 0xFFFCU,
+                "VMADN preserves low result for sign-extended negative accumulator");
+    }
+}
+
 void testVectorMultiplyDoubleAccumulate() {
     {
         Bus bus; RspCpu rsp;
@@ -1263,6 +1287,7 @@ int main() {
     testVectorMultiplyAccumulateFraction();
     testVectorMultiplyAccumulateUnsigned();
     testVectorMultiplyDoublePrecision();
+    testVectorMultiplyUnsignedLowSignedResults();
     testVectorMultiplyDoubleAccumulate();
     testVectorComparisonsAndMerge();
     testVectorClipHigh();
