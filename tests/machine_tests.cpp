@@ -1,4 +1,5 @@
 #include "n64/machine.h"
+#include "n64/event_scheduler.h"
 #include "n64/cic.h"
 #include "n64/cp0.h"
 #include "n64/tlb.h"
@@ -3569,9 +3570,49 @@ void testMachineResetClearsPiAndSpDmaRegisters() {
             "machine reset preserves cartridge contents after DMA reset");
 }
 
+
+void testEventSchedulerOrdersCancelsAndAdvancesDeterministically() {
+    m64plus::n64::EventScheduler scheduler;
+    std::vector<int> order;
+    const auto later = scheduler.scheduleAt(12U, [&order] { order.push_back(3); });
+    require(later != 0U, "schedule event at later deadline");
+    require(scheduler.scheduleAt(5U, [&order] { order.push_back(1); }) != 0U,
+            "schedule first event at shared deadline");
+    require(scheduler.scheduleAt(5U, [&order] { order.push_back(2); }) != 0U,
+            "schedule second event at shared deadline");
+    require(scheduler.cancel(later), "cancel pending event");
+    require(!scheduler.cancel(later), "cancellation is accepted only once");
+    require(!scheduler.advanceTo(4U), "scheduler rejects backwards time");
+    require(scheduler.now() == 0U, "backwards advance leaves current time unchanged");
+    require(scheduler.advanceTo(5U), "advance scheduler to first deadline");
+    require(order.size() == 2U && order[0] == 1 && order[1] == 2,
+            "same-deadline events execute once in insertion order");
+    require(scheduler.now() == 5U, "scheduler clock reaches requested target");
+    require(scheduler.advanceTo(12U), "advance across cancelled deadline");
+    require(order.size() == 2U && !scheduler.hasPendingEvents(),
+            "cancelled event is not executed and queue becomes empty");
+
+    require(scheduler.scheduleAt(13U, [&scheduler, &order] {
+        order.push_back(4);
+        scheduler.scheduleAt(13U, [&order] { order.push_back(5); });
+    }) != 0U, "schedule callback that creates a same-time event");
+    require(scheduler.advanceTo(13U), "drain events scheduled by callbacks");
+    require(order.size() == 4U && order[2] == 4 && order[3] == 5,
+            "new due events are drained deterministically in the same advance");
+
+    scheduler.reset();
+    require(scheduler.now() == 0U && !scheduler.hasPendingEvents(),
+            "reset clears scheduler time and pending events");
+    require(scheduler.scheduleAt(0U, [&order] { order.push_back(6); }) == 1U,
+            "reset restarts event identifiers");
+    require(scheduler.advanceTo(0U) && order.back() == 6,
+            "zero-deadline event executes after reset");
+}
+
 } // namespace
 
 int main() {
+    testEventSchedulerOrdersCancelsAndAdvancesDeterministically();
     testMachineResetClearsPiAndSpDmaRegisters();
     testMachineResetClearsRspAndSpExecutionState();
     testMachineResetPreservesInsertedCartridgeAndClearsRdram();
