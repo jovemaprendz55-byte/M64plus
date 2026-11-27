@@ -2839,6 +2839,44 @@ void testHleBootMapsKseg1EntryToPhysicalRdram() {
             "KSEG1 CPU fetches the branch target after the delay slot");
     require(machine.cpu().reg(10U) == 3U,
             "KSEG1 branch target executes after the delay slot");
+
+    // A not-taken ordinary branch must still execute its delay slot and
+    // continue with the sequential instruction rather than the target.
+    N64Machine fallthroughMachine;
+    std::vector<std::uint8_t> fallthroughRom(0x1010U, 0U);
+    fallthroughRom[0] = 0x80U; fallthroughRom[1] = 0x37U;
+    fallthroughRom[2] = 0x12U; fallthroughRom[3] = 0x40U;
+    fallthroughRom[8] = 0xA0U; fallthroughRom[9] = 0x00U;
+    fallthroughRom[10] = 0x04U; fallthroughRom[11] = 0x00U;
+    const std::uint32_t fallthroughProgram[] = {
+        0x24080001U, // addiu t0, zero, 1
+        0x15090002U, // bne t0, t1, +2: taken because t1 is zero
+        0x240A0002U, // delay slot
+        0x240B0003U, // sequential instruction (not the branch target)
+        0x240C0004U  // branch target
+    };
+    for (std::size_t i = 0; i < 5U; ++i) {
+        const std::uint32_t instruction = fallthroughProgram[i];
+        const std::size_t offset = 0x1000U + i * 4U;
+        fallthroughRom[offset] = static_cast<std::uint8_t>(instruction >> 24U);
+        fallthroughRom[offset + 1U] = static_cast<std::uint8_t>(instruction >> 16U);
+        fallthroughRom[offset + 2U] = static_cast<std::uint8_t>(instruction >> 8U);
+        fallthroughRom[offset + 3U] = static_cast<std::uint8_t>(instruction);
+    }
+    require(fallthroughMachine.bus().loadCartridge(
+                fallthroughRom.data(), fallthroughRom.size()),
+            "load KSEG1 cartridge for branch fallthrough test");
+    require(fallthroughMachine.bootCartridgeHle(),
+            "HLE boots KSEG1 cartridge for branch fallthrough test");
+    require(fallthroughMachine.stepCpu() && fallthroughMachine.stepCpu(),
+            "KSEG1 program executes setup and BNE branch");
+    require(fallthroughMachine.stepCpu() &&
+            fallthroughMachine.cpu().reg(10U) == 2U,
+            "KSEG1 BNE delay slot executes");
+    require(fallthroughMachine.stepCpu() &&
+            fallthroughMachine.cpu().reg(11U) == 3U &&
+            fallthroughMachine.cpu().reg(12U) == 0U,
+            "KSEG1 BNE reaches its taken target after the delay slot");
 }
 
 void testCartridgeHleBootInitializesRdramDmemAndCpuState() {
