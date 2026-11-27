@@ -2800,38 +2800,45 @@ void testHleBootAcceptsPayloadEndingExactlyAtRdramBoundary() {
 
 void testHleBootMapsKseg1EntryToPhysicalRdram() {
     N64Machine machine;
-    std::vector<std::uint8_t> rom(0x1008U, 0U);
+    std::vector<std::uint8_t> rom(0x1010U, 0U);
     rom[0] = 0x80U; rom[1] = 0x37U; rom[2] = 0x12U; rom[3] = 0x40U;
     // KSEG1 entry 0xA0000400 aliases physical RDRAM address 0x400.
     rom[8] = 0xA0U; rom[9] = 0x00U; rom[10] = 0x04U; rom[11] = 0x00U;
-    // addiu t0, zero, 0x1234: prove the HLE-booted CPU can fetch and
-    // execute the first instruction through the uncached KSEG1 alias.
-    rom[0x1000U] = 0x24U;
-    rom[0x1001U] = 0x08U;
-    rom[0x1002U] = 0x12U;
-    rom[0x1003U] = 0x34U;
-    // addiu t1, t0, 1: verify sequential execution remains on KSEG1.
-    rom[0x1004U] = 0x25U;
-    rom[0x1005U] = 0x09U;
-    rom[0x1006U] = 0x00U;
-    rom[0x1007U] = 0x01U;
+    // addiu t0, zero, 1
+    rom[0x1000U] = 0x24U; rom[0x1001U] = 0x08U;
+    rom[0x1002U] = 0x00U; rom[0x1003U] = 0x01U;
+    // beq t0, t0, +1: branch target is the instruction after the delay slot.
+    rom[0x1004U] = 0x11U; rom[0x1005U] = 0x08U;
+    rom[0x1006U] = 0x00U; rom[0x1007U] = 0x01U;
+    // addiu t1, zero, 2: this instruction must execute in the delay slot.
+    rom[0x1008U] = 0x24U; rom[0x1009U] = 0x09U;
+    rom[0x100AU] = 0x00U; rom[0x100BU] = 0x02U;
+    // addiu t2, zero, 3: branch target.
+    rom[0x100CU] = 0x24U; rom[0x100DU] = 0x0AU;
+    rom[0x100EU] = 0x00U; rom[0x100FU] = 0x03U;
     require(machine.bus().loadCartridge(rom.data(), rom.size()),
             "load cartridge with KSEG1 entry point");
     require(machine.bootCartridgeHle(), "HLE accepts a valid KSEG1 entry point");
 
     std::uint32_t value = 0U;
-    require(machine.bus().rdram().read32(0x400U, value) && value == 0x24081234U,
+    require(machine.bus().rdram().read32(0x400U, value) && value == 0x24080001U,
             "KSEG1 entry payload is copied to its physical RDRAM alias");
     require(machine.cpu().pc() == 0xFFFFFFFFA0000400ULL,
             "HLE retains the canonical KSEG1 virtual entry point");
     require(machine.stepCpu() && !machine.cpu().hasLastException(),
             "HLE-booted CPU fetches and executes its first instruction through KSEG1");
-    require(machine.cpu().reg(8U) == 0x1234U,
+    require(machine.cpu().reg(8U) == 1U,
             "KSEG1 boot entry executes its first cartridge instruction");
     require(machine.stepCpu() && !machine.cpu().hasLastException(),
-            "KSEG1 CPU continues fetching the next sequential cartridge instruction");
-    require(machine.cpu().reg(9U) == 0x1235U,
-            "KSEG1 sequential execution updates the second destination register");
+            "KSEG1 CPU executes a conditional branch without exception");
+    require(machine.stepCpu() && !machine.cpu().hasLastException(),
+            "KSEG1 CPU executes the branch delay-slot instruction");
+    require(machine.cpu().reg(9U) == 2U,
+            "KSEG1 branch delay slot executes before taking the branch");
+    require(machine.stepCpu() && !machine.cpu().hasLastException(),
+            "KSEG1 CPU fetches the branch target after the delay slot");
+    require(machine.cpu().reg(10U) == 3U,
+            "KSEG1 branch target executes after the delay slot");
 }
 
 void testCartridgeHleBootInitializesRdramDmemAndCpuState() {
