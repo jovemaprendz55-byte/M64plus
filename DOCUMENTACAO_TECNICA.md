@@ -2013,3 +2013,36 @@ Para o SP DMA, o teto de 8 bytes por ciclo RSP e o overhead de 6–12 clocks for
 - Nintendo 64 Programming Manual, Hardware Overview — CPU, RCP e DMA engines: https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro09/09-02.html
 
 **Status:** análise documental e derivação da base temporal concluídas; nenhuma temporização aproximada foi introduzida no código executável.
+
+
+### 18.53 Custos documentados de instruções multi-ciclo do VR4300 (27/11/2026)
+
+**Fonte primária:** NEC VR4300 User's Manual, U10504EJ7V0UM00, capítulo 3, tabela 3-12 ("Number of Cycles Stalled by Multiply/Divide Instruction"). A tabela informa que a execução de multiplicação/divisão inteira interrompe o pipeline inteiro e registra os seguintes custos em PCycles:
+
+| Instrução | PCycles de stall documentados |
+|---|---:|
+| MULT / MULTU | 5 |
+| DIV / DIVU | 37 |
+| DMULT / DMULTU | 8 |
+| DDIV / DDIVU | 69 |
+
+**Interpretação para o núcleo**
+
+- Esses números são custos de stall do pipeline durante operações multi-ciclo; não são autorização para avançar o relógio por um valor fixo por toda instrução aposentada.
+- Um PCycle do processador corresponde a 2 ticks da base inteira definida em n64_clock.h. Portanto, os stalls acima correspondem respectivamente a 10, 74, 16 e 138 master ticks, se e quando o modelo de pipeline representar esse stall.
+- A documentação do VR4300 descreve um pipeline de cinco estágios (IC, RF, EX, DC e WB). A duração de uma instrução isolada e a taxa de aposentadoria em fluxo contínuo não devem ser confundidas.
+- O executor atual calcula HI/LO e conclui essas instruções no mesmo passo C++; ainda não representa a ocupação do pipeline nem bloqueia a CPU pelo número de PCycles indicado.
+- Cache miss, interlocks, acesso externo e arbitragem podem acrescentar tempo. Em particular, o tempo de acesso à memória externa depende de parâmetros e sincronização; não será substituído por uma constante inventada.
+
+**Decisão desta etapa**
+
+1. Registrar apenas os custos multi-ciclo explicitamente documentados pelo fabricante.
+2. Não aplicar ainda esses custos ao EventScheduler: falta representar a execução/pipeline como estados temporais e determinar como eventos de outros dispositivos progridem durante um stall.
+3. A próxima mudança funcional deverá separar a semântica de execução da instrução da duração temporal do pipeline, com testes específicos para stalls de MULT/DIV e avanço simultâneo dos eventos.
+4. Não tratar as cifras de cache miss de uma fonte secundária ou de outro emulador como especificação do hardware.
+
+**Fonte consultada**
+
+- NEC VR4300 User's Manual, U10504EJ7V0UM00, tabela 3-12 (custos de MULT/DIV) e capítulo 4 (pipeline): https://n64dev.org/p/U10504EJ7V0UMJ1.pdf
+
+**Status:** custos de stall MULT/DIV identificados em fonte primária e registrados; nenhuma temporização executável foi alterada nesta etapa.
