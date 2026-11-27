@@ -1,5 +1,6 @@
 #include "n64/machine.h"
 #include "n64/event_scheduler.h"
+#include "n64/n64_clock.h"
 #include "n64/cic.h"
 #include "n64/cp0.h"
 #include "n64/tlb.h"
@@ -18,6 +19,26 @@ void require(bool condition, const char* message) {
         std::cerr << "FAIL: " << message << '\n';
         std::exit(1);
     }
+}
+
+void testN64ClockTimebaseUsesExactIntegerRatios() {
+    using namespace m64plus::n64;
+
+    require(kMasterTicksPerSecond == 187'500'000ULL,
+            "master timebase represents 187.5 MHz");
+    require(kCpuTicksPerCycle == 2ULL,
+            "CPU cycle maps to two master ticks");
+    require(kRcpTicksPerCycle == 3ULL && kRspTicksPerCycle == 3ULL,
+            "RCP and RSP cycles map to three master ticks");
+    require(kCp0CountTicksPerIncrement == 4ULL,
+            "CP0 Count increment maps to four master ticks");
+    require(kMasterTicksPerSecond / kCpuTicksPerCycle == 93'750'000ULL,
+            "master timebase derives the 93.75 MHz CPU clock");
+    require(kMasterTicksPerSecond / kRcpTicksPerCycle == 62'500'000ULL,
+            "master timebase derives the 62.5 MHz RCP clock");
+    require(kMasterTicksPerSecond / kCp0CountTicksPerIncrement ==
+                46'875'000ULL,
+            "master timebase derives the 46.875 MHz CP0 Count rate");
 }
 
 void testTlbPairedPagesAsidGlobalAndPermissions() {
