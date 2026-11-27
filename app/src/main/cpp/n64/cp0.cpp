@@ -103,14 +103,22 @@ bool Cp0::interruptRequested() const noexcept {
            (status & (kStatusExl | kStatusErl)) == 0 && pending != 0;
 }
 
-void Cp0::tick() noexcept {
+void Cp0::tickCount() noexcept {
     const std::uint32_t next = static_cast<std::uint32_t>(registers_[kCount]) + 1U;
     registers_[kCount] = next;
     if (next == static_cast<std::uint32_t>(registers_[kCompare]))
         registers_[kCause] |= kCauseTimerInterrupt;
+}
+
+void Cp0::tickRandom() noexcept {
     const std::uint64_t wired = registers_[kWired] & 0x1FULL;
     const std::uint64_t random = registers_[kRandom] & 0x1FULL;
     registers_[kRandom] = random <= wired ? 31ULL : random - 1ULL;
+}
+
+void Cp0::tick() noexcept {
+    tickCount();
+    tickRandom();
 }
 
 std::uint64_t Cp0::raiseException(ExceptionCode code, std::uint64_t instructionPc,
