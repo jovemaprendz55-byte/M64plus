@@ -26,7 +26,7 @@ public:
 private:
     template <typename Memory> bool stepMemory(Memory& memory);
     std::array<std::uint64_t, 32> gpr_{};
-    std::array<std::uint32_t, 32> fpr_{};
+    std::array<std::uint64_t, 32> fpr_{};
     std::uint64_t hi_ = 0;
     std::uint64_t lo_ = 0;
     bool reservationValid_ = false;
