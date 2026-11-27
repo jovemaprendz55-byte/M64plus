@@ -2769,6 +2769,35 @@ void testHleBootRejectsPayloadBeyondRdramWithoutResettingMachine() {
 }
 
 
+void testHleBootAcceptsPayloadEndingExactlyAtRdramBoundary() {
+    N64Machine machine;
+    constexpr std::size_t kPayloadSize = 0x100000U;
+    constexpr std::uint32_t kPhysicalEntry = 0x00700000U;
+    std::vector<std::uint8_t> rom(0x1000U + kPayloadSize, 0U);
+    rom[0] = 0x80U; rom[1] = 0x37U; rom[2] = 0x12U; rom[3] = 0x40U;
+    // KSEG0 virtual entry maps to physical 0x700000; 1 MiB ends at 8 MiB.
+    rom[8] = 0x80U; rom[9] = 0x70U; rom[10] = 0x00U; rom[11] = 0x00U;
+    rom[0x1000U] = 0x12U;
+    rom[0x1001U] = 0x34U;
+    rom[0x1002U] = 0x56U;
+    rom[0x1003U] = 0x78U;
+    rom.back() = 0xA5U;
+    require(machine.bus().loadCartridge(rom.data(), rom.size()),
+            "load cartridge whose HLE payload ends exactly at RDRAM boundary");
+    require(machine.bootCartridgeHle(),
+            "HLE accepts a payload whose final byte is exactly at the RDRAM limit");
+
+    std::uint32_t value = 0U;
+    require(machine.bus().rdram().read32(kPhysicalEntry, value) &&
+                value == 0x12345678U,
+            "exact-boundary HLE boot copies the first payload word");
+    std::uint8_t lastByte = 0U;
+    require(machine.bus().rdram().read8(0x007FFFFFU, lastByte) && lastByte == 0xA5U,
+            "exact-boundary HLE boot copies the final byte at the 8 MiB limit");
+    require(machine.cpu().pc() == 0xFFFFFFFF80700000ULL,
+            "HLE preserves the KSEG0 virtual entry point while copying to physical RDRAM");
+}
+
 void testCartridgeHleBootInitializesRdramDmemAndCpuState() {
     N64Machine machine;
     std::vector<std::uint8_t> rom(0x1008U, 0U);
@@ -4115,6 +4144,7 @@ int main() {
     testCpuRunnerStopsWhenInstructionRaisesException();
     testHleBootRejectsInvalidEntryWithoutResettingMachine();
     testHleBootRejectsPayloadBeyondRdramWithoutResettingMachine();
+    testHleBootAcceptsPayloadEndingExactlyAtRdramBoundary();
     testCartridgeHleBootInitializesRdramDmemAndCpuState();
     testHleBootDetectsCicAndPalRegionFromRom();
     testMachineDoesNotRetryUnsupportedRspInstruction();
