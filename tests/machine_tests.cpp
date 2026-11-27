@@ -1831,6 +1831,43 @@ void testCpuCop1WithCu1EnabledIsStillUnimplemented() {
             "Reserved Instruction does not report a false coprocessor number");
 }
 
+void testCpuCop1WordRegisterTransfers() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    auto& cpu = machine.cpu();
+    const auto cop1 = [](unsigned move, unsigned rt, unsigned fs) {
+        return (0x11U << 26U) | (move << 21U) |
+               (rt << 16U) | (fs << 11U);
+    };
+
+    cpu.reset(0U);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                               m64plus::n64::Cp0::kStatusCu1),
+            "enable CU1 for MTC1/MFC1 transfer test");
+    cpu.setRegister(8U, 0xFEDCBA9876543210ULL);
+    require(bus.write32(0U, cop1(4U, 8U, 3U)),
+            "write MTC1 instruction");
+    require(bus.write32(4U, cop1(0U, 9U, 3U)),
+            "write MFC1 instruction");
+    require(machine.stepCpu(), "MTC1 transfers a GPR word into an FPR");
+    require(machine.stepCpu(), "MFC1 transfers an FPR word into a GPR");
+    require(!cpu.hasLastException() &&
+                cpu.reg(9U) == 0x0000000076543210ULL,
+            "MTC1 stores the low word and MFC1 sign-extends only its 32-bit value");
+
+    cpu.reset(0U);
+    require(bus.write32(0U, cop1(0U, 9U, 3U)),
+            "write MFC1 instruction for CU1-disabled check");
+    require(machine.stepCpu(), "MFC1 with CU1 clear raises Coprocessor Unusable");
+    require(cpu.hasLastException() &&
+                cpu.lastExceptionCode() ==
+                    static_cast<std::uint8_t>(
+                        m64plus::n64::ExceptionCode::CoprocessorUnusable),
+            "MFC1 checks CU1 before accessing FPR state");
+    require(((cpu.cp0().read(m64plus::n64::Cp0::kCause) >> 28U) & 3ULL) == 1ULL,
+            "MFC1 CU1-disabled exception reports CE=1");
+}
+
 void testCpuCop1InstructionClassesHaveCorrectExceptionBehavior() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -3910,6 +3947,7 @@ int main() {
     testCpuCop1UnusableExceptionSetsCauseCoprocessorNumber();
     testCpuCop1WithCu1EnabledIsStillUnimplemented();
     testCpuCop1InstructionClassesHaveCorrectExceptionBehavior();
+    testCpuCop1WordRegisterTransfers();
     testCpuCop0RequiresKernelPrivilege();
     testCpuCop0PrivilegedOperationsRequireKernelPrivilege();
     testCpuUserModeCannotFetchFromKseg0OrKseg1();
