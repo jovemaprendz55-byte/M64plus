@@ -2869,7 +2869,7 @@ void testHleBootMapsKseg1EntryToPhysicalRdram() {
     require(fallthroughMachine.bootCartridgeHle(),
             "HLE boots KSEG1 cartridge for branch fallthrough test");
     require(fallthroughMachine.stepCpu() && fallthroughMachine.stepCpu(),
-            "KSEG1 program executes setup and BNE branch");
+            "KSEG1 program executes setup and BEQ branch");
     require(fallthroughMachine.stepCpu() &&
             fallthroughMachine.cpu().reg(10U) == 2U,
             "KSEG1 BEQ delay slot executes");
