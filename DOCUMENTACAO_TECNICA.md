@@ -1873,3 +1873,54 @@ A rotina rdp_loadtlut do Project64 calcula start a partir de t_mem - 256 e count
 - SGI RDP Command Summary, Load Tlut: https://ultra64.ca/files/documentation/silicon-graphics/SGI_RDP_Command_Summary.pdf
 
 **Status:** comparação documental de limites e atomicidade. Nenhum código C++ ou teste executável foi alterado ou executado.
+
+
+### 18.50 Auditoria do SP DMA: codificação, estados e lacuna temporal (27/11/2026)
+
+**Referência de hardware**
+
+O *Nintendo 64 RSP Programmer's Guide*, seção de SP Coprocessor 0, descreve o registrador de comprimento como três campos:
+- bits 0–11: comprimento por linha, codificado como valor menos um;
+- bits 12–19: quantidade de linhas, codificada como valor menos um;
+- bits 20–31: intervalo adicional (*skip*) na RDRAM entre linhas.
+
+O guia também especifica que a transferência ocorre em unidades múltiplas de oito bytes: os três bits inferiores do campo de comprimento são ignorados e tratados como 1. Assim, campo de comprimento 7 significa oito bytes; campo de quantidade 0 significa uma linha. A memória SP recebe as linhas de forma contígua, enquanto o lado DRAM aplica o intervalo entre linhas.
+
+A documentação oficial de registradores do RCP distingue três observáveis: SP_DMA_FULL, SP_DMA_BUSY e os bits DMA_BUSY/DMA_FULL no SP_STATUS. São estados separados; não se deve substituir todos por um único indicador.
+
+**Comparação com o código atual**
+
+Em `app/src/main/cpp/n64/bus.cpp`, `performSpDma()`:
+- calcula o comprimento arredondando o campo para a próxima unidade de oito bytes;
+- soma um ao campo de quantidade de linhas;
+- calcula o passo DRAM como comprimento mais *skip*;
+- valida previamente os limites de todas as linhas antes de copiar;
+- executa a cópia inteira de forma síncrona dentro da escrita do registrador;
+- marca `spDmaBusy_` como verdadeiro somente durante essa chamada e o limpa antes de retornar.
+
+A decodificação de comprimento/quantidade/skip está alinhada com a descrição do guia para os casos já cobertos pelos testes. A validação prévia também evita cópia parcial quando uma linha ultrapassa a RDRAM.
+
+A lacuna principal é temporal: como a operação termina antes de a escrita MMIO retornar, uma leitura posterior de SP_DMA_BUSY não observa a transferência em andamento. O registrador SP_DMA_FULL também retorna sempre zero. Portanto, o código atual modela o resultado da cópia, mas não a ocupação, a fila ou a conclusão observável do DMA.
+
+**Relação com o agendador**
+
+`N64Machine` declara explicitamente que o agendamento atual é baseado em orçamento de instruções e que a temporização de ciclos de hardware ainda não está implementada. O worker Android executa fatias separadas de CPU, RSP e RDP; isso não fornece, por si só, uma linha temporal comum para concluir transferências SP DMA.
+
+Não atribuir duração em ciclos ao DMA nesta etapa. Primeiro é necessário introduzir uma unidade de progresso coerente no agendador e definir como CPU/RSP observam eventos de início, progresso e conclusão.
+
+**Plano de implementação e testes, ainda não executado**
+
+1. Modelar uma transferência ativa separada dos registradores de programação e dos estados BUSY/FULL.
+2. Definir, com referência de hardware, a capacidade e a regra de enfileiramento antes de implementar a segunda solicitação.
+3. Avançar o DMA por eventos do agendador, sem copiar toda a região na escrita do registrador.
+4. Preservar as regras já cobertas: direção DRAM→SP e SP→DRAM, linhas contíguas em SP, *skip* em DRAM, arredondamento de oito bytes, wrap DMEM/IMEM e validação de limites.
+5. Adicionar testes que leiam BUSY durante a transferência, FULL quando a capacidade estiver ocupada, endereços durante/depois da operação e interrupção/estado de conclusão quando aplicável.
+6. Manter testes de cópia síncrona existentes somente como testes de baixo nível da rotina de transferência, se essa rotina continuar isolada.
+
+**Fontes consultadas**
+
+- SGI/Nintendo, *Nintendo 64 RSP Programmer's Guide*, seção “RSP Coprocessor 0”: https://ultra64.ca/files/documentation/silicon-graphics/SGI_Nintendo_64_RSP_Programmers_Guide.pdf
+- Nintendo 64 RCP register definitions, SP DMA registers and status bits: https://ultra64.ca/files/documentation/online-manuals/man/header/rcp.htm
+- Implementação de referência Mupen64Plus RSP CXD4, `su.c`: https://github.com/libretro/parallel-n64/blob/master/mupen64plus-rsp-cxd4/su.c
+
+**Status:** auditoria documental concluída. Nenhum ciclo de hardware foi presumido e nenhuma implementação de DMA assíncrono foi feita nesta etapa.
