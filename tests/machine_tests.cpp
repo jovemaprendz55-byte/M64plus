@@ -544,6 +544,9 @@ void testCpuHiLoMultiplyDivideAndTransfers() {
     for (std::uint32_t i = 0; i < 23U; ++i)
         require(bus.write32(i * 4U, program[i]), "load HI/LO and shift program");
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                           m64plus::n64::Cp0::kStatusKx),
+            "enable Kernel 64-bit mode for MIPS III instruction test");
     for (unsigned i = 0; i < 23U; ++i)
         require(machine.stepCpu(), "execute HI/LO and shift instruction");
     require(machine.cpu().reg(10U) == 0xFFFFFFFFFFFFFFEBULL,
@@ -1468,6 +1471,9 @@ void testCpuSignedArithmeticAndImmediateComparisons() {
     for (std::uint32_t i = 0; i < 6U; ++i)
         require(bus.write32(i * 4U, program[i]), "load signed arithmetic program");
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                           m64plus::n64::Cp0::kStatusKx),
+            "enable Kernel 64-bit mode for MIPS III instruction test");
     for (unsigned i = 0; i < 6U; ++i)
         require(machine.stepCpu(), "execute signed arithmetic instruction");
     require(machine.cpu().reg(8U) == 7U, "ADDI writes a signed 32-bit result");
@@ -1486,6 +1492,9 @@ void testCpuSignedArithmeticAndImmediateComparisons() {
             "ADDI overflow raises Integer Overflow exception");
 
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                           m64plus::n64::Cp0::kStatusKx),
+            "enable Kernel 64-bit mode for MIPS III instruction test");
     machine.cpu().setRegister(8U, 0x7FFFFFFFFFFFFFFFULL);
     require(bus.write32(0U, 0x61090001U), "write overflowing DADDI instruction");
     require(machine.stepCpu(), "DADDI overflow is handled by exception path");
