@@ -117,14 +117,16 @@ void testCp0TlbRefillVectorsRespectBevAndExceptionLevel() {
     constexpr std::uint64_t firstExceptionPc = 0xFFFFFFFF80007000ULL;
     constexpr std::uint64_t nestedFaultPc = 0xFFFFFFFF80008000ULL;
     constexpr std::uint64_t nestedFaultAddress = 0x0000000000705000ULL;
-    cp0.write(Cp0::kStatus, Cp0::kStatusExl | Cp0::kStatusBev);
-    cp0.write(Cp0::kEpc, firstExceptionPc);
-    cp0.write(Cp0::kCause, 1ULL << 31U);
+    cp0.write(Cp0::kStatus, Cp0::kStatusBev);
+    cp0.raiseException(ExceptionCode::Syscall, firstExceptionPc, true);
+    require(cp0.read(Cp0::kEpc) == firstExceptionPc - 4U &&
+                (cp0.read(Cp0::kCause) & (1ULL << 31U)) != 0U,
+            "initial delay-slot exception establishes EPC and Cause.BD");
     vector = cp0.raiseException(ExceptionCode::TlbModification, nestedFaultPc,
                                 true, nestedFaultAddress, true);
     require(vector == 0xFFFFFFFFBFC00380ULL,
             "nested TLB modification with BEV set uses the general bootstrap vector");
-    require(cp0.read(Cp0::kEpc) == firstExceptionPc &&
+    require(cp0.read(Cp0::kEpc) == firstExceptionPc - 4U &&
                 (cp0.read(Cp0::kCause) & (1ULL << 31U)) != 0U,
             "nested TLB modification preserves the original EPC and delay-slot flag");
     require(cp0.read(Cp0::kBadVAddr) == nestedFaultAddress &&
