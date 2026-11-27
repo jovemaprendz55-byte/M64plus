@@ -2718,6 +2718,32 @@ void testCpuProgramsPiDmaAndExecutesCartridgePayload() {
 }
 
 
+void testHleBootRejectsInvalidEntryWithoutResettingMachine() {
+    N64Machine machine;
+    std::vector<std::uint8_t> rom(0x1008U, 0U);
+    rom[0] = 0x80U; rom[1] = 0x37U; rom[2] = 0x12U; rom[3] = 0x40U;
+    // The cartridge header entry point is deliberately unaligned.
+    rom[8] = 0x80U; rom[9] = 0x00U; rom[10] = 0x04U; rom[11] = 0x02U;
+    require(machine.bus().loadCartridge(rom.data(), rom.size()),
+            "load cartridge with invalid HLE entry point");
+    require(machine.bus().rdram().write32(0x200U, 0xA1B2C3D4U),
+            "seed RDRAM before rejected HLE boot");
+    machine.cpu().reset(0xFFFFFFFF80001234ULL);
+
+    require(!machine.bootCartridgeHle(),
+            "HLE rejects an unaligned cartridge entry point");
+
+    std::uint32_t value = 0U;
+    require(machine.bus().rdram().read32(0x200U, value) && value == 0xA1B2C3D4U,
+            "rejected HLE boot leaves existing RDRAM untouched");
+    require(machine.cpu().pc() == 0xFFFFFFFF80001234ULL,
+            "rejected HLE boot leaves CPU execution state untouched");
+    require(machine.bus().read32(Bus::kCartridgeBase + 8U, value) &&
+                value == 0x80000402U,
+            "rejected HLE boot preserves the inserted cartridge header");
+}
+
+
 void testCartridgeHleBootInitializesRdramDmemAndCpuState() {
     N64Machine machine;
     std::vector<std::uint8_t> rom(0x1008U, 0U);
@@ -4062,6 +4088,7 @@ int main() {
     testCpuUnalignedDoublewordMemoryBoundaryFaults();
     testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget();
     testCpuRunnerStopsWhenInstructionRaisesException();
+    testHleBootRejectsInvalidEntryWithoutResettingMachine();
     testCartridgeHleBootInitializesRdramDmemAndCpuState();
     testHleBootDetectsCicAndPalRegionFromRom();
     testMachineDoesNotRetryUnsupportedRspInstruction();
