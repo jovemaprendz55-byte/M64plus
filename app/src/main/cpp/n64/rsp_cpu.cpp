@@ -289,9 +289,17 @@ bool RspCpu::executeVector(unsigned element, unsigned vt, unsigned vs,
                 value = static_cast<std::uint16_t>(raw);
             } else if (multiplyAccumulateLow || multiplyMidUnsigned ||
                        multiplyAccumulateMidUnsigned) {
-                if (signedAccumulator < 0) value = 0U;
-                else if (signedAccumulator > 65535) value = 0xFFFFU;
-                else value = static_cast<std::uint16_t>(signedAccumulator);
+                const std::uint32_t low32 = static_cast<std::uint32_t>(raw);
+                const std::uint16_t high16 = static_cast<std::uint16_t>(raw >> 32U);
+                const std::uint16_t expectedHigh =
+                    (low32 & 0x80000000U) != 0U ? 0xFFFFU : 0U;
+                if (high16 == expectedHigh) {
+                    value = static_cast<std::uint16_t>(low32);
+                } else if ((high16 & 0x8000U) != 0U) {
+                    value = 0U;
+                } else {
+                    value = 0xFFFFU;
+                }
             } else if (multiplyMidSigned || multiplyAccumulateMidSigned) {
                 if (shifted < -32768) value = 0x8000U;
                 else if (shifted > 32767) value = 0x7FFFU;
