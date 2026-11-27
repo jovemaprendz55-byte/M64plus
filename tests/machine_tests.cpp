@@ -2850,7 +2850,7 @@ void testHleBootMapsKseg1EntryToPhysicalRdram() {
     fallthroughRom[10] = 0x04U; fallthroughRom[11] = 0x00U;
     const std::uint32_t fallthroughProgram[] = {
         0x24080001U, // addiu t0, zero, 1
-        0x15090002U, // bne t0, t1, +2: taken because t1 is zero
+        0x11090002U, // beq t0, t1, +2: not taken because t1 is zero
         0x240A0002U, // delay slot
         0x240B0003U, // sequential instruction (not the branch target)
         0x240C0004U  // branch target
@@ -2872,11 +2872,11 @@ void testHleBootMapsKseg1EntryToPhysicalRdram() {
             "KSEG1 program executes setup and BNE branch");
     require(fallthroughMachine.stepCpu() &&
             fallthroughMachine.cpu().reg(10U) == 2U,
-            "KSEG1 BNE delay slot executes");
+            "KSEG1 BEQ delay slot executes");
     require(fallthroughMachine.stepCpu() &&
             fallthroughMachine.cpu().reg(11U) == 3U &&
             fallthroughMachine.cpu().reg(12U) == 0U,
-            "KSEG1 BNE reaches its taken target after the delay slot");
+            "KSEG1 BEQ falls through after its delay slot");
 }
 
 void testCartridgeHleBootInitializesRdramDmemAndCpuState() {
