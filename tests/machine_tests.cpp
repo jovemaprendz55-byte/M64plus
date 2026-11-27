@@ -3243,6 +3243,9 @@ void testCpuSyscallAndBreakpointInBranchDelaySlot() {
         require((machine.cpu().cp0().read(m64plus::n64::Cp0::kCause) &
                  (1ULL << 31U)) != 0U,
                 "delay-slot syscall/break sets Cause.BD");
+        require(((machine.cpu().cp0().read(m64plus::n64::Cp0::kCause) >> 2U) &
+                 0x1FU) == item.code,
+                "delay-slot syscall/break records the exception code in Cause.ExcCode");
     }
 }
 
