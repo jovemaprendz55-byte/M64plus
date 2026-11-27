@@ -418,6 +418,48 @@ void testMultirowDmaRejectsBeforeAnyRowIsCopied() {
             "rejected multirow DMA preserves DRAM address");
 }
 
+void testMultirowSpToDramDmaRejectsWithoutPartialWrites() {
+    Bus bus;
+    constexpr std::uint32_t spStart = 0xA0U;
+    const std::uint32_t dramStart =
+        static_cast<std::uint32_t>(m64plus::n64::Rdram::kSize - 8U);
+
+    for (std::uint32_t i = 0U; i < 16U; ++i) {
+        require(bus.write8(Bus::kSpDmemBase + spStart + i,
+                           static_cast<std::uint8_t>(0x80U + i)),
+                "seed SP source for rejected write DMA");
+    }
+    for (std::uint32_t i = 0U; i < 8U; ++i) {
+        require(bus.rdram().write8(dramStart + i, 0x5AU),
+                "seed final valid RDRAM row before rejected write DMA");
+    }
+    const std::uint64_t epochBeforeDma = bus.rdram().writeEpoch();
+
+    require(bus.write32(Bus::kSpMemAddr, spStart),
+            "set SP source for rejected write DMA");
+    require(bus.write32(Bus::kSpDramAddr, dramStart),
+            "set DRAM destination for rejected write DMA");
+    // The first row fits, but the second row would begin beyond RDRAM.
+    require(!bus.write32(Bus::kSpWriteLength, 0x00001007U),
+            "reject SP-to-RDRAM DMA when a later row exceeds RDRAM");
+
+    for (std::uint32_t i = 0U; i < 8U; ++i) {
+        std::uint8_t actual = 0U;
+        require(bus.rdram().read8(dramStart + i, actual),
+                "read RDRAM after rejected write DMA");
+        require(actual == 0x5AU,
+                "rejected write DMA leaves its earlier valid row untouched");
+    }
+    require(bus.rdram().writeEpoch() == epochBeforeDma,
+            "rejected write DMA does not advance RDRAM write epoch");
+
+    std::uint32_t address = 0U;
+    require(bus.read32(Bus::kSpMemAddr, address) && address == spStart,
+            "rejected write DMA preserves SP address");
+    require(bus.read32(Bus::kSpDramAddr, address) && address == dramStart,
+            "rejected write DMA preserves DRAM address");
+}
+
 void testPiCartridgeToRdramDmaAndInterrupt() {
     Bus bus;
     std::uint8_t rom[72]{};
@@ -597,6 +639,7 @@ int main() {
     testImemBankAndWrapping();
     testOutOfRangeIsRejectedBeforeCopy();
     testMultirowDmaRejectsBeforeAnyRowIsCopied();
+    testMultirowSpToDramDmaRejectsWithoutPartialWrites();
     testSpStatusCommandBits();
     std::cout << "All SP DMA host tests passed.\n";
     return 0;
