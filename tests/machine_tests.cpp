@@ -2804,19 +2804,25 @@ void testHleBootMapsKseg1EntryToPhysicalRdram() {
     rom[0] = 0x80U; rom[1] = 0x37U; rom[2] = 0x12U; rom[3] = 0x40U;
     // KSEG1 entry 0xA0000400 aliases physical RDRAM address 0x400.
     rom[8] = 0xA0U; rom[9] = 0x00U; rom[10] = 0x04U; rom[11] = 0x00U;
-    rom[0x1000U] = 0xDEU;
-    rom[0x1001U] = 0xADU;
-    rom[0x1002U] = 0xBEU;
-    rom[0x1003U] = 0xEFU;
+    // addiu t0, zero, 0x1234: prove the HLE-booted CPU can fetch and
+    // execute the first instruction through the uncached KSEG1 alias.
+    rom[0x1000U] = 0x24U;
+    rom[0x1001U] = 0x08U;
+    rom[0x1002U] = 0x12U;
+    rom[0x1003U] = 0x34U;
     require(machine.bus().loadCartridge(rom.data(), rom.size()),
             "load cartridge with KSEG1 entry point");
     require(machine.bootCartridgeHle(), "HLE accepts a valid KSEG1 entry point");
 
     std::uint32_t value = 0U;
-    require(machine.bus().rdram().read32(0x400U, value) && value == 0xDEADBEEFU,
+    require(machine.bus().rdram().read32(0x400U, value) && value == 0x24081234U,
             "KSEG1 entry payload is copied to its physical RDRAM alias");
     require(machine.cpu().pc() == 0xFFFFFFFFA0000400ULL,
             "HLE retains the canonical KSEG1 virtual entry point");
+    require(machine.stepCpu() && !machine.cpu().hasLastException(),
+            "HLE-booted CPU fetches and executes through KSEG1");
+    require(machine.cpu().reg(8U) == 0x1234U,
+            "KSEG1 boot entry executes its first cartridge instruction");
 }
 
 void testCartridgeHleBootInitializesRdramDmemAndCpuState() {
