@@ -7,6 +7,7 @@
 #include "n64/mips_cpu.h"
 #include "n64/rsp_cpu.h"
 #include "n64/rdp.h"
+#include "n64/event_scheduler.h"
 
 namespace m64plus::n64 {
 
@@ -36,12 +37,15 @@ public:
     const RspCpu& rsp() const noexcept;
     RdpSyncState& rdp() noexcept;
     const RdpSyncState& rdp() const noexcept;
+    EventScheduler& eventScheduler() noexcept;
+    const EventScheduler& eventScheduler() const noexcept;
 
 private:
     Bus bus_{};
     MipsCpu cpu_{};
     RspCpu rsp_{};
     RdpSyncState rdp_{};
+    EventScheduler eventScheduler_{};
 };
 
 } // namespace m64plus::n64
