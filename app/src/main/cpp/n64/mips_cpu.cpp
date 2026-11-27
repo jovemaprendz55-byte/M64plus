@@ -527,7 +527,16 @@ bool MipsCpu::stepMemory(Memory& memory) {
             destination = rt;
             result = signExtend32(static_cast<std::uint32_t>(cp0_.read(rd)));
             writeRegister = true;
+        } else if (rs == 0x01) { // DMFC0, 64-bit transfer, select 0 only
+            if ((instruction & 0x7FFU) != 0)
+                return takeException(ExceptionCode::ReservedInstruction);
+            destination = rt;
+            result = cp0_.read(rd);
+            writeRegister = true;
         } else if (rs == 0x04) { // MTC0, select 0 only
+            if ((instruction & 0x7FFU) != 0 || !cp0_.write(rd, gpr_[rt]))
+                return takeException(ExceptionCode::ReservedInstruction);
+        } else if (rs == 0x05) { // DMTC0, 64-bit transfer, select 0 only
             if ((instruction & 0x7FFU) != 0 || !cp0_.write(rd, gpr_[rt]))
                 return takeException(ExceptionCode::ReservedInstruction);
         } else if (rs == 0x10) { // COP0 privileged operations
