@@ -28,8 +28,9 @@ public:
     }
 
     bool cancel(EventId id) {
-        if (id == 0U || pending_.find(id) == pending_.end()) return false;
-        return cancelled_.insert(id).second;
+        if (id == 0U || pending_.erase(id) == 0U) return false;
+        cancelled_.insert(id);
+        return true;
     }
 
     // Advances monotonically and runs all events due at or before target.
@@ -48,7 +49,7 @@ public:
         return true;
     }
 
-    bool hasPendingEvents() const noexcept { return !events_.empty(); }
+    bool hasPendingEvents() const noexcept { return !pending_.empty(); }
 
     void reset() {
         events_ = {};
