@@ -2744,6 +2744,31 @@ void testHleBootRejectsInvalidEntryWithoutResettingMachine() {
 }
 
 
+void testHleBootRejectsPayloadBeyondRdramWithoutResettingMachine() {
+    N64Machine machine;
+    // The HLE copy starts at 0x1FF000; a 0x2000-byte payload crosses 8 MiB.
+    std::vector<std::uint8_t> rom(0x1000U + 0x2000U, 0U);
+    rom[0] = 0x80U; rom[1] = 0x37U; rom[2] = 0x12U; rom[3] = 0x40U;
+    rom[8] = 0x81U; rom[9] = 0xFFU; rom[10] = 0xF0U; rom[11] = 0x00U;
+    require(machine.bus().loadCartridge(rom.data(), rom.size()),
+            "load cartridge whose HLE payload exceeds RDRAM");
+    require(machine.bus().rdram().write32(0x200U, 0x5A6B7C8DU),
+            "seed RDRAM before oversized HLE boot");
+    machine.cpu().reset(0xFFFFFFFF80005678ULL);
+
+    require(!machine.bootCartridgeHle(),
+            "HLE rejects payload extending beyond physical RDRAM");
+
+    std::uint32_t value = 0U;
+    require(machine.bus().rdram().read32(0x200U, value) && value == 0x5A6B7C8DU,
+            "oversized HLE payload leaves existing RDRAM untouched");
+    require(machine.cpu().pc() == 0xFFFFFFFF80005678ULL,
+            "oversized HLE payload leaves CPU execution state untouched");
+    require(machine.bus().cartridgeSize() == rom.size(),
+            "oversized HLE rejection preserves the inserted cartridge");
+}
+
+
 void testCartridgeHleBootInitializesRdramDmemAndCpuState() {
     N64Machine machine;
     std::vector<std::uint8_t> rom(0x1008U, 0U);
@@ -4089,6 +4114,7 @@ int main() {
     testCpuRunnerHonorsInstructionBudgetAndStopsAtBudget();
     testCpuRunnerStopsWhenInstructionRaisesException();
     testHleBootRejectsInvalidEntryWithoutResettingMachine();
+    testHleBootRejectsPayloadBeyondRdramWithoutResettingMachine();
     testCartridgeHleBootInitializesRdramDmemAndCpuState();
     testHleBootDetectsCicAndPalRegionFromRom();
     testMachineDoesNotRetryUnsupportedRspInstruction();
