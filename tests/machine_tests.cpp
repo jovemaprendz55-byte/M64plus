@@ -2807,10 +2807,10 @@ void testHleBootMapsKseg1EntryToPhysicalRdram() {
     // addiu t0, zero, 1
     rom[0x1000U] = 0x24U; rom[0x1001U] = 0x08U;
     rom[0x1002U] = 0x00U; rom[0x1003U] = 0x01U;
-    // beq t0, t0, +1: branch target is the instruction after the delay slot.
+    // beq t0, t0, +1: branch target follows the delay slot.
     rom[0x1004U] = 0x11U; rom[0x1005U] = 0x08U;
     rom[0x1006U] = 0x00U; rom[0x1007U] = 0x01U;
-    // addiu t1, zero, 2: this instruction must execute in the delay slot.
+    // addiu t1, zero, 2: executes in the branch delay slot.
     rom[0x1008U] = 0x24U; rom[0x1009U] = 0x09U;
     rom[0x100AU] = 0x00U; rom[0x100BU] = 0x02U;
     // addiu t2, zero, 3: branch target.
