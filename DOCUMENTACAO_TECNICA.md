@@ -2140,3 +2140,30 @@ A consulta ao capítulo 16 do manual NEC VR4300 identificou uma regra de depend�
 - NEC VR4300 User's Manual, U10504EJ7V0UM00, capítulo 16: descrições de DIV, DIVU, DMULT, DMULTU, DDIV e DDIVU: https://hack64.net/docs/VR43XX.pdf
 
 **Status:** hazard HI/LO e restrições de modo identificados na documentação do fabricante. Nenhuma mudança executável foi feita nesta etapa; a correção exige primeiro fechar o modelo de modo/status e o estado temporal de HI/LO.
+
+
+### 18.57 Auditoria preliminar dos modos 32/64 bits (27/11/2026)
+
+A inspeção do CP0 e do decodificador confirma que o núcleo reconhece Kernel/Supervisor/User para algumas verificações de endereço, mas ainda não implementa integralmente os modos de endereço do VR4300.
+
+**O que já existe**
+
+- `Cp0::kernelMode()` considera EXL/ERL e o campo KSU.
+- `Cp0::supervisorMode()` identifica Supervisor quando não está em Kernel.
+- A CPU aplica verificações de privilégio em segmentos KSEG/SSEG/KSEG3 durante fetch e acesso a dados.
+
+**O que falta para validar as restrições de DMULT/DDIV**
+
+- O cabeçalho CP0 declara KSU, EXL, ERL, BEV, IE e CU1, mas não declara os bits Status UX, SX e KX.
+- O decodificador executa DMULT/DMULTU/DDIV/DDIVU sem consultar um modo de endereço efetivo.
+- Não há uma função central que responda se a CPU está em 64-bit mode, 32-bit Kernel mode, 32-bit Supervisor mode ou 32-bit User mode para fins de validade das instruções MIPS III.
+- O fato de o registrador Status aceitar um valor de 32 bits não significa que todos os seus campos tenham comportamento implementado.
+
+**Próxima correção necessária**
+
+1. Adicionar constantes e interpretação dos bits UX/SX/KX conforme o manual, sem confundir modo de privilégio (KSU/EXL/ERL) com modo de endereço.
+2. Criar uma consulta central de modo efetivo usada pelo decodificador.
+3. Cobrir por testes a matriz de DMULT/DMULTU/DDIV/DDIVU em Kernel 32-bit, Kernel 64-bit, Supervisor 32-bit e User 32-bit.
+4. Só então emitir Reserved Instruction nas combinações proibidas documentadas.
+
+**Status:** lacuna de modo confirmada por inspeção do código. Ainda não houve alteração funcional porque a regra de modo precisa ser aplicada de forma consistente às demais instruções de 64 bits, e não como uma exceção isolada para quatro opcodes.
