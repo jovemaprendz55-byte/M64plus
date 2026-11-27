@@ -3582,12 +3582,12 @@ void testEventSchedulerOrdersCancelsAndAdvancesDeterministically() {
             "schedule second event at shared deadline");
     require(scheduler.cancel(later), "cancel pending event");
     require(!scheduler.cancel(later), "cancellation is accepted only once");
-    require(!scheduler.advanceTo(4U), "scheduler rejects backwards time");
-    require(scheduler.now() == 0U, "backwards advance leaves current time unchanged");
     require(scheduler.advanceTo(5U), "advance scheduler to first deadline");
     require(order.size() == 2U && order[0] == 1 && order[1] == 2,
             "same-deadline events execute once in insertion order");
     require(scheduler.now() == 5U, "scheduler clock reaches requested target");
+    require(!scheduler.advanceTo(4U), "scheduler rejects backwards time");
+    require(scheduler.now() == 5U, "backwards advance leaves current time unchanged");
     require(scheduler.advanceTo(12U), "advance across cancelled deadline");
     require(order.size() == 2U && !scheduler.hasPendingEvents(),
             "cancelled event is not executed and queue becomes empty");
