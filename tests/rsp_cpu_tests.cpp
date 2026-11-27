@@ -527,7 +527,7 @@ void testVectorMultiplyDoubleAccumulate() {
         put(bus, 4, vType(0, 2, 1, 4, 0x0C)); // VMADL
         put(bus, 8, vType(1, 0, 0, 5, 0x1D)); // ACC_MD
         require(rsp.step(bus) && rsp.step(bus), "execute VMUDL then VMADL");
-        require(rsp.vectorLane(4, 0) == 0xFFFFU, "VMADL unsigned-saturates accumulated result");
+        require(rsp.vectorLane(4, 0) == 0xFFFCU, "VMADL returns ACC_LO when unsigned accumulator does not overflow");
         require(rsp.step(bus), "read VMADL middle accumulator slice");
         require(rsp.vectorLane(5, 0) == 1U, "VMADL accumulates product into ACC_MD");
     }
