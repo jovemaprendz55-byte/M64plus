@@ -3571,6 +3571,23 @@ void testMachineResetClearsPiAndSpDmaRegisters() {
 }
 
 
+void testMachineOwnsAndResetsEventScheduler() {
+    N64Machine machine;
+    bool fired = false;
+    require(machine.eventScheduler().scheduleAt(7U, [&fired] { fired = true; }) != 0U,
+            "machine exposes its deterministic event scheduler");
+    require(machine.eventScheduler().hasPendingEvents(),
+            "machine scheduler tracks a pending device event");
+    machine.reset();
+    require(machine.eventScheduler().now() == 0U &&
+            !machine.eventScheduler().hasPendingEvents(),
+            "machine reset clears scheduler time and queued events");
+    require(machine.eventScheduler().scheduleAt(0U, [&fired] { fired = true; }) != 0U,
+            "machine scheduler accepts a fresh event after reset");
+    require(machine.eventScheduler().advanceTo(0U) && fired,
+            "machine scheduler executes fresh events after reset");
+}
+
 void testEventSchedulerOrdersCancelsAndAdvancesDeterministically() {
     m64plus::n64::EventScheduler scheduler;
     std::vector<int> order;
@@ -3620,6 +3637,7 @@ void testEventSchedulerOrdersCancelsAndAdvancesDeterministically() {
 } // namespace
 
 int main() {
+    testMachineOwnsAndResetsEventScheduler();
     testEventSchedulerOrdersCancelsAndAdvancesDeterministically();
     testMachineResetClearsPiAndSpDmaRegisters();
     testMachineResetClearsRspAndSpExecutionState();
