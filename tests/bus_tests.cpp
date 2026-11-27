@@ -522,6 +522,18 @@ void testPiCartridgeToRdramDmaAndInterrupt() {
             (copied & Bus::kPiStatusError) != 0U,
             "failed PI DMA sets PI error status");
     require(bus.write32(Bus::kPiStatus, 1U), "clear PI DMA error");
+    require(bus.write32(Bus::kPiCartAddr, Bus::kCartridgeBase + 0x40U),
+            "restore valid cartridge source after failed PI DMA");
+    require(bus.write32(Bus::kPiWriteLength, 7U),
+            "PI DMA can be retried after clearing its error");
+    require(bus.rdram().read32(0x300U, copied) && copied == 0x11223344U,
+            "retried PI DMA copies ROM data into the unchanged destination");
+    require(bus.read32(Bus::kPiStatus, copied) &&
+            (copied & Bus::kPiStatusError) == 0U &&
+            (copied & Bus::kPiStatusInterrupt) != 0U,
+            "successful PI DMA retry clears error and raises completion interrupt");
+    require(bus.write32(Bus::kPiStatus, 2U),
+            "acknowledge interrupt from successful PI DMA retry");
     require(!bus.write32(Bus::kPiReadLength, 3U),
             "reject RDRAM-to-read-only-ROM DMA direction");
 
