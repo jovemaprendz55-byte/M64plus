@@ -473,7 +473,7 @@ void testRdpMajorEdgeUsesSharedFixedPointSubscanlineSetup() {
     edge.yHigh = 5U;
     edge.xHigh = 0;
     edge.dxHighDy = 1 << 14;
-    require(RdpCoverage::majorEdgeX(edge, 4) == -(1LL << 14U),
+    require(RdpCoverage::majorEdgeX(edge, 3) == -(1LL << 14U),
             "major-edge origin is based on Y rounded down to the containing pixel row");
 }
 
