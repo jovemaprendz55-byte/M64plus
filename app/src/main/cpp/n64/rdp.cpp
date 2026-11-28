@@ -812,6 +812,35 @@ bool RdpCombinerMath::selectAlpha(const RdpCombinerInputs& inputs,
     return false;
 }
 
+bool RdpCombinerMath::evaluateCycle(const RdpCombinerInputs& inputs,
+                                      const RdpCombineCycle& cycle,
+                                      RdpCombinerColor& output) noexcept {
+    RdpCombinerColor result{};
+    for (std::size_t channel = 0; channel < 3U; ++channel) {
+        std::uint16_t a = 0U, b = 0U, c = 0U, d = 0U;
+        if (!selectRgb(inputs, RdpCombinerRgbInput::SubA, cycle.colorA, channel, a) ||
+            !selectRgb(inputs, RdpCombinerRgbInput::SubB, cycle.colorB, channel, b) ||
+            !selectRgb(inputs, RdpCombinerRgbInput::Multiply, cycle.colorC, channel, c) ||
+            !selectRgb(inputs, RdpCombinerRgbInput::Add, cycle.colorD, channel, d)) {
+            return false;
+        }
+        const std::uint16_t accumulator = static_cast<std::uint16_t>(
+            (static_cast<std::uint32_t>(evaluateColor(a, b, c, d)) >> 8U) & 0x01FFU);
+        result.channel[channel] = clamp9(accumulator);
+    }
+
+    std::uint16_t alphaA = 0U, alphaB = 0U, alphaC = 0U, alphaD = 0U;
+    if (!selectAlpha(inputs, RdpCombinerAlphaInput::SubA, cycle.alphaA, alphaA) ||
+        !selectAlpha(inputs, RdpCombinerAlphaInput::SubB, cycle.alphaB, alphaB) ||
+        !selectAlpha(inputs, RdpCombinerAlphaInput::Multiply, cycle.alphaC, alphaC) ||
+        !selectAlpha(inputs, RdpCombinerAlphaInput::Add, cycle.alphaD, alphaD)) {
+        return false;
+    }
+    result.channel[3] = clamp9(evaluateAlpha(alphaA, alphaB, alphaC, alphaD));
+    output = result;
+    return true;
+}
+
 std::int32_t RdpCombinerMath::evaluateColor(std::uint16_t a, std::uint16_t b,
                                             std::uint16_t c, std::uint16_t d) noexcept {
     const std::int64_t result =
