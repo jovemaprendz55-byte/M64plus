@@ -364,8 +364,8 @@ void testRdpCombinerEvaluatesOneCycle() {
     using namespace m64plus::n64;
     RdpCombinerInputs inputs{};
     inputs.primitive.channel = {{50U, 60U, 70U, 80U}};
-    inputs.keyScale.channel = {{0x100U, 0x100U, 0x100U, 0U}};
-    inputs.primitiveLodFraction = 0x100U;
+    inputs.keyScale.channel = {{0x0FFU, 0x0FFU, 0x0FFU, 0U}};
+    inputs.primitiveLodFraction = 0x0FFU;
     RdpCombineCycle cycle{};
     cycle.colorA = 3U;
     cycle.colorB = 0U;
