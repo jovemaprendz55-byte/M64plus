@@ -338,6 +338,18 @@ void testRdpShadeInterpolatorUsesFloorForNegativeMajorEdge() {
             "negative fractional major-edge X uses mathematical floor before span interpolation");
 }
 
+void testRdpShadeInterpolatorHandlesNegativeGradients() {
+    using namespace m64plus::n64;
+    RdpTriangleShadeCoefficients shade{};
+    shade.rgbaFixed = {{100 * 65536, 100 * 65536, 100 * 65536, 255 * 65536}};
+    shade.drgbaDxFixed = {{-10 * 65536, 0, 0, 0}};
+    shade.drgbaDeFixed = {{0, -10 * 65536, 0, 0}};
+    const auto color = RdpShadeInterpolator::interpolate(
+        shade, 0, 1, 0, 1);
+    require(color == std::array<std::uint8_t, 4>{{90U, 90U, 100U, 255U}},
+            "shade interpolation applies negative horizontal and edge gradients");
+}
+
 void testRdpShadeInterpolatorSnapsDxAndClampsChannels() {
     using namespace m64plus::n64;
     RdpTriangleShadeCoefficients shade{};
@@ -6586,6 +6598,7 @@ int main() {
     testTriangleCommandPacketDecoding();
     testRdpShadeInterpolatorUsesEdgeAndPixelGradients();
     testRdpShadeInterpolatorUsesFloorForNegativeMajorEdge();
+    testRdpShadeInterpolatorHandlesNegativeGradients();
     testRdpShadeInterpolatorSnapsDxAndClampsChannels();
     testTriangleShadeFixedPointSignExtension();
     testMaximumTriangleCommandWaitsForAllWords();
