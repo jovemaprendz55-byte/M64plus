@@ -740,6 +740,9 @@ bool RdpCommandDecoder::decodeTriangleEdge(
     };
     RdpTriangleEdgeState candidate{};
     candidate.leftMajor = ((words[0] >> 55U) & 1U) == 0U;
+    const bool flip = !candidate.leftMajor;
+    const bool signDxHighDy = (words[2] & 0x80000000ULL) != 0U;
+    candidate.doOffset = flip == signDxHighDy;
     candidate.level = static_cast<std::uint8_t>((words[0] >> 51U) & 0x07U);
     candidate.tile = static_cast<std::uint8_t>((words[0] >> 48U) & 0x07U);
     candidate.yLow = static_cast<std::uint16_t>(words[0] & 0x3FFFU);
