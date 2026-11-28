@@ -962,6 +962,36 @@ void testCpuWordMultiplyBoundaryCases() {
         "MULTU handles a product whose high word is one");
 }
 
+void testCpuHiLoDoublewordTransfers() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t program[] = {
+        0x01000011U, // MTHI t0
+        0x00000010U, // MFHI zero
+        0x00000810U, // MFHI at
+        0x01000013U, // MTLO t0
+        0x00000012U, // MFLO zero
+        0x00001012U  // MFLO v0
+    };
+    for (std::uint32_t i = 0; i < 6U; ++i)
+        require(bus.write32(0x1300U + i * 4U, program[i]),
+                "load 64-bit HI/LO transfer program");
+
+    machine.cpu().reset(0xFFFFFFFF80001300ULL);
+    require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                           m64plus::n64::Cp0::kStatusKx),
+            "enable Kernel 64-bit mode for HI/LO transfer test");
+    constexpr std::uint64_t pattern = 0xFEDCBA9876543210ULL;
+    machine.cpu().setRegister(8U, pattern);
+    for (unsigned i = 0; i < 6U; ++i)
+        require(machine.stepCpu(), "execute doubleword HI/LO transfer instruction");
+
+    require(machine.cpu().reg(1U) == pattern,
+            "MTHI and MFHI preserve all 64 bits of the HI register");
+    require(machine.cpu().reg(2U) == pattern,
+            "MTLO and MFLO preserve all 64 bits of the LO register");
+}
+
 void testCpuLoadLinkedStoreConditional() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -4432,6 +4462,7 @@ int main() {
     testCpuFetchesAndExecutesFromCartridgeKseg1();
     testCpuProgramsPiDmaAndExecutesCartridgePayload();
     testCpuHiLoMultiplyDivideAndTransfers();
+    testCpuHiLoDoublewordTransfers();
     testCpuDoublewordMultiplyDivide();
     testCpuDoublewordMultiplyDivideEdgeCases();
     testCpuWordDivideBoundaryCases();
