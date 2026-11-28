@@ -523,7 +523,7 @@ void testRdpCoverageBuildsPerSubpixelEdgesFromTriangle() {
     edge.xHigh = (1 << 16) + (1 << 14); // 1.25 pixels; sticky quantizes to s.3 value 10.
     require(RdpCoverage::computeTriangleRowEdges(edge, 0, 0, 80, left, right),
             "fractional triangle edge remains valid");
-    require(RdpCoverage::computeMask(left, right, 1) == 0xEEU,
+    require(RdpCoverage::computeMask(left, right, 1) == 0x77U,
             "fractional left edge produces the expected eight-sample partial mask");
 
     require(!RdpCoverage::computeTriangleRowEdges(edge, 2, 0, 80, left, right),
@@ -540,6 +540,10 @@ void testRdpCoverageComputesEightDiamondSamples() {
     const std::array<std::int32_t, 4> partialRight{{6, 6, 6, 6}};
     require(RdpCoverage::computeMask(partialLeft, partialRight, 0) == 0x66U,
             "coverage mask follows alternating X sample positions on four Y subrows");
+    const std::array<std::int32_t, 4> asymmetricLeft{{0, 0, 2, 4}};
+    const std::array<std::int32_t, 4> asymmetricRight{{4, 8, 8, 8}};
+    require(RdpCoverage::computeMask(asymmetricLeft, asymmetricRight, 0) == 0xD3U,
+            "coverage mask preserves the RDP's non-linear sample-bit ordering");
     require(RdpCoverage::computeMask(fullLeft, fullRight, 1) == 0U,
             "coverage mask does not leak samples into the adjacent pixel");
     const std::array<std::int32_t, 4> emptyLeft{{4, 4, 4, 4}};
