@@ -925,6 +925,43 @@ void testCpuWordDivideBoundaryCases() {
         "DIVU word result is sign-extended when its quotient has bit 31 set");
 }
 
+
+void testCpuWordMultiplyBoundaryCases() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t readHiLo[] = {
+        0x00006012U, // MFLO t4
+        0x00006810U  // MFHI t5
+    };
+    auto run = [&](std::uint32_t operation, std::uint64_t left, std::uint64_t right,
+                   std::uint64_t expectedLo, std::uint64_t expectedHi,
+                   const char* description) {
+        require(bus.write32(0x1200U, operation), "write word multiply boundary instruction");
+        require(bus.write32(0x1204U, readHiLo[0]), "write word multiply MFLO");
+        require(bus.write32(0x1208U, readHiLo[1]), "write word multiply MFHI");
+        machine.cpu().reset(0xFFFFFFFF80001200ULL);
+        machine.cpu().setRegister(8U, left);
+        machine.cpu().setRegister(9U, right);
+        require(machine.stepCpu() && machine.stepCpu() && machine.stepCpu(),
+                "execute word multiply and read HI/LO boundary result");
+        require(machine.cpu().reg(12U) == expectedLo, description);
+        require(machine.cpu().reg(13U) == expectedHi, description);
+    };
+
+    run(0x01090018U, 0x80000000U, UINT64_MAX,
+        0xFFFFFFFF80000000ULL, 0ULL,
+        "MULT handles INT32_MIN multiplied by -1 with sign-extended LO");
+    run(0x01090018U, 0x7FFFFFFFU, 0x7FFFFFFFU,
+        1ULL, 0x3FFFFFFFULL,
+        "MULT produces correct HI and LO for maximum positive operands");
+    run(0x01090019U, 0xFFFFFFFFU, 0xFFFFFFFFU,
+        1ULL, 0xFFFFFFFFFFFFFFFEULL,
+        "MULTU preserves unsigned product bits and sign-extends each word");
+    run(0x01090019U, 0x80000000U, 2ULL,
+        0ULL, 1ULL,
+        "MULTU handles a product whose high word is one");
+}
+
 void testCpuLoadLinkedStoreConditional() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -4398,6 +4435,7 @@ int main() {
     testCpuDoublewordMultiplyDivide();
     testCpuDoublewordMultiplyDivideEdgeCases();
     testCpuWordDivideBoundaryCases();
+    testCpuWordMultiplyBoundaryCases();
     testCpuLoadLinkedStoreConditional();
     testCpuLoadLinkedStoreConditionalIgnoresUnrelatedBusWrites();
     testCpuLoadLinkedStoreConditionalDetectsWritesInSameGranule();
