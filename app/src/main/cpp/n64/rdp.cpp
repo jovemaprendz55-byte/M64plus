@@ -889,7 +889,7 @@ std::uint8_t RdpCombinerMath::clamp9(std::uint16_t value) noexcept {
     }
 }
 
-std::int32_t RdpCoverage::quantizeX(std::int64_t x16_16) noexcept {
+static std::int32_t quantizeCoverageX(std::int64_t x16_16) noexcept {
     // Convert s.16 to s.3. Preserve any discarded fractional information in
     // the low bit (the RDP sticky-bit rule), including for negative edges.
     const std::int64_t truncated = floorDivide(x16_16, 1LL << 13U);
@@ -919,6 +919,47 @@ std::uint8_t RdpCoverage::computeMask(
         }
     }
     return mask;
+}
+
+bool RdpCoverage::computeTriangleRowEdges(
+    const RdpTriangleEdgeState& edge, std::int32_t pixelRow,
+    std::int32_t scissorLeftS3, std::int32_t scissorRightS3,
+    std::array<std::int32_t, 4>& leftS3,
+    std::array<std::int32_t, 4>& rightS3) noexcept {
+    leftS3.fill(INT32_MAX);
+    rightS3.fill(INT32_MIN);
+    const std::int32_t yh = signExtend14(edge.yHigh);
+    const std::int32_t ym = signExtend14(edge.yMiddle);
+    const std::int32_t yl = signExtend14(edge.yLow);
+    if (yl <= yh || scissorRightS3 <= scissorLeftS3) return false;
+    const std::int32_t middle = std::clamp(ym, yh, yl);
+    const std::int32_t yhBase = static_cast<std::int32_t>(floorDivide(yh, 4) * 4);
+    const bool flip = !edge.leftMajor;
+    bool any = false;
+    for (std::int32_t sub = 0; sub < 4; ++sub) {
+        const std::int32_t y = pixelRow * 4 + sub;
+        if (y < yh || y >= yl) continue;
+        const std::int64_t offset = edge.doOffset
+            ? static_cast<std::int64_t>(edge.dxHighDy) * 3 : 0;
+        const std::int64_t major = static_cast<std::int64_t>(edge.xHigh) +
+            offset + static_cast<std::int64_t>(y - yhBase) * edge.dxHighDy;
+        const std::int64_t minor = y < middle
+            ? static_cast<std::int64_t>(edge.xMiddle) +
+                static_cast<std::int64_t>(y - yhBase) * edge.dxMiddleDy
+            : static_cast<std::int64_t>(edge.xLeft) +
+                static_cast<std::int64_t>(y - middle) * edge.dxLeftDy;
+        const std::int64_t rawLeft = flip ? major : minor;
+        const std::int64_t rawRight = flip ? minor : major;
+        const std::int32_t left = std::clamp(
+            quantizeCoverageX(rawLeft), scissorLeftS3, scissorRightS3);
+        const std::int32_t right = std::clamp(
+            quantizeCoverageX(rawRight), scissorLeftS3, scissorRightS3);
+        if ((left >> 1) > (right >> 1)) continue;
+        leftS3[static_cast<std::size_t>(sub)] = left;
+        rightS3[static_cast<std::size_t>(sub)] = right;
+        any = true;
+    }
+    return any;
 }
 
 std::array<std::uint8_t, 4> RdpShadeInterpolator::interpolate(
