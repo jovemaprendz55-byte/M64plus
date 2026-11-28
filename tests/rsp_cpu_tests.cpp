@@ -1255,6 +1255,8 @@ void testVectorReciprocalAndDivideLatch() {
     put(bus, 28, vType(0, 0, 0, 9, 0x1D)); // VSAR ACC_LO after VRSQ
     put(bus, 32, vType(0, 2, 2, 4, 0x36)); // VRSQH reads prior DIV_OUT
     put(bus, 36, vType(0, 0, 0, 10, 0x1D)); // VSAR ACC_LO after VRSQH
+    put(bus, 40, vType(0, 2, 1, 4, 0x35)); // VRSQL consumes staged square-root high half
+    put(bus, 44, vType(0, 0, 0, 11, 0x1D)); // VSAR ACC_LO after VRSQL
     require(rsp.step(bus), "execute VRCP");
     require(rsp.vectorLane(4, 3) == 0xC000U, "VRCP element zero uses destination-corresponding VT lane");
     require(rsp.step(bus), "read VRCP accumulator side effect");
@@ -1282,6 +1284,11 @@ void testVectorReciprocalAndDivideLatch() {
     for (unsigned lane = 0; lane < 8U; ++lane)
         require(rsp.vectorLane(10, lane) == rsp.vectorLane(2, lane),
                 "VRSQH copies the selected VT vector into ACC_LO");
+    require(rsp.step(bus), "execute VRSQL with staged square-root high half");
+    require(rsp.step(bus), "read VRSQL accumulator side effect");
+    for (unsigned lane = 0; lane < 8U; ++lane)
+        require(rsp.vectorLane(11, lane) == rsp.vectorLane(2, lane),
+                "VRSQL copies the selected VT vector into ACC_LO");
     require(!rsp.faulted(), "reciprocal instructions are supported");
 }
 
