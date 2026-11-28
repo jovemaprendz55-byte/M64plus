@@ -417,6 +417,10 @@ struct RdpSyncState final {
     std::array<RdpCombineCycle, 2> combine{};
 };
 
+// Builds combiner constants from decoded RDP synchronization state. Dynamic
+// sources (texture, shade, noise and LOD) remain zero until their producers exist.
+RdpCombinerInputs makeRdpCombinerInputs(const RdpSyncState& state) noexcept;
+
 class RdpCommandProcessor final {
 public:
     // Processes the next command that has a supported non-rendering implementation.

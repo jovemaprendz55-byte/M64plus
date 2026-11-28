@@ -1509,3 +1509,40 @@ RdpProcessResult RdpCommandProcessor::processNext(
 }
 
 } // namespace m64plus::n64
+
+namespace m64plus::n64 {
+RdpCombinerInputs makeRdpCombinerInputs(const RdpSyncState& state) noexcept {
+    RdpCombinerInputs inputs{};
+    const auto unpackRgba = [](std::uint32_t packed, RdpCombinerColor& color) noexcept {
+        color.channel = {{
+            static_cast<std::uint16_t>((packed >> 24U) & 0xFFU),
+            static_cast<std::uint16_t>((packed >> 16U) & 0xFFU),
+            static_cast<std::uint16_t>((packed >> 8U) & 0xFFU),
+            static_cast<std::uint16_t>(packed & 0xFFU)
+        }};
+    };
+
+    if (state.hasPrimColor) {
+        unpackRgba(state.primColor, inputs.primitive);
+        inputs.primitiveLodFraction = state.primLodFraction;
+    }
+    if (state.hasEnvColor) {
+        unpackRgba(state.envColor, inputs.environment);
+    }
+    if (state.hasKeyR) {
+        inputs.keyCenter.channel[0] = state.keyR.center;
+        inputs.keyScale.channel[0] = state.keyR.scale;
+    }
+    if (state.hasKeyGb) {
+        inputs.keyCenter.channel[1] = state.keyGb.centerG;
+        inputs.keyCenter.channel[2] = state.keyGb.centerB;
+        inputs.keyScale.channel[1] = state.keyGb.scaleG;
+        inputs.keyScale.channel[2] = state.keyGb.scaleB;
+    }
+    if (state.hasConvert) {
+        inputs.k4 = static_cast<std::uint16_t>(state.convert.coefficients[4]) & 0x01FFU;
+        inputs.k5 = static_cast<std::uint16_t>(state.convert.coefficients[5]) & 0x01FFU;
+    }
+    return inputs;
+}
+} // namespace m64plus::n64

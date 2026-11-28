@@ -6703,6 +6703,41 @@ void testFlippedTextureRectangleClampsPositiveTAlongDestinationX() {
 }
 
 
+
+void testRdpCombinerInputsAreBuiltFromSyncState() {
+    using namespace m64plus::n64;
+    RdpSyncState state{};
+    state.hasPrimColor = true;
+    state.primColor = 0x12345678U;
+    state.primLodFraction = 0x9AU;
+    state.hasEnvColor = true;
+    state.envColor = 0xABCDEF01U;
+    state.hasKeyR = true;
+    state.keyR = {0x0123U, 0x45U, 0x67U};
+    state.hasKeyGb = true;
+    state.keyGb = {0x0234U, 0x0345U, 0x89U, 0xABU, 0xCDU, 0xEFU};
+    state.hasConvert = true;
+    state.convert.coefficients = {{1, 2, 3, 4, -5, -6}};
+
+    const RdpCombinerInputs inputs = makeRdpCombinerInputs(state);
+    require(inputs.primitive.channel == std::array<std::uint16_t, 4>{{0x12U, 0x34U, 0x56U, 0x78U}},
+            "combiner builder unpacks primitive RGBA bytes");
+    require(inputs.environment.channel == std::array<std::uint16_t, 4>{{0xABU, 0xCDU, 0xEFU, 0x01U}},
+            "combiner builder unpacks environment RGBA bytes");
+    require(inputs.primitiveLodFraction == 0x9AU,
+            "combiner builder copies primitive LOD fraction");
+    require(inputs.keyCenter.channel == std::array<std::uint16_t, 4>{{0x45U, 0x89U, 0xCDU, 0U}},
+            "combiner builder maps key centers to RGB");
+    require(inputs.keyScale.channel == std::array<std::uint16_t, 4>{{0x67U, 0xABU, 0xEFU, 0U}},
+            "combiner builder maps key scales to RGB");
+    require(inputs.k4 == 0x01FBU && inputs.k5 == 0x01FAU,
+            "combiner builder preserves signed nine-bit conversion coefficients");
+    require(inputs.combined.channel == std::array<std::uint16_t, 4>{{0U, 0U, 0U, 0U}} &&
+            inputs.texel0.channel == std::array<std::uint16_t, 4>{{0U, 0U, 0U, 0U}} &&
+            inputs.shade.channel == std::array<std::uint16_t, 4>{{0U, 0U, 0U, 0U}},
+            "combiner builder leaves unavailable dynamic sources initialized");
+}
+
 int main() {
     testTextureRectangleWrapsTmemAddressAtEnd();
     testFlippedTextureRectangleClampsNegativeSAlongDestinationY();
@@ -6724,6 +6759,7 @@ int main() {
     testRdpCombinerMuxSourceSelection();
     testRdpCombinerEvaluatesOneCycle();
     testRdpCombinerEvaluatesTwoChainedCycles();
+    testRdpCombinerInputsAreBuiltFromSyncState();
     testRdpCombinerFixedPointMathAndClamp();
     testRdpShadeInterpolatorUsesEdgeAndPixelGradients();
     testRdpShadeInterpolatorUsesFloorForNegativeMajorEdge();
