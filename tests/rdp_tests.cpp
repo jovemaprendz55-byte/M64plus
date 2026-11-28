@@ -7076,6 +7076,30 @@ void testRdpCombinerInputsAreBuiltFromSyncState() {
             "combiner builder ignores stale register values until their SET commands are seen");
 }
 
+
+void testRdpCoverageMapsEveryDiamondSampleToHardwareBit() {
+    using namespace m64plus::n64;
+    constexpr std::array<std::array<std::uint8_t, 2>, 4> expectedBits{{
+        {{7U, 5U}}, {{6U, 4U}}, {{3U, 1U}}, {{2U, 0U}}
+    }};
+    constexpr std::array<std::array<std::int32_t, 2>, 4> sampleOffsets{{
+        {{0, 4}}, {{2, 6}}, {{0, 4}}, {{2, 6}}
+    }};
+    for (std::size_t subY = 0; subY < 4U; ++subY) {
+        for (std::size_t sample = 0; sample < 2U; ++sample) {
+            std::array<std::int32_t, 4> left{{4, 4, 4, 4}};
+            std::array<std::int32_t, 4> right{{4, 4, 4, 4}};
+            const std::int32_t x = sampleOffsets[subY][sample];
+            left[subY] = x;
+            right[subY] = x + 1;
+            const std::uint8_t expected = static_cast<std::uint8_t>(
+                1U << expectedBits[subY][sample]);
+            require(RdpCoverage::computeMask(left, right, 0) == expected,
+                    "each diamond sample maps to its documented hardware coverage bit");
+        }
+    }
+}
+
 int main() {
     testTextureRectangleWrapsTmemAddressAtEnd();
     testFlippedTextureRectangleClampsNegativeSAlongDestinationY();
@@ -7102,6 +7126,7 @@ int main() {
     testRdpCombinerFixedPointMathAndClamp();
     testRdpCoverageQuantizesWithStickyFractionBit();
     testRdpCoverageComputesEightDiamondSamples();
+    testRdpCoverageMapsEveryDiamondSampleToHardwareBit();
     testRdpMajorEdgeUsesSharedFixedPointSubscanlineSetup();
     testRdpMinorEdgeSharesMiddleAndLowerEdgeSetup();
     testRdpCoverageBuildsPerSubpixelEdgesFromTriangle();
