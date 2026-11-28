@@ -87,6 +87,14 @@ void testTriangleEdgeHeaderDecoding() {
             flippedNegativeSlope.doOffset,
             "triangle span setup applies edge offset when flip matches negative dXh/dY sign");
 
+    auto leftMajorNegativeSlopeEdges = words;
+    leftMajorNegativeSlopeEdges[2] |= 0x80000000ULL;
+    RdpTriangleEdgeState leftMajorNegativeSlope{};
+    require(RdpCommandDecoder::decodeTriangleEdge(
+                leftMajorNegativeSlopeEdges, leftMajorNegativeSlope) &&
+            leftMajorNegativeSlope.leftMajor && !leftMajorNegativeSlope.doOffset,
+            "triangle span setup skips edge offset when left-major direction disagrees with negative dXh/dY sign");
+
     RdpTriangleEdgeState zero{};
     const std::array<std::uint64_t, 4> empty{};
     require(RdpCommandDecoder::decodeTriangleEdge(empty, zero) &&
