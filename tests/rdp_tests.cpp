@@ -611,6 +611,56 @@ void testDecodedTriangleShadeFeedsRdpCombiner() {
 }
 
 
+void testDecodedTriangleShadeUsesConfiguredCombinerPipeline() {
+    using namespace m64plus::n64;
+    const auto packFour = [](std::uint16_t a, std::uint16_t b,
+                             std::uint16_t c, std::uint16_t d) noexcept {
+        return (static_cast<std::uint64_t>(a) << 48U) |
+               (static_cast<std::uint64_t>(b) << 32U) |
+               (static_cast<std::uint64_t>(c) << 16U) |
+               static_cast<std::uint64_t>(d);
+    };
+
+    RdpCommandPacket packet{};
+    packet.info = RdpCommandDecoder::decode(header(0x0CU));
+    packet.words[0] = header(0x0CU);
+    packet.words[4] = packFour(100U, 120U, 200U, 255U);
+    packet.words[5] = packFour(10U, 0U, 0U, 0U);
+    packet.words[8] = packFour(0U, 10U, 0U, 0U);
+
+    RdpTriangleCommand triangle{};
+    require(RdpCommandDecoder::decodeTriangleCommand(packet, triangle),
+            "shade pipeline receives a decoded triangle");
+
+    RdpSyncState state{};
+    state.hasCombine = true;
+    state.hasOtherModes = true;
+    state.otherModes.cycleType = 0U;
+    state.combine[0] = {4U, 0U, 13U, 0U, 4U, 4U, 0U, 4U};
+    RdpCombinerColor output{};
+    require(evaluateRdpTriangleShadePixel(
+                state, triangle, static_cast<std::int64_t>(2) << 16U,
+                3, 1, 4, output),
+            "one-cycle shade pipeline evaluates decoded shade");
+    require(output.channel == std::array<std::uint16_t, 4>{{120U, 139U, 199U, 255U}},
+            "one-cycle shade pipeline returns expected combiner output");
+
+    state.otherModes.cycleType = 1U;
+    state.combine[1] = state.combine[0];
+    require(evaluateRdpTriangleShadePixel(
+                state, triangle, static_cast<std::int64_t>(2) << 16U,
+                3, 1, 4, output),
+            "two-cycle shade pipeline evaluates decoded shade");
+    require(output.channel == std::array<std::uint16_t, 4>{{120U, 139U, 199U, 255U}},
+            "two-cycle shade pipeline chains both combiner cycles");
+
+    state.otherModes.cycleType = 2U;
+    require(!evaluateRdpTriangleShadePixel(
+                state, triangle, static_cast<std::int64_t>(2) << 16U,
+                3, 1, 4, output),
+            "fill and copy modes are not accepted by the shade combiner helper");
+}
+
 void testTriangleShadeFixedPointSignExtension() {
     using namespace m64plus::n64;
     const auto packFour = [](std::uint16_t a, std::uint16_t b,
@@ -6946,6 +6996,7 @@ int main() {
     testRdpShadeInterpolatorWrapsAtSignedSixteenBitStage();
     testDecodedTriangleShadeFeedsInterpolator();
     testDecodedTriangleShadeFeedsRdpCombiner();
+    testDecodedTriangleShadeUsesConfiguredCombinerPipeline();
     testTriangleShadeFixedPointSignExtension();
     testMaximumTriangleCommandWaitsForAllWords();
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
