@@ -197,6 +197,11 @@ public:
         const std::array<std::int32_t, 4>& leftS3,
         const std::array<std::int32_t, 4>& rightS3,
         std::int32_t pixelX) noexcept;
+    static bool computeTriangleRowEdges(
+        const RdpTriangleEdgeState& edge, std::int32_t pixelRow,
+        std::int32_t scissorLeftS3, std::int32_t scissorRightS3,
+        std::array<std::int32_t, 4>& leftS3,
+        std::array<std::int32_t, 4>& rightS3) noexcept;
 };
 
 class RdpShadeInterpolator final {
