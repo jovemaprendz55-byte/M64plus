@@ -454,6 +454,29 @@ void testRdpCoverageQuantizesWithStickyFractionBit() {
             "coverage X quantization uses floor and sticky-bit behavior for negative edges");
 }
 
+void testRdpMajorEdgeUsesSharedFixedPointSubscanlineSetup() {
+    using namespace m64plus::n64;
+    RdpTriangleEdgeState edge{};
+    edge.yHigh = 0U;
+    edge.xHigh = 1 << 16;
+    edge.dxHighDy = 1 << 14;
+    require(RdpCoverage::majorEdgeX(edge, 3) == (7LL << 14U),
+            "major edge advances in signed 16.16 by each quarter-pixel subscanline");
+    edge.doOffset = true;
+    require(RdpCoverage::majorEdgeX(edge, 3) == (10LL << 14U),
+            "DO_OFFSET advances the major-edge origin by three additional subpixel steps");
+    edge.doOffset = false;
+    edge.xHigh = -(1 << 16);
+    edge.dxHighDy = -(1 << 14);
+    require(RdpCoverage::majorEdgeX(edge, 3) == -(7LL << 14U),
+            "negative major-edge coordinates and slopes retain signed fixed-point precision");
+    edge.yHigh = 5U;
+    edge.xHigh = 0;
+    edge.dxHighDy = 1 << 14;
+    require(RdpCoverage::majorEdgeX(edge, 4) == -(1LL << 14U),
+            "major-edge origin is based on Y rounded down to the containing pixel row");
+}
+
 void testRdpCoverageBuildsPerSubpixelEdgesFromTriangle() {
     using namespace m64plus::n64;
     RdpTriangleEdgeState edge{};
@@ -7053,6 +7076,7 @@ int main() {
     testRdpCombinerFixedPointMathAndClamp();
     testRdpCoverageQuantizesWithStickyFractionBit();
     testRdpCoverageComputesEightDiamondSamples();
+    testRdpMajorEdgeUsesSharedFixedPointSubscanlineSetup();
     testRdpCoverageBuildsPerSubpixelEdgesFromTriangle();
     testRdpShadeInterpolatorUsesEdgeAndPixelGradients();
     testRdpShadeInterpolatorUsesFloorForNegativeMajorEdge();
