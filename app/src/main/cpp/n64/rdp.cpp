@@ -293,10 +293,8 @@ bool fillTriangle(Bus& bus, const RdpSyncState& state,
                     static_cast<std::int64_t>(y - middle) * edge.dxLeftDy;
             const std::int32_t majorPixel = static_cast<std::int32_t>(floorDivide(major, 65536));
             const std::int32_t minorPixel = static_cast<std::int32_t>(floorDivide(minor, 65536));
-            // The long (major) edge is the left boundary when flip is
-            // clear, and the right boundary when flip is set.
-            const std::int32_t candidateLeft = flip ? minorPixel : majorPixel;
-            const std::int32_t candidateRight = flip ? majorPixel : minorPixel;
+            const std::int32_t candidateLeft = flip ? majorPixel : minorPixel;
+            const std::int32_t candidateRight = flip ? minorPixel : majorPixel;
             if (candidateLeft > candidateRight) continue;
             left = std::min(left, candidateLeft);
             right = std::max(right, candidateRight);
