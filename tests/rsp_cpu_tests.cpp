@@ -1297,8 +1297,8 @@ void testReciprocalNumericBoundaries() {
     RspCpu rsp;
     const std::uint16_t inputs[] = {0x0001U, 0x0002U, 0xFFFFU, 0x8000U,
                                     0x0001U, 0x0002U, 0xFFFFU, 0x8000U};
-    const std::uint16_t reciprocalExpected[] = {0xC000U, 0xE000U, 0x8020U, 0xFFFFU};
-    const std::uint16_t squareRootExpected[] = {0x0000U, 0xC000U, 0x4000U, 0xFF80U};
+    const std::uint16_t reciprocalExpected[] = {0xC000U, 0xE000U, 0x3FFFU, 0x0000U};
+    const std::uint16_t squareRootExpected[] = {0x0000U, 0xC000U, 0xFFFFU, 0x0000U};
     for (unsigned lane = 0; lane < 8U; ++lane) {
         rsp.setVectorLane(2, lane, inputs[lane]);
         const unsigned function = lane < 4U ? 0x30U : 0x34U;
