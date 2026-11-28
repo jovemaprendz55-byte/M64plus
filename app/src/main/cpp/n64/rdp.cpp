@@ -278,8 +278,14 @@ bool fillTriangle(Bus& bus, const RdpSyncState& state,
         for (std::int32_t sub = 0; sub < 4; ++sub) {
             const std::int32_t y = line * 4 + sub;
             if (y < yh || y >= yl) continue;
+            // Edge setup evaluates the major edge from the Y coordinate
+            // rounded down to a pixel row. DO_OFFSET advances that origin by
+            // three subpixel steps along dXh/dY before per-subscanline motion.
+            const std::int64_t offset = edge.doOffset
+                ? static_cast<std::int64_t>(edge.dxHighDy) * 3
+                : 0;
             const std::int64_t major = static_cast<std::int64_t>(edge.xHigh) +
-                static_cast<std::int64_t>(y - yhBase) * edge.dxHighDy;
+                offset + static_cast<std::int64_t>(y - yhBase) * edge.dxHighDy;
             const std::int64_t minor = y < middle
                 ? static_cast<std::int64_t>(edge.xMiddle) +
                     static_cast<std::int64_t>(y - yhBase) * edge.dxMiddleDy
