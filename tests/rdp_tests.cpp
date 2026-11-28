@@ -360,6 +360,29 @@ void testRdpCombinerMuxSourceSelection() {
             "alpha multiply selector six selects primitive LOD fraction");
 }
 
+void testRdpCombinerEvaluatesOneCycle() {
+    using namespace m64plus::n64;
+    RdpCombinerInputs inputs{};
+    inputs.primitive.channel = {{50U, 60U, 70U, 80U}};
+    inputs.keyScale.channel = {{0x100U, 0x100U, 0x100U, 0U}};
+    inputs.primitiveLodFraction = 0x100U;
+    RdpCombineCycle cycle{};
+    cycle.colorA = 3U;
+    cycle.colorB = 0U;
+    cycle.colorC = 6U;
+    cycle.colorD = 0U;
+    cycle.alphaA = 3U;
+    cycle.alphaB = 0U;
+    cycle.alphaC = 6U;
+    cycle.alphaD = 0U;
+    RdpCombinerColor output{};
+    output.channel.fill(0x1FFU);
+    require(RdpCombinerMath::evaluateCycle(inputs, cycle, output),
+            "combiner evaluates all RGB and alpha muxes for one cycle");
+    require(output.channel == std::array<std::uint16_t, 4>{{50U, 60U, 70U, 80U}},
+            "one-cycle combiner computes RGB and alpha output channels");
+}
+
 void testRdpCombinerFixedPointMathAndClamp() {
     using namespace m64plus::n64;
     require(RdpCombinerMath::evaluateColor(0x100U, 0U, 0x100U, 0U) == 0x10080,
@@ -6656,6 +6679,7 @@ int main() {
     testTriangleEdgeHeaderDecoding();
     testTriangleCommandPacketDecoding();
     testRdpCombinerMuxSourceSelection();
+    testRdpCombinerEvaluatesOneCycle();
     testRdpCombinerFixedPointMathAndClamp();
     testRdpShadeInterpolatorUsesEdgeAndPixelGradients();
     testRdpShadeInterpolatorUsesFloorForNegativeMajorEdge();
