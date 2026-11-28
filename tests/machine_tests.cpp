@@ -993,6 +993,12 @@ void testCpuDoublewordMultiplyDivideEdgeCases() {
     run(0x0109001FU, 0xFEDCBA9876543210ULL, 0ULL,
         UINT64_MAX, 0xFEDCBA9876543210ULL,
         "DDIVU returns all-one quotient and original dividend remainder on divide by zero");
+    run(0x0109001EU, static_cast<std::uint64_t>(-7LL), 3ULL,
+        static_cast<std::uint64_t>(-2LL), static_cast<std::uint64_t>(-1LL),
+        "DDIV truncates signed quotient toward zero and keeps remainder sign");
+    run(0x0109001FU, UINT64_MAX, 1ULL,
+        UINT64_MAX, 0ULL,
+        "DDIVU preserves the full unsigned quotient and zero remainder");
 }
 
 
