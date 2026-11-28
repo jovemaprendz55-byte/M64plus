@@ -4622,7 +4622,7 @@ void testFlatFillTriangleFloorsNegativeMajorSlope() {
         (0x2DULL << 56U) | (32ULL << 12U) | 32ULL,
         (0x08ULL << 56U) | (16ULL << 16U) | 16ULL,
         (0x00018000ULL << 32U),
-        (0x00058000ULL << 32U) | 0x3FFF0000ULL,
+        (0x00058000ULL << 32U) | 0xBFFF0000ULL,
         (0x00018000ULL << 32U)
     };
     for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
