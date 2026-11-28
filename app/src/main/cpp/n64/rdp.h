@@ -178,6 +178,9 @@ public:
                             std::uint8_t selector, std::uint16_t& value) noexcept;
     static bool evaluateCycle(const RdpCombinerInputs& inputs, const RdpCombineCycle& cycle,
                               RdpCombinerColor& output) noexcept;
+    static bool evaluateTwoCycle(const RdpCombinerInputs& inputs,
+                                 const std::array<RdpCombineCycle, 2>& cycles,
+                                 RdpCombinerColor& output) noexcept;
     static std::int32_t evaluateColor(std::uint16_t a, std::uint16_t b,
                                       std::uint16_t c, std::uint16_t d) noexcept;
     static std::uint16_t evaluateAlpha(std::uint16_t a, std::uint16_t b,
