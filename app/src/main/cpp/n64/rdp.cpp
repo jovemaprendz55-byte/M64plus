@@ -945,6 +945,26 @@ std::uint8_t RdpCoverage::computeMask(
     return mask;
 }
 
+RdpCoverageInfo RdpCoverage::decodeMask(std::uint8_t mask) noexcept {
+    // Hardware mask bits follow the non-linear RDP diamond layout.
+    constexpr std::array<std::uint8_t, 8> bitOrder{{7U, 5U, 6U, 4U, 3U, 1U, 2U, 0U}};
+    constexpr std::array<std::uint8_t, 8> xOffset{{0U, 2U, 1U, 3U, 0U, 2U, 1U, 3U}};
+    constexpr std::array<std::uint8_t, 8> yOffset{{0U, 0U, 1U, 1U, 2U, 2U, 3U, 3U}};
+    RdpCoverageInfo info{};
+    info.coverageBit = static_cast<std::uint8_t>((mask >> 7U) & 1U);
+    bool foundFirst = false;
+    for (std::size_t sample = 0; sample < bitOrder.size(); ++sample) {
+        if ((mask & (1U << bitOrder[sample])) == 0U) continue;
+        ++info.coverage;
+        if (!foundFirst) {
+            info.offsetX = xOffset[sample];
+            info.offsetY = yOffset[sample];
+            foundFirst = true;
+        }
+    }
+    return info;
+}
+
 bool RdpCoverage::computeTriangleRowEdges(
     const RdpTriangleEdgeState& edge, std::int32_t pixelRow,
     std::int32_t scissorLeftS3, std::int32_t scissorRightS3,
