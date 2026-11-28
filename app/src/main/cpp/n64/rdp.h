@@ -421,6 +421,14 @@ struct RdpSyncState final {
 // sources (texture, shade, noise and LOD) remain zero until their producers exist.
 RdpCombinerInputs makeRdpCombinerInputs(const RdpSyncState& state) noexcept;
 
+// Evaluates one shaded triangle pixel through the configured one- or two-cycle combiner.
+// Texture sampling, depth, blending and framebuffer writes remain outside this helper.
+bool evaluateRdpTriangleShadePixel(const RdpSyncState& state,
+                                   const RdpTriangleCommand& triangle,
+                                   std::int64_t majorX, std::int32_t y,
+                                   std::int32_t yBase, std::int32_t x,
+                                   RdpCombinerColor& output) noexcept;
+
 class RdpCommandProcessor final {
 public:
     // Processes the next command that has a supported non-rendering implementation.
