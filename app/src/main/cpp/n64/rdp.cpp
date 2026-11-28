@@ -948,7 +948,6 @@ bool RdpCoverage::computeTriangleRowEdges(
     leftS3.fill(INT32_MAX);
     rightS3.fill(INT32_MIN);
     const std::int32_t yh = signExtend14(edge.yHigh);
-    const std::int32_t ym = signExtend14(edge.yMiddle);
     const std::int32_t yl = signExtend14(edge.yLow);
     if (yl <= yh || scissorRightS3 <= scissorLeftS3) return false;
     const bool flip = !edge.leftMajor;
