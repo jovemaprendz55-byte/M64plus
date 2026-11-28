@@ -315,6 +315,32 @@ void testCpuMips3MultiplyDivideModeRestrictions() {
         require(machine.stepCpu(), "User UX mode reads 64-bit result with MFLO");
         require(!cpu.hasLastException() && cpu.reg(12U) == test.expectedLo,
                 "64-bit multiply/divide produces expected LO result with UX enabled");
+
+        cpu.reset(0U);
+        require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 1ULL << 3U),
+                "select 32-bit Supervisor mode with SX clear");
+        cpu.setRegister(8U, test.lhs);
+        cpu.setRegister(9U, test.rhs);
+        require(machine.stepCpu(), "Supervisor mode rejects 64-bit operation without SX");
+        require(cpu.hasLastException() && cpu.lastExceptionCode() == 10U,
+                "Supervisor mode raises Reserved Instruction without SX");
+
+        cpu.reset(0U);
+        require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                                   (1ULL << 3U) | m64plus::n64::Cp0::kStatusSx),
+                "enable SX in Supervisor mode");
+        cpu.setRegister(8U, test.lhs);
+        cpu.setRegister(9U, test.rhs);
+        require(machine.stepCpu(), "Supervisor SX mode executes 64-bit operation");
+        require(!cpu.hasLastException(),
+                "Supervisor SX mode does not raise an exception");
+
+        cpu.reset(0xFFFFFFFF80000000ULL);
+        cpu.setRegister(8U, test.lhs);
+        cpu.setRegister(9U, test.rhs);
+        require(machine.stepCpu(), "Kernel mode executes 64-bit operation with KX clear");
+        require(!cpu.hasLastException(),
+                "Kernel mode permits 64-bit operation even when KX is clear");
     }
 }
 
