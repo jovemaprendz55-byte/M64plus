@@ -794,7 +794,7 @@ bool RdpCombinerMath::selectAlpha(const RdpCombinerInputs& inputs,
         case 3U: value = inputs.primitive.channel[3]; return true;
         case 4U: value = inputs.shade.channel[3]; return true;
         case 5U: value = inputs.environment.channel[3]; return true;
-        case 6U: value = input == RdpCombinerAlphaInput::Add ? 0U : 0x100U; return true;
+        case 6U: value = 0x100U; return true;
         default: value = 0U; return true;
         }
     case RdpCombinerAlphaInput::Multiply:
