@@ -295,6 +295,45 @@ void testTriangleCommandPacketDecoding() {
             "mismatched triangle packet is rejected without changing output");
 }
 
+void testTriangleShadeFixedPointSignExtension() {
+    using namespace m64plus::n64;
+    const auto packFour = [](std::uint16_t a, std::uint16_t b,
+                             std::uint16_t c, std::uint16_t d) noexcept {
+        return (static_cast<std::uint64_t>(a) << 48U) |
+               (static_cast<std::uint64_t>(b) << 32U) |
+               (static_cast<std::uint64_t>(c) << 16U) |
+               static_cast<std::uint64_t>(d);
+    };
+    RdpCommandPacket packet{};
+    packet.info = RdpCommandDecoder::decode(header(0x0CU));
+    packet.words[0] = header(0x0CU);
+    packet.words[4] = packFour(0x01FFU, 0x0100U, 0x0001U, 0x00FFU);
+    packet.words[5] = packFour(0xFFFFU, 0x8000U, 0x0001U, 0x7FFFU);
+    packet.words[6] = packFour(0x8000U, 0xFFFFU, 0x0000U, 0x0001U);
+    packet.words[7] = packFour(0xFFFFU, 0x0001U, 0x0000U, 0x0000U);
+    packet.words[8] = packFour(0x0001U, 0xFFFFU, 0x0000U, 0x0000U);
+    packet.words[9] = packFour(0x0000U, 0x0000U, 0x0000U, 0x0000U);
+    packet.words[10] = packFour(0x0000U, 0x0000U, 0x0000U, 0x0000U);
+    packet.words[11] = packFour(0x0000U, 0x0000U, 0x0000U, 0x0000U);
+
+    RdpTriangleCommand command{};
+    require(RdpCommandDecoder::decodeTriangleCommand(packet, command),
+            "shade-only triangle packet with negative fixed-point fields decodes");
+    require(command.shade.rgbaFixed[0] == -32768 &&
+            command.shade.rgbaFixed[1] == -16711681 &&
+            command.shade.rgbaFixed[2] == 65537 &&
+            command.shade.rgbaFixed[3] == 0x00FF7FFF,
+            "base RGBA uses signed 9-bit integer plus unsigned 16-bit fraction");
+    require(command.shade.drgbaDxFixed[0] == -1 &&
+            command.shade.drgbaDxFixed[1] == -2147483647,
+            "shade X increments sign-extend signed 16-bit integer fields");
+    require(command.shade.rgba[0] == -1 &&
+            command.shade.rgbaFraction[0] == static_cast<std::int16_t>(0x8000U) &&
+            command.shadeCoefficients[0] == -1 &&
+            command.shadeCoefficients[8] == static_cast<std::int16_t>(0x8000U),
+            "fixed-point assembly preserves the original signed coefficient fields");
+}
+
 void testTriangleOptionalBlockLayout() {
     using namespace m64plus::n64;
     for (std::uint8_t flags = 0U; flags < 8U; ++flags) {
@@ -6408,6 +6447,7 @@ int main() {
     testTriangleOptionalBlockLayout();
     testTriangleEdgeHeaderDecoding();
     testTriangleCommandPacketDecoding();
+    testTriangleShadeFixedPointSignExtension();
     testMaximumTriangleCommandWaitsForAllWords();
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testFlatFillTriangleRasterizesRightTriangle();
