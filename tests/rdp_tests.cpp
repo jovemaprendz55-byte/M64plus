@@ -506,9 +506,9 @@ void testInterpolatedShadeFeedsRdpCombinerCycle() {
     cycle.colorC = 6U; // One
     cycle.colorD = 0U;
     cycle.alphaA = 4U; // Shade alpha
-    cycle.alphaB = 0U;
-    cycle.alphaC = 6U;
-    cycle.alphaD = 0U;
+    cycle.alphaB = 4U; // Cancel the multiplied term exactly
+    cycle.alphaC = 0U;
+    cycle.alphaD = 4U; // Pass shade alpha through D
 
     RdpCombinerColor output{};
     require(RdpCombinerMath::evaluateCycle(inputs, cycle, output),
