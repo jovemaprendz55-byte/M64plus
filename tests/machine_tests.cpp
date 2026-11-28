@@ -272,6 +272,52 @@ void testCpuMips3MultiplyModeRestrictions() {
             "DMULT executes and produces the correct 64-bit product when UX is enabled");
 }
 
+void testCpuMips3MultiplyDivideModeRestrictions() {
+    struct Case {
+        std::uint32_t instruction;
+        std::uint64_t lhs;
+        std::uint64_t rhs;
+        std::uint64_t expectedLo;
+        const char* name;
+    };
+    constexpr Case cases[] = {
+        {0x0109001DU, 0x100000002ULL, 3U, 0x300000006ULL, "DMULTU"},
+        {0x0109001EU, 0x100000002ULL, 3U, 0x55555556ULL, "DDIV"},
+        {0x0109001FU, 0x100000002ULL, 3U, 0x55555556ULL, "DDIVU"},
+    };
+    for (const Case& test : cases) {
+        N64Machine machine;
+        Bus& bus = machine.bus();
+        auto& cpu = machine.cpu();
+        require(bus.write32(0U, test.instruction),
+                "write MIPS III multiply/divide instruction");
+        require(bus.write32(4U, 0x00006012U),
+                "write MFLO result read");
+        cpu.reset(0U);
+        require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 2ULL << 3U),
+                "select 32-bit User mode for multiply/divide restriction");
+        cpu.setRegister(8U, test.lhs);
+        cpu.setRegister(9U, test.rhs);
+        require(machine.stepCpu(),
+                "32-bit User mode handles 64-bit multiply/divide as Reserved Instruction");
+        require(cpu.hasLastException() && cpu.lastExceptionCode() == 10U,
+                "64-bit multiply/divide raises Reserved Instruction without UX");
+        require(cpu.reg(12U) == 0U,
+                "rejected multiply/divide does not execute following MFLO");
+
+        cpu.reset(0U);
+        require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                                   (2ULL << 3U) | m64plus::n64::Cp0::kStatusUx),
+                "enable UX for 64-bit multiply/divide");
+        cpu.setRegister(8U, test.lhs);
+        cpu.setRegister(9U, test.rhs);
+        require(machine.stepCpu(), "User UX mode executes 64-bit multiply/divide");
+        require(machine.stepCpu(), "User UX mode reads 64-bit result with MFLO");
+        require(!cpu.hasLastException() && cpu.reg(12U) == test.expectedLo,
+                "64-bit multiply/divide produces expected LO result with UX enabled");
+    }
+}
+
 void testCpuCop0DoublewordTransfers() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -4431,6 +4477,7 @@ int main() {
     testCp0EffectivePrivilegeControls64BitMode();
     testCpuMips3InstructionModeRestrictions();
     testCpuMips3MultiplyModeRestrictions();
+    testCpuMips3MultiplyDivideModeRestrictions();
     testCpuCop0DoublewordTransfers();
     testN64ClockTimebaseUsesExactIntegerRatios();
     testMachineOwnsAndResetsEventScheduler();
