@@ -187,8 +187,11 @@ std::int32_t signExtend14(std::uint16_t value) noexcept {
 std::array<std::uint8_t, 4> interpolateShadeImpl(
     const RdpTriangleShadeCoefficients& shade, std::int64_t majorX,
     std::int32_t y, std::int32_t yBase, std::int32_t x) noexcept {
-    // Port of ParaLLEl-RDP's full-coverage interpolate_rgba path. The low
-    // five bits of dRGBA/dX are discarded before stepping across the span.
+    // Native-resolution form of ParaLLEl-RDP's full-coverage interpolation:
+    // dRGBA/dE advances one pixel row along the major edge, and dRGBA/dX
+    // advances one pixel column across the span. Subscanline Y coordinates
+    // must be reduced to pixel-row deltas before calling this helper. The
+    // low five bits of dRGBA/dX are discarded before stepping across the span.
     const std::int32_t baseX = static_cast<std::int32_t>(majorX >> 16U);
     const auto wrap32 = [](std::uint32_t bits) noexcept {
         if (bits <= 0x7FFFFFFFU) return static_cast<std::int32_t>(bits);

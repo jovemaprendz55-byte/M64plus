@@ -139,8 +139,9 @@ struct RdpTriangleCommand final {
 
 class RdpShadeInterpolator final {
 public:
-    // Full-coverage RDP shade interpolation. majorX is the major-edge X in 16.16;
-    // y/yBase are subpixel Y coordinates and x is the destination pixel column.
+    // Full-coverage, native-resolution RDP shade interpolation. majorX is the
+    // major-edge X in 16.16 at scanline y; y and yBase are integer pixel-row
+    // coordinates (not quarter-pixel Y subscanlines), and x is a pixel column.
     static std::array<std::uint8_t, 4> interpolate(
         const RdpTriangleShadeCoefficients& shade, std::int64_t majorX,
         std::int32_t y, std::int32_t yBase, std::int32_t x) noexcept;
