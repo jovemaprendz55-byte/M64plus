@@ -188,6 +188,17 @@ public:
     static std::uint8_t clamp9(std::uint16_t value) noexcept;
 };
 
+// Pure RDP sub-pixel coverage primitives. X coordinates use signed 16.16
+// input and signed 13.3 quantized output; coverage edges are already quantized.
+class RdpCoverage final {
+public:
+    static std::int32_t quantizeX(std::int64_t x16_16) noexcept;
+    static std::uint8_t computeMask(
+        const std::array<std::int32_t, 4>& leftS3,
+        const std::array<std::int32_t, 4>& rightS3,
+        std::int32_t pixelX) noexcept;
+};
+
 class RdpShadeInterpolator final {
 public:
     // Full-coverage, native-resolution RDP shade interpolation. majorX is the
