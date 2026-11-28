@@ -882,6 +882,42 @@ void testRdpColorAndDepthStateCommands() {
 }
 
 
+void testRdpCombinerInputsFromDecodedCommands() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    const std::uint64_t commands[] = {
+        (0x3AULL << 56U) | (0x12ULL << 40U) | (0xABULL << 32U) | 0x12345678ULL,
+        (0x3BULL << 56U) | 0xABCDEF01ULL,
+        (0x2AULL << 56U) | (0xABCULL << 44U) | (0x123ULL << 32U) |
+            (0x45ULL << 24U) | (0x67ULL << 16U) | (0x89ULL << 8U) | 0xABULL,
+        (0x2BULL << 56U) | (0xDEFULL << 16U) | (0xCDULL << 8U) | 0xEFULL,
+        (0x2CULL << 56U) | (0x1FFULL << 45U) | (0x001ULL << 36U) |
+            (0x100ULL << 27U) | (0x0FFULL << 18U) | (0x180ULL << 9U) | 0x07FULL
+    };
+    for (std::size_t i = 0; i < 5U; ++i)
+        require(bus.write64(0x880U + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "seed RDP commands for combiner input integration");
+    require(bus.write32(Bus::kDpStart, 0x880U), "set DPC start for combiner input integration");
+    require(bus.write32(Bus::kDpEnd, 0x8A8U), "publish combiner input commands");
+    for (std::size_t i = 0; i < 5U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "RDP combiner input command is processed");
+
+    const RdpCombinerInputs inputs = makeRdpCombinerInputs(state);
+    require(inputs.primitive.channel == std::array<std::uint16_t, 4>{{0x12U, 0x34U, 0x56U, 0x78U}} &&
+            inputs.environment.channel == std::array<std::uint16_t, 4>{{0xABU, 0xCDU, 0xEFU, 0x01U}},
+            "decoded SET color commands feed combiner RGBA inputs");
+    require(inputs.primitiveLodFraction == 0xABU,
+            "decoded SET_PRIM_COLOR feeds primitive LOD fraction");
+    require(inputs.keyCenter.channel == std::array<std::uint16_t, 4>{{0xCDU, 0x45U, 0x89U, 0U}} &&
+            inputs.keyScale.channel == std::array<std::uint16_t, 4>{{0xEFU, 0x67U, 0xABU, 0U}},
+            "decoded SET_KEY commands feed RGB key inputs");
+    require(inputs.k4 == 0x01FBU && inputs.k5 == 0x007FU,
+            "decoded SET_CONVERT feeds signed K4 and K5 values");
+}
+
+
 void testRdpConvertAndKeyStateCommands() {
     using namespace m64plus::n64;
     Bus bus;
@@ -6776,6 +6812,7 @@ int main() {
     testRdpCombinerEvaluatesOneCycle();
     testRdpCombinerEvaluatesTwoChainedCycles();
     testRdpCombinerInputsAreBuiltFromSyncState();
+    testRdpCombinerInputsFromDecodedCommands();
     testRdpCombinerFixedPointMathAndClamp();
     testRdpShadeInterpolatorUsesEdgeAndPixelGradients();
     testRdpShadeInterpolatorUsesFloorForNegativeMajorEdge();
