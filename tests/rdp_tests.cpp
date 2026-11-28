@@ -531,6 +531,39 @@ void testRdpShadeInterpolatorWrapsAtSignedSixteenBitStage() {
 }
 
 
+void testDecodedTriangleShadeFeedsInterpolator() {
+    using namespace m64plus::n64;
+    const auto packFour = [](std::uint16_t a, std::uint16_t b,
+                             std::uint16_t c, std::uint16_t d) noexcept {
+        return (static_cast<std::uint64_t>(a) << 48U) |
+               (static_cast<std::uint64_t>(b) << 32U) |
+               (static_cast<std::uint64_t>(c) << 16U) |
+               static_cast<std::uint64_t>(d);
+    };
+
+    RdpCommandPacket packet{};
+    packet.info = RdpCommandDecoder::decode(header(0x0CU));
+    packet.words[0] = header(0x0CU);
+    packet.words[4] = packFour(100U, 120U, 200U, 255U);
+    packet.words[5] = packFour(10U, 0U, 0U, 0U);
+    packet.words[6] = 0U;
+    packet.words[7] = 0U;
+    packet.words[8] = packFour(0U, 10U, 0U, 0U);
+    packet.words[9] = 0U;
+    packet.words[10] = 0U;
+    packet.words[11] = 0U;
+
+    RdpTriangleCommand command{};
+    require(RdpCommandDecoder::decodeTriangleCommand(packet, command) &&
+            command.layout.hasShade,
+            "shade triangle command decodes its shade coefficient block");
+    const auto color = RdpShadeInterpolator::interpolate(
+        command.shade, static_cast<std::int64_t>(2) << 16U, 3, 1, 4);
+    require(color == std::array<std::uint8_t, 4>{{120U, 140U, 200U, 255U}},
+            "decoded triangle shade coefficients produce interpolated pixel color");
+}
+
+
 void testTriangleShadeFixedPointSignExtension() {
     using namespace m64plus::n64;
     const auto packFour = [](std::uint16_t a, std::uint16_t b,
@@ -6864,6 +6897,7 @@ int main() {
     testRdpShadeInterpolatorSnapsDxAndClampsChannels();
     testInterpolatedShadeFeedsRdpCombinerCycle();
     testRdpShadeInterpolatorWrapsAtSignedSixteenBitStage();
+    testDecodedTriangleShadeFeedsInterpolator();
     testTriangleShadeFixedPointSignExtension();
     testMaximumTriangleCommandWaitsForAllWords();
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
