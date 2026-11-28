@@ -4391,10 +4391,10 @@ void testFlatFillTriangleAppliesDoOffsetToMajorEdge() {
     for (unsigned i = 0U; i < 4U; ++i)
         require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
                 "DO_OFFSET triangle setup command is processed");
-    require(state.lastTriangle.edge.doOffset,
-            "negative major-edge slope and flip select DO_OFFSET");
     require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
             "DO_OFFSET flat-fill triangle is rasterized");
+    require(state.lastTriangle.edge.doOffset,
+            "negative major-edge slope and flip select DO_OFFSET");
 
     std::uint32_t shiftedPixel = 0U;
     std::uint32_t originalPixel = 0U;
