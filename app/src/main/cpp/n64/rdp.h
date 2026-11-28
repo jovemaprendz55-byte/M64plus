@@ -51,6 +51,9 @@ struct RdpTextureRectangleCommand final {
 
 struct RdpTriangleEdgeState final {
     bool leftMajor = false;
+    // RDP span setup applies the three-subpixel edge offset when flip and
+    // the sign of dXh/dY agree (DO_OFFSET in the reference rasterizer).
+    bool doOffset = false;
     // RDP texture LOD level (mip levels minus one) and tile descriptor index.
     std::uint8_t level = 0;
     std::uint8_t tile = 0;
