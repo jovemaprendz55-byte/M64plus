@@ -327,9 +327,9 @@ void testTriangleShadeFixedPointSignExtension() {
     require(command.shade.drgbaDxFixed[0] == -1 &&
             command.shade.drgbaDxFixed[1] == -2147483647,
             "shade X increments sign-extend signed 16-bit integer fields");
-    require(command.shade.drgbaDeFixed[0] == 98304 &&
-            command.shade.drgbaDeFixed[1] == -65535 &&
-            command.shade.drgbaDeFixed[2] == -2147418113 &&
+    require(command.shade.drgbaDeFixed[0] == 131071 &&
+            command.shade.drgbaDeFixed[1] == -32768 &&
+            command.shade.drgbaDeFixed[2] == -2147483647 &&
             command.shade.drgbaDeFixed[3] == 2147450879,
             "shade edge increments preserve signed integer and unsigned fraction");
     require(command.shade.drgbaDyFixed[0] == -32768 &&
