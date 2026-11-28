@@ -4595,9 +4595,9 @@ void testFlatFillTriangleFloorsPositiveFractionalXWithSlope() {
             std::uint32_t pixel = 0U;
             require(bus.read32(framebuffer + (y * 8U + x) * 4U, pixel),
                     "read sloped positive-fractional-X triangle output pixel");
-            const bool covered = y < 4U && x >= 5U && x <= 6U + y;
+            const bool covered = y < 4U && x >= 5U && x <= 7U + y;
             require(pixel == (covered ? fill : sentinel),
-                    "negative major edge retreats one pixel per scanline");
+                    "positive major edge includes the three-subpixel DO_OFFSET adjustment");
         }
     }
 }
