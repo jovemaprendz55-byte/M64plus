@@ -190,6 +190,15 @@ public:
 
 // Pure RDP sub-pixel coverage primitives. X coordinates use signed 16.16
 // input and signed 13.3 quantized output; coverage edges are already quantized.
+struct RdpCoverageInfo final {
+    std::uint8_t coverage = 0;
+    std::uint8_t coverageBit = 0;
+    std::uint8_t offsetX = 0;
+    std::uint8_t offsetY = 0;
+};
+
+// Pure RDP sub-pixel coverage primitives. X coordinates use signed 16.16
+// input and signed 13.3 quantized output; coverage edges are already quantized.
 class RdpCoverage final {
 public:
     static std::int32_t quantizeX(std::int64_t x16_16) noexcept;
@@ -200,6 +209,8 @@ public:
     // Evaluates the active minor edge at the same quarter-pixel Y position.
     static std::int64_t minorEdgeX(const RdpTriangleEdgeState& edge,
                                    std::int32_t subpixelY) noexcept;
+    // Decodes sample count, top-left coverage bit, and first covered sample offset.
+    static RdpCoverageInfo decodeMask(std::uint8_t mask) noexcept;
     static std::uint8_t computeMask(
         const std::array<std::int32_t, 4>& leftS3,
         const std::array<std::int32_t, 4>& rightS3,
