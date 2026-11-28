@@ -636,7 +636,7 @@ void testDecodedTriangleShadeUsesConfiguredCombinerPipeline() {
     state.hasCombine = true;
     state.hasOtherModes = true;
     state.otherModes.cycleType = 0U;
-    state.combine[0] = {4U, 0U, 13U, 0U, 4U, 4U, 0U, 4U};
+    state.combine[0] = {4U, 0U, 11U, 0U, 4U, 4U, 0U, 4U};
     RdpCombinerColor output{};
     require(evaluateRdpTriangleShadePixel(
                 state, triangle, static_cast<std::int64_t>(2) << 16U,
