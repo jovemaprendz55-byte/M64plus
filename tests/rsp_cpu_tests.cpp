@@ -1292,6 +1292,29 @@ void testVectorReciprocalAndDivideLatch() {
     require(!rsp.faulted(), "reciprocal instructions are supported");
 }
 
+void testReciprocalNumericBoundaries() {
+    Bus bus;
+    RspCpu rsp;
+    const std::uint16_t inputs[] = {0x0001U, 0x0002U, 0xFFFFU, 0x8000U,
+                                    0x0001U, 0x0002U, 0xFFFFU, 0x8000U};
+    const std::uint16_t reciprocalExpected[] = {0xC000U, 0xE000U, 0x8020U, 0xFFFFU};
+    const std::uint16_t squareRootExpected[] = {0x0000U, 0xC000U, 0x4000U, 0xFF80U};
+    for (unsigned lane = 0; lane < 8U; ++lane) {
+        rsp.setVectorLane(2, lane, inputs[lane]);
+        const unsigned function = lane < 4U ? 0x30U : 0x34U;
+        put(bus, lane * 4U, vType(0, 2, lane, 4, function));
+    }
+    for (unsigned lane = 0; lane < 8U; ++lane)
+        require(rsp.step(bus), "execute numeric reciprocal boundary instruction");
+    for (unsigned lane = 0; lane < 4U; ++lane) {
+        require(rsp.vectorLane(4, lane) == reciprocalExpected[lane],
+                "VRCP matches checked result for positive, negative, and extreme inputs");
+        require(rsp.vectorLane(4, lane + 4U) == squareRootExpected[lane],
+                "VRSQ matches checked result for positive, negative, and extreme inputs");
+    }
+    require(!rsp.faulted(), "numeric reciprocal boundary cases are supported");
+}
+
 void testCop2VectorAndControlMoves() {
     Bus bus;
     RspCpu rsp;
@@ -1373,6 +1396,7 @@ int main() {
     testFourthPackedVectorLoad();
     testFourthPackedVectorStore();
     testVectorReciprocalAndDivideLatch();
+    testReciprocalNumericBoundaries();
     testCop2VectorAndControlMoves();
     std::cout << "All scalar and vector RSP host tests passed.\n";
     return 0;
