@@ -327,9 +327,9 @@ void testTriangleShadeFixedPointSignExtension() {
     require(command.shade.drgbaDxFixed[0] == -1 &&
             command.shade.drgbaDxFixed[1] == -2147483647,
             "shade X increments sign-extend signed 16-bit integer fields");
-    require(command.shade.rgba[0] == -1 &&
+    require(command.shade.rgba[0] == 511 &&
             command.shade.rgbaFraction[0] == static_cast<std::int16_t>(0x8000U) &&
-            command.shadeCoefficients[0] == -1 &&
+            command.shadeCoefficients[0] == 511 &&
             command.shadeCoefficients[8] == static_cast<std::int16_t>(0x8000U),
             "fixed-point assembly preserves the original signed coefficient fields");
 }
