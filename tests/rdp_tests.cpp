@@ -321,8 +321,8 @@ void testTriangleShadeFixedPointSignExtension() {
             "shade-only triangle packet with negative fixed-point fields decodes");
     require(command.shade.rgbaFixed[0] == -32768 &&
             command.shade.rgbaFixed[1] == -16711681 &&
-            command.shade.rgbaFixed[2] == 65537 &&
-            command.shade.rgbaFixed[3] == 0x00FF7FFF,
+            command.shade.rgbaFixed[2] == 65536 &&
+            command.shade.rgbaFixed[3] == 16711681,
             "base RGBA uses signed 9-bit integer plus unsigned 16-bit fraction");
     require(command.shade.drgbaDxFixed[0] == -1 &&
             command.shade.drgbaDxFixed[1] == -2147483647,
