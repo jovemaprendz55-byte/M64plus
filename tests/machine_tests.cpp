@@ -709,15 +709,22 @@ void testCpuHiLoMultiplyDivideAndTransfers() {
         0x0008A938U, // DSLL s5,t0,4
         0x0015B13AU, // DSRL s6,s5,4
         0x0015B93BU, // DSRA s7,s5,4
-        0x0128C014U  // DSLLV t8,t0,t1
+        0x0128C014U, // DSLLV t8,t0,t1
+        0x24090000U, // ADDIU t1,zero,0
+        0x0109001AU, // DIV t0,t1 -> quotient 1, remainder -7
+        0x0000C812U, // MFLO t9
+        0x0000D010U, // MFHI k0
+        0x0109001BU, // DIVU t0,t1 -> quotient UINT32_MAX, remainder 0xFFFFFFF9
+        0x0000D812U, // MFLO k1
+        0x0000E010U  // MFHI gp
     };
-    for (std::uint32_t i = 0; i < 23U; ++i)
+    for (std::uint32_t i = 0; i < 30U; ++i)
         require(bus.write32(i * 4U, program[i]), "load HI/LO and shift program");
     machine.cpu().reset(0xFFFFFFFF80000000ULL);
     require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
                                            m64plus::n64::Cp0::kStatusKx),
             "enable Kernel 64-bit mode for MIPS III instruction test");
-    for (unsigned i = 0; i < 23U; ++i)
+    for (unsigned i = 0; i < 30U; ++i)
         require(machine.stepCpu(), "execute HI/LO and shift instruction");
     require(machine.cpu().reg(10U) == 0xFFFFFFFFFFFFFFEBULL,
             "MULT writes sign-extended product to LO and MFLO reads it");
@@ -747,6 +754,14 @@ void testCpuHiLoMultiplyDivideAndTransfers() {
             "DSRA performs an arithmetic 64-bit right shift");
     require(machine.cpu().reg(24U) == 0xFFFFFFFFFFFFFFC8ULL,
             "DSLLV uses the variable 64-bit shift amount");
+    require(machine.cpu().reg(25U) == 1U,
+            "DIV by zero returns the architecture-defined positive quotient for a negative dividend");
+    require(machine.cpu().reg(26U) == 0xFFFFFFFFFFFFFFF9ULL,
+            "DIV by zero preserves the signed 32-bit dividend in HI");
+    require(machine.cpu().reg(27U) == 0xFFFFFFFFFFFFFFFFULL,
+            "DIVU by zero returns an all-one 32-bit quotient");
+    require(machine.cpu().reg(28U) == 0xFFFFFFFFFFFFFFF9ULL,
+            "DIVU by zero preserves the unsigned 32-bit dividend in HI");
 }
 
 void testCpuDoublewordMultiplyDivide() {
