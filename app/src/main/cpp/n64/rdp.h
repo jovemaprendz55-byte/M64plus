@@ -143,8 +143,38 @@ struct RdpTriangleCommand final {
 // Exact fixed-point arithmetic used by the RDP color combiner. Inputs are
 // 9-bit mux values; RGB keeps the 17-bit accumulator while alpha returns
 // the 9-bit result after the hardware's rounded 8-bit shift.
+struct RdpCombinerColor final {
+    // R, G, B, A. Values are 9-bit RDP mux values, not necessarily 8-bit.
+    std::array<std::uint16_t, 4> channel{};
+};
+
+struct RdpCombinerInputs final {
+    RdpCombinerColor combined{};
+    RdpCombinerColor texel0{};
+    RdpCombinerColor texel1{};
+    RdpCombinerColor primitive{};
+    RdpCombinerColor shade{};
+    RdpCombinerColor environment{};
+    RdpCombinerColor keyCenter{};
+    RdpCombinerColor keyScale{};
+    std::uint16_t noise = 0;
+    std::uint16_t lodFraction = 0;
+    std::uint16_t primitiveLodFraction = 0;
+    std::uint16_t k4 = 0;
+    std::uint16_t k5 = 0;
+};
+
+enum class RdpCombinerRgbInput : std::uint8_t { SubA, SubB, Multiply, Add };
+enum class RdpCombinerAlphaInput : std::uint8_t { SubA, SubB, Multiply, Add };
+
 class RdpCombinerMath final {
 public:
+    // Resolves the hardware mux selector for one RGB channel (0=R, 1=G, 2=B).
+    static bool selectRgb(const RdpCombinerInputs& inputs, RdpCombinerRgbInput input,
+                          std::uint8_t selector, std::size_t channel,
+                          std::uint16_t& value) noexcept;
+    static bool selectAlpha(const RdpCombinerInputs& inputs, RdpCombinerAlphaInput input,
+                            std::uint8_t selector, std::uint16_t& value) noexcept;
     static std::int32_t evaluateColor(std::uint16_t a, std::uint16_t b,
                                       std::uint16_t c, std::uint16_t d) noexcept;
     static std::uint16_t evaluateAlpha(std::uint16_t a, std::uint16_t b,
