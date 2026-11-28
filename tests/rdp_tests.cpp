@@ -315,6 +315,51 @@ void testTriangleCommandPacketDecoding() {
             "mismatched triangle packet is rejected without changing output");
 }
 
+void testRdpCombinerMuxSourceSelection() {
+    using namespace m64plus::n64;
+    RdpCombinerInputs inputs{};
+    inputs.combined.channel = {{10U, 11U, 12U, 13U}};
+    inputs.texel0.channel = {{20U, 21U, 22U, 23U}};
+    inputs.texel1.channel = {{30U, 31U, 32U, 33U}};
+    inputs.primitive.channel = {{40U, 41U, 42U, 43U}};
+    inputs.shade.channel = {{50U, 51U, 52U, 53U}};
+    inputs.environment.channel = {{60U, 61U, 62U, 63U}};
+    inputs.keyCenter.channel = {{70U, 71U, 72U, 73U}};
+    inputs.keyScale.channel = {{80U, 81U, 82U, 83U}};
+    inputs.noise = 91U;
+    inputs.lodFraction = 92U;
+    inputs.primitiveLodFraction = 93U;
+    inputs.k4 = 94U;
+    inputs.k5 = 95U;
+    std::uint16_t value = 0xFFFFU;
+    require(RdpCombinerMath::selectRgb(inputs, RdpCombinerRgbInput::SubA, 4U, 1U, value) && value == 51U,
+            "RGB sub-A selects shade green");
+    require(RdpCombinerMath::selectRgb(inputs, RdpCombinerRgbInput::SubA, 6U, 0U, value) && value == 0x100U,
+            "RGB sub-A selector six is one");
+    require(RdpCombinerMath::selectRgb(inputs, RdpCombinerRgbInput::SubB, 6U, 2U, value) && value == 72U,
+            "RGB sub-B selects key center");
+    require(RdpCombinerMath::selectRgb(inputs, RdpCombinerRgbInput::SubB, 7U, 0U, value) && value == 94U,
+            "RGB sub-B selects K4");
+    require(RdpCombinerMath::selectRgb(inputs, RdpCombinerRgbInput::Multiply, 11U, 0U, value) && value == 53U,
+            "RGB multiply selector eleven selects shade alpha");
+    require(RdpCombinerMath::selectRgb(inputs, RdpCombinerRgbInput::Multiply, 13U, 0U, value) && value == 92U,
+            "RGB multiply selector thirteen selects LOD fraction");
+    require(RdpCombinerMath::selectRgb(inputs, RdpCombinerRgbInput::Multiply, 15U, 0U, value) && value == 95U,
+            "RGB multiply selector fifteen selects K5");
+    require(RdpCombinerMath::selectRgb(inputs, RdpCombinerRgbInput::Add, 6U, 0U, value) && value == 0x100U,
+            "RGB add selector six is one");
+    require(!RdpCombinerMath::selectRgb(inputs, RdpCombinerRgbInput::Add, 0U, 3U, value),
+            "RGB mux rejects invalid channel index");
+    require(RdpCombinerMath::selectAlpha(inputs, RdpCombinerAlphaInput::SubA, 6U, value) && value == 0x100U,
+            "alpha subtract selector six is one");
+    require(RdpCombinerMath::selectAlpha(inputs, RdpCombinerAlphaInput::Add, 6U, value) && value == 0x100U,
+            "alpha add selector six is one");
+    require(RdpCombinerMath::selectAlpha(inputs, RdpCombinerAlphaInput::Multiply, 0U, value) && value == 92U,
+            "alpha multiply selector zero selects LOD fraction");
+    require(RdpCombinerMath::selectAlpha(inputs, RdpCombinerAlphaInput::Multiply, 6U, value) && value == 93U,
+            "alpha multiply selector six selects primitive LOD fraction");
+}
+
 void testRdpCombinerFixedPointMathAndClamp() {
     using namespace m64plus::n64;
     require(RdpCombinerMath::evaluateColor(0x100U, 0U, 0x100U, 0U) == 0x10080,
@@ -6610,6 +6655,7 @@ int main() {
     testTriangleOptionalBlockLayout();
     testTriangleEdgeHeaderDecoding();
     testTriangleCommandPacketDecoding();
+    testRdpCombinerMuxSourceSelection();
     testRdpCombinerFixedPointMathAndClamp();
     testRdpShadeInterpolatorUsesEdgeAndPixelGradients();
     testRdpShadeInterpolatorUsesFloorForNegativeMajorEdge();
