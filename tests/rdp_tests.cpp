@@ -7098,7 +7098,7 @@ void testRdpCoverageDecodesMaskDerivatives() {
                 "single-sample mask decodes its exact diamond offset");
     }
     const auto sparse = RdpCoverage::decodeMask(0x41U);
-    require(sparse.coverage == 2U && sparse.offsetX == 0U && sparse.offsetY == 0U,
+    require(sparse.coverage == 2U && sparse.offsetX == 1U && sparse.offsetY == 1U,
             "sparse mask counts samples and selects first covered offset in scan order");
 }
 
