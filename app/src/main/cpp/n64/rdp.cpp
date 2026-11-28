@@ -709,6 +709,109 @@ std::int32_t signCombinerMultiplier9(std::uint16_t value) noexcept {
 }
 }
 
+bool RdpCombinerMath::selectRgb(const RdpCombinerInputs& inputs,
+                                  RdpCombinerRgbInput input, std::uint8_t selector,
+                                  std::size_t channel, std::uint16_t& value) noexcept {
+    if (channel >= 3U) return false;
+    const RdpCombinerColor* color = nullptr;
+    switch (input) {
+    case RdpCombinerRgbInput::SubA:
+        switch (selector & 0x0FU) {
+        case 0U: color = &inputs.combined; break;
+        case 1U: color = &inputs.texel0; break;
+        case 2U: color = &inputs.texel1; break;
+        case 3U: color = &inputs.primitive; break;
+        case 4U: color = &inputs.shade; break;
+        case 5U: color = &inputs.environment; break;
+        case 6U: value = 0x100U; return true;
+        case 7U: value = inputs.noise; return true;
+        default: value = 0U; return true;
+        }
+        break;
+    case RdpCombinerRgbInput::SubB:
+        switch (selector & 0x0FU) {
+        case 0U: color = &inputs.combined; break;
+        case 1U: color = &inputs.texel0; break;
+        case 2U: color = &inputs.texel1; break;
+        case 3U: color = &inputs.primitive; break;
+        case 4U: color = &inputs.shade; break;
+        case 5U: color = &inputs.environment; break;
+        case 6U: color = &inputs.keyCenter; break;
+        case 7U: value = inputs.k4; return true;
+        default: value = 0U; return true;
+        }
+        break;
+    case RdpCombinerRgbInput::Multiply:
+        switch (selector & 0x1FU) {
+        case 0U: color = &inputs.combined; break;
+        case 1U: color = &inputs.texel0; break;
+        case 2U: color = &inputs.texel1; break;
+        case 3U: color = &inputs.primitive; break;
+        case 4U: color = &inputs.shade; break;
+        case 5U: color = &inputs.environment; break;
+        case 6U: color = &inputs.keyScale; break;
+        case 7U: value = inputs.combined.channel[3]; return true;
+        case 8U: value = inputs.texel0.channel[3]; return true;
+        case 9U: value = inputs.texel1.channel[3]; return true;
+        case 10U: value = inputs.primitive.channel[3]; return true;
+        case 11U: value = inputs.shade.channel[3]; return true;
+        case 12U: value = inputs.environment.channel[3]; return true;
+        case 13U: value = inputs.lodFraction; return true;
+        case 14U: value = inputs.primitiveLodFraction; return true;
+        case 15U: value = inputs.k5; return true;
+        default: value = 0U; return true;
+        }
+        break;
+    case RdpCombinerRgbInput::Add:
+        switch (selector & 0x07U) {
+        case 0U: color = &inputs.combined; break;
+        case 1U: color = &inputs.texel0; break;
+        case 2U: color = &inputs.texel1; break;
+        case 3U: color = &inputs.primitive; break;
+        case 4U: color = &inputs.shade; break;
+        case 5U: color = &inputs.environment; break;
+        case 6U: value = 0x100U; return true;
+        default: value = 0U; return true;
+        }
+        break;
+    }
+    if (color == nullptr) return false;
+    value = color->channel[channel];
+    return true;
+}
+
+bool RdpCombinerMath::selectAlpha(const RdpCombinerInputs& inputs,
+                                    RdpCombinerAlphaInput input, std::uint8_t selector,
+                                    std::uint16_t& value) noexcept {
+    switch (input) {
+    case RdpCombinerAlphaInput::SubA:
+    case RdpCombinerAlphaInput::SubB:
+    case RdpCombinerAlphaInput::Add:
+        switch (selector & 0x07U) {
+        case 0U: value = inputs.combined.channel[3]; return true;
+        case 1U: value = inputs.texel0.channel[3]; return true;
+        case 2U: value = inputs.texel1.channel[3]; return true;
+        case 3U: value = inputs.primitive.channel[3]; return true;
+        case 4U: value = inputs.shade.channel[3]; return true;
+        case 5U: value = inputs.environment.channel[3]; return true;
+        case 6U: value = input == RdpCombinerAlphaInput::Add ? 0U : 0x100U; return true;
+        default: value = 0U; return true;
+        }
+    case RdpCombinerAlphaInput::Multiply:
+        switch (selector & 0x07U) {
+        case 0U: value = inputs.lodFraction; return true;
+        case 1U: value = inputs.texel0.channel[3]; return true;
+        case 2U: value = inputs.texel1.channel[3]; return true;
+        case 3U: value = inputs.primitive.channel[3]; return true;
+        case 4U: value = inputs.shade.channel[3]; return true;
+        case 5U: value = inputs.environment.channel[3]; return true;
+        case 6U: value = inputs.primitiveLodFraction; return true;
+        default: value = 0U; return true;
+        }
+    }
+    return false;
+}
+
 std::int32_t RdpCombinerMath::evaluateColor(std::uint16_t a, std::uint16_t b,
                                             std::uint16_t c, std::uint16_t d) noexcept {
     const std::int64_t result =
