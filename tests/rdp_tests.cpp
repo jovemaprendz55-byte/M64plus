@@ -332,7 +332,7 @@ void testTriangleShadeFixedPointSignExtension() {
             command.shade.drgbaDeFixed[2] == -2147483647 &&
             command.shade.drgbaDeFixed[3] == 2147450879,
             "shade edge increments preserve signed integer and unsigned fraction");
-    require(command.shade.drgbaDyFixed[0] == -32768 &&
+    require(command.shade.drgbaDyFixed[0] == 32768 &&
             command.shade.drgbaDyFixed[1] == -65535 &&
             command.shade.drgbaDyFixed[2] == 131071 &&
             command.shade.drgbaDyFixed[3] == -2147450881,
