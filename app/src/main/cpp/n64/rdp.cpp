@@ -889,6 +889,38 @@ std::uint8_t RdpCombinerMath::clamp9(std::uint16_t value) noexcept {
     }
 }
 
+std::int32_t RdpCoverage::quantizeX(std::int64_t x16_16) noexcept {
+    // Convert s.16 to s.3. Preserve any discarded fractional information in
+    // the low bit (the RDP sticky-bit rule), including for negative edges.
+    const std::int64_t truncated = floorDivide(x16_16, 1LL << 13U);
+    const std::int64_t remainder = x16_16 - truncated * (1LL << 13U);
+    const std::int64_t quantized = truncated | (remainder != 0 ? 1LL : 0LL);
+    return static_cast<std::int32_t>(quantized);
+}
+
+std::uint8_t RdpCoverage::computeMask(
+    const std::array<std::int32_t, 4>& leftS3,
+    const std::array<std::int32_t, 4>& rightS3,
+    std::int32_t pixelX) noexcept {
+    // Eight diamond-pattern samples: two X positions for each of four
+    // quarter-pixel Y rows. The right edge is half-open.
+    constexpr std::array<std::array<std::int32_t, 2>, 4> sampleOffset{{
+        {{0, 4}}, {{2, 6}}, {{0, 4}}, {{2, 6}}
+    }};
+    const std::int64_t pixelBase = static_cast<std::int64_t>(pixelX) * 8;
+    std::uint8_t mask = 0U;
+    for (std::size_t subY = 0; subY < sampleOffset.size(); ++subY) {
+        if (leftS3[subY] >= rightS3[subY]) continue;
+        for (std::size_t sample = 0; sample < 2U; ++sample) {
+            const std::int64_t x = pixelBase + sampleOffset[subY][sample];
+            if (x >= leftS3[subY] && x < rightS3[subY])
+                mask = static_cast<std::uint8_t>(
+                    mask | (1U << (subY * 2U + sample)));
+        }
+    }
+    return mask;
+}
+
 std::array<std::uint8_t, 4> RdpShadeInterpolator::interpolate(
     const RdpTriangleShadeCoefficients& shade, std::int64_t majorX,
     std::int32_t y, std::int32_t yBase, std::int32_t x) noexcept {
