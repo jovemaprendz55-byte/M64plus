@@ -317,14 +317,14 @@ void testTriangleCommandPacketDecoding() {
 
 void testRdpCombinerFixedPointMathAndClamp() {
     using namespace m64plus::n64;
-    require(RdpCombinerMath::evaluateColor(0x100U, 0U, 0x100U, 0U) == 0x10000,
+    require(RdpCombinerMath::evaluateColor(0x100U, 0U, 0x100U, 0U) == 0x10080,
             "combiner RGB sign-extends negative A and multiplier in 17-bit accumulator");
     require(RdpCombinerMath::evaluateAlpha(0x100U, 0U, 0x100U, 0U) == 0x100U,
             "combiner alpha rounds then shifts and retains nine bits");
     require(RdpCombinerMath::evaluateColor(0U, 0U, 0U, 0x1FFU) == 0x1FF80,
             "combiner RGB applies rounded D input without scaling");
     require(RdpCombinerMath::clamp9(0x07FU) == 0x7FU &&
-            RdpCombinerMath::clamp9(0x180U) == 0xFFU &&
+            RdpCombinerMath::clamp9(0x100U) == 0xFFU &&
             RdpCombinerMath::clamp9(0x1FFU) == 0U,
             "combiner uses the RDP special nine-bit clamp regions");
 }
