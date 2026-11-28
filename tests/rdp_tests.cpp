@@ -454,6 +454,37 @@ void testRdpCoverageQuantizesWithStickyFractionBit() {
             "coverage X quantization uses floor and sticky-bit behavior for negative edges");
 }
 
+void testRdpCoverageBuildsPerSubpixelEdgesFromTriangle() {
+    using namespace m64plus::n64;
+    RdpTriangleEdgeState edge{};
+    edge.leftMajor = false;
+    edge.yHigh = 0U;
+    edge.yMiddle = 4U;
+    edge.yLow = 8U;
+    edge.xHigh = 1 << 16;
+    edge.xMiddle = 5 << 16;
+    edge.xLeft = 5 << 16;
+    std::array<std::int32_t, 4> left{};
+    std::array<std::int32_t, 4> right{};
+    require(RdpCoverage::computeTriangleRowEdges(edge, 0, 0, 80, left, right),
+            "coverage edge walk accepts a triangle row inside its Y range");
+    require(left == std::array<std::int32_t, 4>{{8, 8, 8, 8}} &&
+            right == std::array<std::int32_t, 4>{{40, 40, 40, 40}},
+            "coverage edge walk converts major/minor fixed-point edges to s.3 spans");
+    require(RdpCoverage::computeMask(left, right, 1) == 0xFFU &&
+            RdpCoverage::computeMask(left, right, 5) == 0U,
+            "triangle row spans produce full interior and empty exterior pixel masks");
+
+    edge.xHigh = (1 << 16) + (1 << 14); // 1.25 pixels; sticky quantizes to s.3 value 10.
+    require(RdpCoverage::computeTriangleRowEdges(edge, 0, 0, 80, left, right),
+            "fractional triangle edge remains valid");
+    require(RdpCoverage::computeMask(left, right, 1) == 0xEEU,
+            "fractional left edge produces the expected eight-sample partial mask");
+
+    require(!RdpCoverage::computeTriangleRowEdges(edge, 2, 0, 80, left, right),
+            "coverage edge walk rejects rows below the triangle");
+}
+
 void testRdpCoverageComputesEightDiamondSamples() {
     using namespace m64plus::n64;
     const std::array<std::int32_t, 4> fullLeft{{0, 0, 0, 0}};
@@ -7022,6 +7053,7 @@ int main() {
     testRdpCombinerFixedPointMathAndClamp();
     testRdpCoverageQuantizesWithStickyFractionBit();
     testRdpCoverageComputesEightDiamondSamples();
+    testRdpCoverageBuildsPerSubpixelEdgesFromTriangle();
     testRdpShadeInterpolatorUsesEdgeAndPixelGradients();
     testRdpShadeInterpolatorUsesFloorForNegativeMajorEdge();
     testRdpShadeInterpolatorHandlesNegativeGradients();
