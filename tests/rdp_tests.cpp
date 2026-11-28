@@ -4378,7 +4378,7 @@ void testFlatFillTriangleAppliesDoOffsetToMajorEdge() {
         // major-edge sample from x=2.5 to x=1.75.
         (0x08ULL << 56U) | (1ULL << 55U) | (16ULL << 16U) | 16ULL,
         0ULL,
-        (2ULL * 65536ULL + 32768ULL) << 32U | 0x3FFF0000ULL,
+        (2ULL * 65536ULL + 32768ULL) << 32U | 0xFFFF0000ULL,
         ((2ULL * 65536ULL) << 32U) | 0x00010000ULL
     };
     for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
