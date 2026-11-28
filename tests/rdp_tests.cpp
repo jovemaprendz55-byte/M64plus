@@ -383,6 +383,40 @@ void testRdpCombinerEvaluatesOneCycle() {
             "one-cycle combiner computes RGB and alpha output channels");
 }
 
+void testRdpCombinerEvaluatesTwoChainedCycles() {
+    using namespace m64plus::n64;
+    RdpCombinerInputs inputs{};
+    inputs.primitive.channel = {{50U, 60U, 70U, 80U}};
+    inputs.shade.channel = {{20U, 20U, 20U, 30U}};
+    inputs.keyScale.channel = {{0x0FFU, 0x0FFU, 0x0FFU, 0U}};
+    inputs.primitiveLodFraction = 0x0FFU;
+
+    std::array<RdpCombineCycle, 2> cycles{};
+    cycles[0].colorA = 3U;
+    cycles[0].colorB = 0U;
+    cycles[0].colorC = 6U;
+    cycles[0].colorD = 4U;
+    cycles[0].alphaA = 3U;
+    cycles[0].alphaB = 0U;
+    cycles[0].alphaC = 6U;
+    cycles[0].alphaD = 4U;
+
+    cycles[1].colorA = 0U;
+    cycles[1].colorB = 3U;
+    cycles[1].colorC = 6U;
+    cycles[1].colorD = 0U;
+    cycles[1].alphaA = 0U;
+    cycles[1].alphaB = 3U;
+    cycles[1].alphaC = 6U;
+    cycles[1].alphaD = 0U;
+
+    RdpCombinerColor output{};
+    require(RdpCombinerMath::evaluateTwoCycle(inputs, cycles, output),
+            "combiner evaluates two cycles in sequence");
+    require(output.channel == std::array<std::uint16_t, 4>{{20U, 20U, 20U, 30U}},
+            "second combiner cycle consumes the first cycle's combined RGB and alpha");
+}
+
 void testRdpCombinerFixedPointMathAndClamp() {
     using namespace m64plus::n64;
     require(RdpCombinerMath::evaluateColor(0x100U, 0U, 0x100U, 0U) == 0x10080,
@@ -6680,6 +6714,7 @@ int main() {
     testTriangleCommandPacketDecoding();
     testRdpCombinerMuxSourceSelection();
     testRdpCombinerEvaluatesOneCycle();
+    testRdpCombinerEvaluatesTwoChainedCycles();
     testRdpCombinerFixedPointMathAndClamp();
     testRdpShadeInterpolatorUsesEdgeAndPixelGradients();
     testRdpShadeInterpolatorUsesFloorForNegativeMajorEdge();
