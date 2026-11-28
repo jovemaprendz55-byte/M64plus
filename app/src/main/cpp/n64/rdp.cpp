@@ -898,6 +898,10 @@ static std::int32_t quantizeCoverageX(std::int64_t x16_16) noexcept {
     return static_cast<std::int32_t>(quantized);
 }
 
+std::int32_t RdpCoverage::quantizeX(std::int64_t x16_16) noexcept {
+    return quantizeCoverageX(x16_16);
+}
+
 std::uint8_t RdpCoverage::computeMask(
     const std::array<std::int32_t, 4>& leftS3,
     const std::array<std::int32_t, 4>& rightS3,
