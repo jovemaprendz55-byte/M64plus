@@ -487,6 +487,37 @@ void testRdpShadeInterpolatorSnapsDxAndClampsChannels() {
 }
 
 
+void testInterpolatedShadeFeedsRdpCombinerCycle() {
+    using namespace m64plus::n64;
+    RdpTriangleShadeCoefficients coefficients{};
+    coefficients.rgbaFixed = {{100 * 65536, 120 * 65536, 200 * 65536, 255 * 65536}};
+    coefficients.drgbaDeFixed = {{0, 10 * 65536, 0, 0}};
+    coefficients.drgbaDxFixed = {{10 * 65536, 0, 0, 0}};
+    const auto interpolated = RdpShadeInterpolator::interpolate(
+        coefficients, static_cast<std::int64_t>(2) << 16U, 3, 1, 4);
+
+    RdpCombinerInputs inputs{};
+    for (std::size_t channel = 0; channel < interpolated.size(); ++channel)
+        inputs.shade.channel[channel] = interpolated[channel];
+
+    RdpCombineCycle cycle{};
+    cycle.colorA = 4U; // Shade
+    cycle.colorB = 0U;
+    cycle.colorC = 6U; // One
+    cycle.colorD = 0U;
+    cycle.alphaA = 4U; // Shade alpha
+    cycle.alphaB = 0U;
+    cycle.alphaC = 6U;
+    cycle.alphaD = 0U;
+
+    RdpCombinerColor output{};
+    require(RdpCombinerMath::evaluateCycle(inputs, cycle, output),
+            "combiner accepts interpolated triangle shade as its source");
+    require(output.channel == std::array<std::uint16_t, 4>{{120U, 140U, 200U, 255U}},
+            "shade interpolation reaches the combiner output without channel changes");
+}
+
+
 void testRdpShadeInterpolatorWrapsAtSignedSixteenBitStage() {
     using namespace m64plus::n64;
     RdpTriangleShadeCoefficients shade{};
@@ -6830,6 +6861,7 @@ int main() {
     testRdpShadeInterpolatorUsesFloorForNegativeMajorEdge();
     testRdpShadeInterpolatorHandlesNegativeGradients();
     testRdpShadeInterpolatorSnapsDxAndClampsChannels();
+    testInterpolatedShadeFeedsRdpCombinerCycle();
     testRdpShadeInterpolatorWrapsAtSignedSixteenBitStage();
     testTriangleShadeFixedPointSignExtension();
     testMaximumTriangleCommandWaitsForAllWords();
