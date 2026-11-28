@@ -906,6 +906,7 @@ std::int64_t RdpCoverage::minorEdgeX(
     const std::int32_t yh = signExtend14(edge.yHigh);
     const std::int32_t ym = signExtend14(edge.yMiddle);
     const std::int32_t yl = signExtend14(edge.yLow);
+    const std::int32_t middle = std::clamp(ym, yh, yl);
     if (subpixelY < middle) {
         const std::int32_t yhBase =
             static_cast<std::int32_t>(floorDivide(yh, 4) * 4);
@@ -950,8 +951,6 @@ bool RdpCoverage::computeTriangleRowEdges(
     const std::int32_t ym = signExtend14(edge.yMiddle);
     const std::int32_t yl = signExtend14(edge.yLow);
     if (yl <= yh || scissorRightS3 <= scissorLeftS3) return false;
-    const std::int32_t middle = std::clamp(ym, yh, yl);
-    const std::int32_t yhBase = static_cast<std::int32_t>(floorDivide(yh, 4) * 4);
     const bool flip = !edge.leftMajor;
     bool any = false;
     for (std::int32_t sub = 0; sub < 4; ++sub) {
