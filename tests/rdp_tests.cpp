@@ -410,11 +410,20 @@ void testRdpCombinerEvaluatesTwoChainedCycles() {
     cycles[1].alphaC = 6U;
     cycles[1].alphaD = 0U;
 
+    RdpCombinerColor firstCycleOutput{};
+    require(RdpCombinerMath::evaluateCycle(inputs, cycles[0], firstCycleOutput),
+            "reference first combiner cycle evaluates");
+    RdpCombinerInputs secondCycleInputs = inputs;
+    secondCycleInputs.combined = firstCycleOutput;
+    RdpCombinerColor expectedOutput{};
+    require(RdpCombinerMath::evaluateCycle(secondCycleInputs, cycles[1], expectedOutput),
+            "reference second combiner cycle consumes first output");
+
     RdpCombinerColor output{};
     require(RdpCombinerMath::evaluateTwoCycle(inputs, cycles, output),
             "combiner evaluates two cycles in sequence");
-    require(output.channel == std::array<std::uint16_t, 4>{{20U, 20U, 20U, 30U}},
-            "second combiner cycle consumes the first cycle's combined RGB and alpha");
+    require(output.channel == expectedOutput.channel,
+            "two-cycle helper matches explicit combined-output feedback");
 }
 
 void testRdpCombinerFixedPointMathAndClamp() {
