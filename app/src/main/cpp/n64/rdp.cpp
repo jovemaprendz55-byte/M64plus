@@ -841,6 +841,26 @@ bool RdpCombinerMath::evaluateCycle(const RdpCombinerInputs& inputs,
     return true;
 }
 
+bool RdpCombinerMath::evaluateTwoCycle(
+    const RdpCombinerInputs& inputs,
+    const std::array<RdpCombineCycle, 2>& cycles,
+    RdpCombinerColor& output) noexcept {
+    RdpCombinerColor firstCycleOutput{};
+    if (!evaluateCycle(inputs, cycles[0], firstCycleOutput)) {
+        return false;
+    }
+
+    RdpCombinerInputs secondCycleInputs = inputs;
+    secondCycleInputs.combined = firstCycleOutput;
+    RdpCombinerColor secondCycleOutput{};
+    if (!evaluateCycle(secondCycleInputs, cycles[1], secondCycleOutput)) {
+        return false;
+    }
+
+    output = secondCycleOutput;
+    return true;
+}
+
 std::int32_t RdpCombinerMath::evaluateColor(std::uint16_t a, std::uint16_t b,
                                             std::uint16_t c, std::uint16_t d) noexcept {
     const std::int64_t result =
