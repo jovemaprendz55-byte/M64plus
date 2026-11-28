@@ -4355,6 +4355,56 @@ void testFlatFillTriangleRasterizesRightTriangle() {
 }
 
 
+
+void testFlatFillTriangleAppliesDoOffsetToMajorEdge() {
+    using namespace m64plus::n64;
+    Bus bus;
+    RdpSyncState state{};
+    constexpr std::uint32_t framebuffer = 0x2600U;
+    constexpr std::uint32_t stream = 0x2A00U;
+    constexpr std::uint32_t sentinel = 0xDEADBEEFU;
+    constexpr std::uint32_t fill = 0xAABBCCDDU;
+    for (std::uint32_t i = 0U; i < 8U * 8U; ++i)
+        require(bus.write32(framebuffer + i * 4U, sentinel),
+                "seed DO_OFFSET triangle framebuffer");
+
+    const std::uint64_t commands[] = {
+        (0x3FULL << 56U) | (3ULL << 51U) | (7ULL << 32U) | framebuffer,
+        (0x37ULL << 56U) | fill,
+        (0x2FULL << 56U) | (3ULL << 52U),
+        (0x2DULL << 56U) | (32ULL << 12U) | 32ULL,
+        // Right-major triangle: the negative major-edge slope and flip
+        // activate DO_OFFSET. The three-subpixel shift moves the first
+        // major-edge sample from x=2.5 to x=1.75.
+        (0x08ULL << 56U) | (1ULL << 55U) | (16ULL << 16U) | 16ULL,
+        0ULL,
+        (2ULL * 65536ULL + 32768ULL) << 32U | 0x3FFF0000ULL,
+        ((2ULL * 65536ULL) << 32U) | 0x00010000ULL
+    };
+    for (std::size_t i = 0U; i < sizeof(commands) / sizeof(commands[0]); ++i)
+        require(bus.write64(stream + static_cast<std::uint32_t>(i * 8U), commands[i]),
+                "write DO_OFFSET triangle command stream");
+    require(bus.write32(Bus::kDpStart, stream) &&
+            bus.write32(Bus::kDpEnd, stream + 64U),
+            "publish DO_OFFSET triangle command stream");
+
+    for (unsigned i = 0U; i < 4U; ++i)
+        require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+                "DO_OFFSET triangle setup command is processed");
+    require(state.lastTriangle.edge.doOffset,
+            "negative major-edge slope and flip select DO_OFFSET");
+    require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Processed,
+            "DO_OFFSET flat-fill triangle is rasterized");
+
+    std::uint32_t shiftedPixel = 0U;
+    std::uint32_t originalPixel = 0U;
+    require(bus.read32(framebuffer + 1U * 4U, shiftedPixel) &&
+            bus.read32(framebuffer + 2U * 4U, originalPixel),
+            "read DO_OFFSET edge pixels");
+    require(shiftedPixel == fill && originalPixel == fill,
+            "three-subpixel DO_OFFSET shifts the major edge before span coverage");
+}
+
 void testFlatFillTriangleUsesLowerEdgeAfterMiddleY() {
     using namespace m64plus::n64;
     Bus bus;
@@ -6541,6 +6591,7 @@ int main() {
     testMaximumTriangleCommandWaitsForAllWords();
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
     testFlatFillTriangleRasterizesRightTriangle();
+    testFlatFillTriangleAppliesDoOffsetToMajorEdge();
     testFlatFillTriangleUsesLowerEdgeAfterMiddleY();
     testFlatFillTriangleUsesNegativeLowerEdgeSlope();
     testFlatFillTriangleFloorsPositiveFractionalX();
