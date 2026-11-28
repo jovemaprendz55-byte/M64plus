@@ -1247,19 +1247,29 @@ void testVectorReciprocalAndDivideLatch() {
     rsp.setVectorLane(2, 3, 1U); // element 0 selects the destination-corresponding source lane
     put(bus, 0, vType(0, 2, 3, 4, 0x30)); // VRCP zero -> 0x7fffffff
     put(bus, 4, vType(0, 2, 5, 4, 0x32)); // VRCPH reads prior DIV_OUT
-    put(bus, 8, vType(0, 2, 6, 4, 0x31)); // VRCPL combines staged high + low
-    put(bus, 12, vType(0, 2, 7, 4, 0x31)); // no pending high: sign-extended low
-    put(bus, 16, vType(0, 2, 1, 4, 0x34)); // VRSQ zero
+    put(bus, 8, vType(0, 0, 0, 8, 0x1D)); // VSAR ACC_LO after VRCPH
+    put(bus, 12, vType(0, 2, 6, 4, 0x31)); // VRCPL combines staged high + low
+    put(bus, 16, vType(0, 2, 7, 4, 0x31)); // no pending high: sign-extended low
+    put(bus, 20, vType(0, 2, 1, 4, 0x34)); // VRSQ zero
+    put(bus, 24, vType(0, 0, 0, 9, 0x1D)); // VSAR ACC_LO after VRSQ
     require(rsp.step(bus), "execute VRCP");
     require(rsp.vectorLane(4, 3) == 0xC000U, "VRCP element zero uses destination-corresponding VT lane");
     require(rsp.step(bus), "execute VRCPH");
     require(rsp.vectorLane(4, 5) == 0x7FFFU, "VRCPH returns prior result high half");
+    require(rsp.step(bus), "read VRCPH accumulator side effect");
+    for (unsigned lane = 0; lane < 8U; ++lane)
+        require(rsp.vectorLane(8, lane) == rsp.vectorLane(2, lane),
+                "VRCPH copies the selected VT vector into ACC_LO");
     require(rsp.step(bus), "execute VRCPL with staged high half");
     require(rsp.vectorLane(4, 6) == 0xFFFFU, "VRCPL zero 32-bit input low result");
     require(rsp.step(bus), "execute VRCPL without staged high half");
     require(rsp.vectorLane(4, 7) == 0xFFFFU, "VRCPL without high half uses signed 16-bit input");
     require(rsp.step(bus), "execute VRSQ");
     require(rsp.vectorLane(4, 1) == 0xFFFFU, "VRSQ zero low result is all ones");
+    require(rsp.step(bus), "read VRSQ accumulator side effect");
+    for (unsigned lane = 0; lane < 8U; ++lane)
+        require(rsp.vectorLane(9, lane) == rsp.vectorLane(2, lane),
+                "VRSQ copies the selected VT vector into ACC_LO");
     require(!rsp.faulted(), "reciprocal instructions are supported");
 }
 
