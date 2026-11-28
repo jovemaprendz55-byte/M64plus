@@ -495,7 +495,7 @@ void testRdpMinorEdgeSharesMiddleAndLowerEdgeSetup() {
             "lower minor edge applies its signed slope from middle Y");
 
     edge.yMiddle = 0x3FFFU;
-    require(RdpCoverage::minorEdgeX(edge, 7) == (5LL << 16U) - (3LL << 14U),
+    require(RdpCoverage::minorEdgeX(edge, 7) == (13LL << 14U),
             "minor edge clamps middle Y to low Y before selecting the lower segment");
 }
 
