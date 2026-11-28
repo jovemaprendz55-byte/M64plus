@@ -58,7 +58,7 @@ void testTriangleEdgeHeaderDecoding() {
             "four-word triangle edge header decodes");
     require(edge.leftMajor && edge.level == 5U && edge.tile == 3U &&
             edge.yLow == 0x0345U && edge.yMiddle == 0x0234U &&
-            edge.yHigh == 0x0123U,
+            edge.yHigh == 0x0123U && edge.doOffset,
             "triangle LOD level, tile, Y coordinates and major-edge direction decode");
     require(edge.xLeft == -1048576 && edge.dxLeftDy == 0 &&
             edge.xHigh == 98304 && edge.dxHighDy == -1 &&
@@ -74,6 +74,18 @@ void testTriangleEdgeHeaderDecoding() {
             negative.dxLeftDy == -1 && negative.dxHighDy == -1 &&
             negative.dxMiddleDy == -1,
             "negative edge slopes use floor division when scaled to quarter-pixel steps");
+
+    auto flippedEdges = words;
+    flippedEdges[0] |= (1ULL << 55U);
+    RdpTriangleEdgeState flipped{};
+    require(RdpCommandDecoder::decodeTriangleEdge(flippedEdges, flipped) &&
+            !flipped.leftMajor && !flipped.doOffset,
+            "triangle span setup skips edge offset when flip disagrees with dXh/dY sign");
+    flippedEdges[2] |= 0x80000000ULL;
+    RdpTriangleEdgeState flippedNegativeSlope{};
+    require(RdpCommandDecoder::decodeTriangleEdge(flippedEdges, flippedNegativeSlope) &&
+            flippedNegativeSlope.doOffset,
+            "triangle span setup applies edge offset when flip matches negative dXh/dY sign");
 
     RdpTriangleEdgeState zero{};
     const std::array<std::uint64_t, 4> empty{};
