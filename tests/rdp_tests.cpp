@@ -7077,6 +7077,31 @@ void testRdpCombinerInputsAreBuiltFromSyncState() {
 }
 
 
+void testRdpCoverageDecodesMaskDerivatives() {
+    using namespace m64plus::n64;
+    const auto empty = RdpCoverage::decodeMask(0U);
+    require(empty.coverage == 0U && empty.coverageBit == 0U &&
+            empty.offsetX == 0U && empty.offsetY == 0U,
+            "empty coverage mask has no covered samples or offsets");
+    const auto full = RdpCoverage::decodeMask(0xFFU);
+    require(full.coverage == 8U && full.coverageBit == 1U &&
+            full.offsetX == 0U && full.offsetY == 0U,
+            "full coverage mask reports eight samples and top-left origin");
+    constexpr std::array<std::uint8_t, 8> bits{{7U, 5U, 6U, 4U, 3U, 1U, 2U, 0U}};
+    constexpr std::array<std::uint8_t, 8> xs{{0U, 2U, 1U, 3U, 0U, 2U, 1U, 3U}};
+    constexpr std::array<std::uint8_t, 8> ys{{0U, 0U, 1U, 1U, 2U, 2U, 3U, 3U}};
+    for (std::size_t i = 0; i < bits.size(); ++i) {
+        const auto info = RdpCoverage::decodeMask(
+            static_cast<std::uint8_t>(1U << bits[i]));
+        require(info.coverage == 1U && info.coverageBit == (bits[i] == 7U ? 1U : 0U) &&
+                info.offsetX == xs[i] && info.offsetY == ys[i],
+                "single-sample mask decodes its exact diamond offset");
+    }
+    const auto sparse = RdpCoverage::decodeMask(0x41U);
+    require(sparse.coverage == 2U && sparse.offsetX == 0U && sparse.offsetY == 0U,
+            "sparse mask counts samples and selects first covered offset in scan order");
+}
+
 void testRdpCoverageMapsEveryDiamondSampleToHardwareBit() {
     using namespace m64plus::n64;
     constexpr std::array<std::array<std::uint8_t, 2>, 4> expectedBits{{
@@ -7126,6 +7151,7 @@ int main() {
     testRdpCombinerFixedPointMathAndClamp();
     testRdpCoverageQuantizesWithStickyFractionBit();
     testRdpCoverageComputesEightDiamondSamples();
+    testRdpCoverageDecodesMaskDerivatives();
     testRdpCoverageMapsEveryDiamondSampleToHardwareBit();
     testRdpMajorEdgeUsesSharedFixedPointSubscanlineSetup();
     testRdpMinorEdgeSharesMiddleAndLowerEdgeSetup();
