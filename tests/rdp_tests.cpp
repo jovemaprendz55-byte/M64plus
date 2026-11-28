@@ -440,6 +440,38 @@ void testRdpCombinerFixedPointMathAndClamp() {
             "combiner uses the RDP special nine-bit clamp regions");
 }
 
+void testRdpCoverageQuantizesWithStickyFractionBit() {
+    using namespace m64plus::n64;
+    require(RdpCoverage::quantizeX(0) == 0 &&
+            RdpCoverage::quantizeX(1) == 1 &&
+            RdpCoverage::quantizeX(8192) == 1 &&
+            RdpCoverage::quantizeX(16384) == 2 &&
+            RdpCoverage::quantizeX(16385) == 3,
+            "coverage X quantization preserves discarded positive fractions in sticky bit");
+    require(RdpCoverage::quantizeX(-8192) == -1 &&
+            RdpCoverage::quantizeX(-8193) == -1 &&
+            RdpCoverage::quantizeX(-16384) == -2,
+            "coverage X quantization uses floor and sticky-bit behavior for negative edges");
+}
+
+void testRdpCoverageComputesEightDiamondSamples() {
+    using namespace m64plus::n64;
+    const std::array<std::int32_t, 4> fullLeft{{0, 0, 0, 0}};
+    const std::array<std::int32_t, 4> fullRight{{8, 8, 8, 8}};
+    require(RdpCoverage::computeMask(fullLeft, fullRight, 0) == 0xFFU,
+            "coverage mask marks all eight diamond samples inside a full pixel");
+    const std::array<std::int32_t, 4> partialLeft{{2, 2, 2, 2}};
+    const std::array<std::int32_t, 4> partialRight{{6, 6, 6, 6}};
+    require(RdpCoverage::computeMask(partialLeft, partialRight, 0) == 0x66U,
+            "coverage mask follows alternating X sample positions on four Y subrows");
+    require(RdpCoverage::computeMask(fullLeft, fullRight, 1) == 0U,
+            "coverage mask does not leak samples into the adjacent pixel");
+    const std::array<std::int32_t, 4> emptyLeft{{4, 4, 4, 4}};
+    const std::array<std::int32_t, 4> emptyRight{{4, 4, 4, 4}};
+    require(RdpCoverage::computeMask(emptyLeft, emptyRight, 0) == 0U,
+            "coverage mask treats equal left and right edges as empty");
+}
+
 void testRdpShadeInterpolatorUsesEdgeAndPixelGradients() {
     using namespace m64plus::n64;
     RdpTriangleShadeCoefficients shade{};
@@ -6988,6 +7020,8 @@ int main() {
     testRdpCombinerInputsAreBuiltFromSyncState();
     testRdpCombinerInputsFromDecodedCommands();
     testRdpCombinerFixedPointMathAndClamp();
+    testRdpCoverageQuantizesWithStickyFractionBit();
+    testRdpCoverageComputesEightDiamondSamples();
     testRdpShadeInterpolatorUsesEdgeAndPixelGradients();
     testRdpShadeInterpolatorUsesFloorForNegativeMajorEdge();
     testRdpShadeInterpolatorHandlesNegativeGradients();
