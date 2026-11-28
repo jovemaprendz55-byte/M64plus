@@ -248,10 +248,8 @@ bool fillTriangle(Bus& bus, const RdpSyncState& state,
 
     const RdpTriangleEdgeState& edge = triangle.edge;
     const std::int32_t yh = signExtend14(edge.yHigh);
-    const std::int32_t ym = signExtend14(edge.yMiddle);
     const std::int32_t yl = signExtend14(edge.yLow);
     if (yl <= yh) return false;
-    const std::int32_t middle = ym < yh ? yh : (ym > yl ? yl : ym);
     const std::int32_t scissorLeft = static_cast<std::int32_t>(state.scissor.xh) >> 2U;
     const std::int32_t scissorRight = static_cast<std::int32_t>(state.scissor.xl) >> 2U;
     const std::int32_t scissorTop = static_cast<std::int32_t>(state.scissor.yh) >> 2U;
@@ -261,7 +259,6 @@ bool fillTriangle(Bus& bus, const RdpSyncState& state,
     const std::int32_t startLine = std::max(static_cast<std::int32_t>(floorDivide(yh, 4)), scissorTop);
     const std::int32_t endLine = std::min(static_cast<std::int32_t>(floorDivide(static_cast<std::int64_t>(yl) - 1, 4)), scissorBottom - 1);
     if (endLine < startLine) return false;
-    const std::int32_t yhBase = static_cast<std::int32_t>(floorDivide(yh, 4) * 4);
     const std::int32_t width = static_cast<std::int32_t>(image.width);
     const std::int32_t maxX = std::min(scissorRight, width - 1);
     const std::uint32_t bytesPerPixel = image.size == 2U ? 2U : 4U;
@@ -909,7 +906,6 @@ std::int64_t RdpCoverage::minorEdgeX(
     const std::int32_t yh = signExtend14(edge.yHigh);
     const std::int32_t ym = signExtend14(edge.yMiddle);
     const std::int32_t yl = signExtend14(edge.yLow);
-    const std::int32_t middle = std::clamp(ym, yh, yl);
     if (subpixelY < middle) {
         const std::int32_t yhBase =
             static_cast<std::int32_t>(floorDivide(yh, 4) * 4);
