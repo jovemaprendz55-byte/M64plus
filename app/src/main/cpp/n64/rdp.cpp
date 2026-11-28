@@ -1511,6 +1511,30 @@ RdpProcessResult RdpCommandProcessor::processNext(
 } // namespace m64plus::n64
 
 namespace m64plus::n64 {
+bool evaluateRdpTriangleShadePixel(const RdpSyncState& state,
+                                   const RdpTriangleCommand& triangle,
+                                   std::int64_t majorX, std::int32_t y,
+                                   std::int32_t yBase, std::int32_t x,
+                                   RdpCombinerColor& output) noexcept {
+    if (!triangle.layout.hasShade || triangle.layout.hasTexture ||
+        triangle.layout.hasZ || !state.hasCombine || !state.hasOtherModes ||
+        state.otherModes.cycleType > 1U) return false;
+
+    RdpCombinerInputs inputs = makeRdpCombinerInputs(state);
+    const std::array<std::uint8_t, 4> shade = RdpShadeInterpolator::interpolate(
+        triangle.shade, majorX, y, yBase, x);
+    for (std::size_t channel = 0; channel < shade.size(); ++channel)
+        inputs.shade.channel[channel] = shade[channel];
+
+    RdpCombinerColor candidate{};
+    const bool evaluated = state.otherModes.cycleType == 0U
+        ? RdpCombinerMath::evaluateCycle(inputs, state.combine[0], candidate)
+        : RdpCombinerMath::evaluateTwoCycle(inputs, state.combine, candidate);
+    if (!evaluated) return false;
+    output = candidate;
+    return true;
+}
+
 RdpCombinerInputs makeRdpCombinerInputs(const RdpSyncState& state) noexcept {
     RdpCombinerInputs inputs{};
     const auto unpackRgba = [](std::uint32_t packed, RdpCombinerColor& color) noexcept {
