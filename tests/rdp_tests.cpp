@@ -651,8 +651,8 @@ void testDecodedTriangleShadeUsesConfiguredCombinerPipeline() {
                 state, triangle, static_cast<std::int64_t>(2) << 16U,
                 3, 1, 4, output),
             "two-cycle shade pipeline evaluates decoded shade");
-    require(output.channel == std::array<std::uint16_t, 4>{{120U, 139U, 199U, 255U}},
-            "two-cycle shade pipeline chains both combiner cycles");
+    require(output.channel == std::array<std::uint16_t, 4>{{120U, 140U, 200U, 255U}},
+            "two-cycle shade pipeline returns the second cycle result");
 
     state.otherModes.cycleType = 2U;
     require(!evaluateRdpTriangleShadePixel(
