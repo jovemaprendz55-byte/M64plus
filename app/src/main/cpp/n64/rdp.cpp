@@ -282,11 +282,7 @@ bool fillTriangle(Bus& bus, const RdpSyncState& state,
             // rounded down to a pixel row. DO_OFFSET advances that origin by
             // three subpixel steps along dXh/dY before per-subscanline motion.
             const std::int64_t major = RdpCoverage::majorEdgeX(edge, y);
-            const std::int64_t minor = y < middle
-                ? static_cast<std::int64_t>(edge.xMiddle) +
-                    static_cast<std::int64_t>(y - yhBase) * edge.dxMiddleDy
-                : static_cast<std::int64_t>(edge.xLeft) +
-                    static_cast<std::int64_t>(y - middle) * edge.dxLeftDy;
+            const std::int64_t minor = RdpCoverage::minorEdgeX(edge, y);
             const std::int32_t majorPixel = static_cast<std::int32_t>(floorDivide(major, 65536));
             const std::int32_t minorPixel = static_cast<std::int32_t>(floorDivide(minor, 65536));
             const std::int32_t candidateLeft = flip ? majorPixel : minorPixel;
@@ -908,6 +904,22 @@ std::int64_t RdpCoverage::majorEdgeX(
         static_cast<std::int64_t>(subpixelY - yhBase) * edge.dxHighDy;
 }
 
+std::int64_t RdpCoverage::minorEdgeX(
+    const RdpTriangleEdgeState& edge, std::int32_t subpixelY) noexcept {
+    const std::int32_t yh = signExtend14(edge.yHigh);
+    const std::int32_t ym = signExtend14(edge.yMiddle);
+    const std::int32_t yl = signExtend14(edge.yLow);
+    const std::int32_t middle = std::clamp(ym, yh, yl);
+    if (subpixelY < middle) {
+        const std::int32_t yhBase =
+            static_cast<std::int32_t>(floorDivide(yh, 4) * 4);
+        return static_cast<std::int64_t>(edge.xMiddle) +
+            static_cast<std::int64_t>(subpixelY - yhBase) * edge.dxMiddleDy;
+    }
+    return static_cast<std::int64_t>(edge.xLeft) +
+        static_cast<std::int64_t>(subpixelY - middle) * edge.dxLeftDy;
+}
+
 std::uint8_t RdpCoverage::computeMask(
     const std::array<std::int32_t, 4>& leftS3,
     const std::array<std::int32_t, 4>& rightS3,
@@ -950,11 +962,7 @@ bool RdpCoverage::computeTriangleRowEdges(
         const std::int32_t y = pixelRow * 4 + sub;
         if (y < yh || y >= yl) continue;
         const std::int64_t major = RdpCoverage::majorEdgeX(edge, y);
-        const std::int64_t minor = y < middle
-            ? static_cast<std::int64_t>(edge.xMiddle) +
-                static_cast<std::int64_t>(y - yhBase) * edge.dxMiddleDy
-            : static_cast<std::int64_t>(edge.xLeft) +
-                static_cast<std::int64_t>(y - middle) * edge.dxLeftDy;
+        const std::int64_t minor = RdpCoverage::minorEdgeX(edge, y);
         const std::int64_t rawLeft = flip ? major : minor;
         const std::int64_t rawRight = flip ? minor : major;
         const std::int32_t left = std::clamp(
