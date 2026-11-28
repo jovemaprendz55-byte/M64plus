@@ -192,7 +192,7 @@ std::array<std::uint8_t, 4> interpolateShadeImpl(
     // advances one pixel column across the span. Subscanline Y coordinates
     // must be reduced to pixel-row deltas before calling this helper. The
     // low five bits of dRGBA/dX are discarded before stepping across the span.
-    const std::int32_t baseX = static_cast<std::int32_t>(majorX >> 16U);
+    const std::int32_t baseX = static_cast<std::int32_t>(floorDivide(majorX, 65536));
     const auto wrap32 = [](std::uint32_t bits) noexcept {
         if (bits <= 0x7FFFFFFFU) return static_cast<std::int32_t>(bits);
         return -1 - static_cast<std::int32_t>(0xFFFFFFFFU - bits);
