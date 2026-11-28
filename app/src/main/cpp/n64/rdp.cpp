@@ -697,6 +697,46 @@ bool loadTlutEntries(Bus& bus, RdpSyncState& state,
 }
 } // namespace
 
+namespace {
+std::int32_t signExtendCombiner9(std::uint16_t value) noexcept {
+    const std::int32_t bits = static_cast<std::int32_t>(value & 0x01FFU);
+    return (bits & 0x0180) == 0x0180 ? bits - 0x0200 : bits;
+}
+
+std::int32_t signCombinerMultiplier9(std::uint16_t value) noexcept {
+    const std::int32_t bits = static_cast<std::int32_t>(value & 0x01FFU);
+    return (bits & 0x0100) != 0 ? bits - 0x0200 : bits;
+}
+}
+
+std::int32_t RdpCombinerMath::evaluateColor(std::uint16_t a, std::uint16_t b,
+                                            std::uint16_t c, std::uint16_t d) noexcept {
+    const std::int64_t result =
+        (static_cast<std::int64_t>(signExtendCombiner9(a)) - signExtendCombiner9(b)) *
+        signCombinerMultiplier9(c) +
+        static_cast<std::int64_t>(signExtendCombiner9(d)) * 256 + 0x80;
+    return static_cast<std::int32_t>(static_cast<std::uint64_t>(result) & 0x1FFFFU);
+}
+
+std::uint16_t RdpCombinerMath::evaluateAlpha(std::uint16_t a, std::uint16_t b,
+                                             std::uint16_t c, std::uint16_t d) noexcept {
+    const std::int64_t result =
+        (static_cast<std::int64_t>(signExtendCombiner9(a)) - signExtendCombiner9(b)) *
+        signCombinerMultiplier9(c) +
+        static_cast<std::int64_t>(signExtendCombiner9(d)) * 256 + 0x80;
+    return static_cast<std::uint16_t>((result >> 8) & 0x01FF);
+}
+
+std::uint8_t RdpCombinerMath::clamp9(std::uint16_t value) noexcept {
+    const std::uint16_t index = value & 0x01FFU;
+    switch ((index >> 7U) & 0x03U) {
+    case 0U:
+    case 1U: return static_cast<std::uint8_t>(index & 0xFFU);
+    case 2U: return 0xFFU;
+    default: return 0U;
+    }
+}
+
 std::array<std::uint8_t, 4> RdpShadeInterpolator::interpolate(
     const RdpTriangleShadeCoefficients& shade, std::int64_t majorX,
     std::int32_t y, std::int32_t yBase, std::int32_t x) noexcept {
