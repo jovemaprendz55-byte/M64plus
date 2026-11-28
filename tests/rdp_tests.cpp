@@ -295,6 +295,30 @@ void testTriangleCommandPacketDecoding() {
             "mismatched triangle packet is rejected without changing output");
 }
 
+void testRdpShadeInterpolatorUsesEdgeAndPixelGradients() {
+    using namespace m64plus::n64;
+    RdpTriangleShadeCoefficients shade{};
+    shade.rgbaFixed = {{100 * 65536, 120 * 65536, 200 * 65536, 255 * 65536}};
+    shade.drgbaDeFixed = {{0, 10 * 65536, 0, 0}};
+    shade.drgbaDxFixed = {{10 * 65536, 0, 0, 0}};
+    const auto color = RdpShadeInterpolator::interpolate(
+        shade, static_cast<std::int64_t>(2) << 16U, 3, 1, 4);
+    require(color == std::array<std::uint8_t, 4>{{120U, 140U, 200U, 255U}},
+            "shade interpolation advances from major edge across X and down Y");
+}
+
+void testRdpShadeInterpolatorSnapsDxAndClampsChannels() {
+    using namespace m64plus::n64;
+    RdpTriangleShadeCoefficients shade{};
+    shade.rgbaFixed = {{250 * 65536, 300 * 65536, 400 * 65536, 255 * 65536}};
+    shade.drgbaDxFixed = {{(10 * 65536) + 31, 0, 0, 0}};
+    const auto color = RdpShadeInterpolator::interpolate(
+        shade, 0, 0, 0, 1);
+    require(color == std::array<std::uint8_t, 4>{{255U, 255U, 0U, 255U}},
+            "shade interpolation masks low X bits and applies the RDP 9-bit clamp");
+}
+
+
 void testTriangleShadeFixedPointSignExtension() {
     using namespace m64plus::n64;
     const auto packFour = [](std::uint16_t a, std::uint16_t b,
@@ -6457,6 +6481,8 @@ int main() {
     testTriangleOptionalBlockLayout();
     testTriangleEdgeHeaderDecoding();
     testTriangleCommandPacketDecoding();
+    testRdpShadeInterpolatorUsesEdgeAndPixelGradients();
+    testRdpShadeInterpolatorSnapsDxAndClampsChannels();
     testTriangleShadeFixedPointSignExtension();
     testMaximumTriangleCommandWaitsForAllWords();
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();

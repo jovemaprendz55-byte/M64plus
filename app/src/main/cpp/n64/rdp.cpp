@@ -184,6 +184,50 @@ std::int32_t signExtend14(std::uint16_t value) noexcept {
     return (bits & 0x2000) != 0 ? bits - 0x4000 : bits;
 }
 
+std::array<std::uint8_t, 4> RdpShadeInterpolator::interpolate(
+    const RdpTriangleShadeCoefficients& shade, std::int64_t majorX,
+    std::int32_t y, std::int32_t yBase, std::int32_t x) noexcept {
+    // Port of ParaLLEl-RDP's full-coverage interpolate_rgba path. The low
+    // five bits of dRGBA/dX are discarded before stepping across the span.
+    const std::int32_t baseX = static_cast<std::int32_t>(majorX >> 16U);
+    const auto wrap32 = [](std::uint32_t bits) noexcept {
+        if (bits <= 0x7FFFFFFFU) return static_cast<std::int32_t>(bits);
+        return -1 - static_cast<std::int32_t>(0xFFFFFFFFU - bits);
+    };
+    const auto sext9 = [](std::int32_t value) noexcept {
+        const std::int32_t bits = value & 0x1FF;
+        return bits >= 0x100 ? bits - 0x200 : bits;
+    };
+    std::array<std::uint8_t, 4> result{};
+    for (std::size_t channel = 0; channel < result.size(); ++channel) {
+        const std::int32_t scan = wrap32(
+            static_cast<std::uint32_t>(shade.rgbaFixed[channel]) +
+            static_cast<std::uint32_t>(shade.drgbaDeFixed[channel]) *
+                static_cast<std::uint32_t>(y - yBase));
+        const std::int32_t dx = shade.drgbaDxFixed[channel] & ~0x1F;
+        const std::int32_t value = wrap32(
+            static_cast<std::uint32_t>(scan) +
+            static_cast<std::uint32_t>(dx) *
+                static_cast<std::uint32_t>(x - baseX));
+        // RDP snaps through a signed 16-bit intermediate before the 8-bit
+        // color clamp. Explicit sign extension avoids host narrowing ambiguity.
+        const std::int32_t shifted = value >> 14U;
+        const std::int32_t signed16 = ((shifted & 0xFFFF) >= 0x8000)
+            ? (shifted & 0xFFFF) - 0x10000 : (shifted & 0xFFFF);
+        const std::uint16_t shifted2Bits = static_cast<std::uint16_t>(
+            static_cast<std::uint32_t>(signed16) << 2U);
+        const std::int32_t signedShifted2 =
+            (shifted2Bits & 0x8000U) != 0U
+                ? static_cast<std::int32_t>(shifted2Bits) - 0x10000
+                : static_cast<std::int32_t>(shifted2Bits);
+        const std::int32_t snapped = static_cast<std::int32_t>(
+            floorDivide(signedShifted2, 16));
+        result[channel] = static_cast<std::uint8_t>(
+            std::clamp(sext9(snapped - 0x80) + 0x80, 0, 0xFF));
+    }
+    return result;
+}
+
 bool fillTriangle(Bus& bus, const RdpSyncState& state,
                   const RdpTriangleCommand& triangle) noexcept {
     // First rasterizer slice: unshaded, untextured, un-Z triangles in FILL mode.
