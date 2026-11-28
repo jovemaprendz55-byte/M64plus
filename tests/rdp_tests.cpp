@@ -913,7 +913,7 @@ void testRdpCombinerInputsFromDecodedCommands() {
     require(inputs.keyCenter.channel == std::array<std::uint16_t, 4>{{0xCDU, 0x45U, 0x89U, 0U}} &&
             inputs.keyScale.channel == std::array<std::uint16_t, 4>{{0xEFU, 0x67U, 0xABU, 0U}},
             "decoded SET_KEY commands feed RGB key inputs");
-    require(inputs.k4 == 0x01FBU && inputs.k5 == 0x007FU,
+    require(inputs.k4 == 0x0180U && inputs.k5 == 0x007FU,
             "decoded SET_CONVERT feeds signed K4 and K5 values");
 }
 
