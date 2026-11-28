@@ -886,6 +886,40 @@ void testCpuDoublewordMultiplyDivideEdgeCases() {
         "DDIVU returns all-one quotient and original dividend remainder on divide by zero");
 }
 
+
+void testCpuWordDivideBoundaryCases() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    constexpr std::uint32_t program[] = {
+        0x0109001AU, // DIV t0,t1
+        0x00006012U, // MFLO t4
+        0x00006810U  // MFHI t5
+    };
+    for (std::uint32_t i = 0; i < 3U; ++i)
+        require(bus.write32(0x1100U + i * 4U, program[i]),
+                "load word divide boundary program");
+
+    auto run = [&](std::uint64_t dividend, std::uint64_t divisor,
+                   std::uint64_t expectedLo, std::uint64_t expectedHi,
+                   const char* description) {
+        machine.cpu().reset(0xFFFFFFFF80001100ULL);
+        require(machine.cpu().setCp0Register(m64plus::n64::Cp0::kStatus,
+                                               m64plus::n64::Cp0::kStatusKx),
+                "enable Kernel 64-bit mode for word divide boundary test");
+        machine.cpu().setRegister(8U, dividend);
+        machine.cpu().setRegister(9U, divisor);
+        require(machine.stepCpu() && machine.stepCpu() && machine.stepCpu(),
+                "execute word divide and read HI/LO boundary result");
+        require(machine.cpu().reg(12U) == expectedLo, description);
+        require(machine.cpu().reg(13U) == expectedHi, description);
+    };
+
+    run(7U, 0U, UINT64_MAX, 7U,
+        "signed DIV by zero keeps the emulator's positive-dividend quotient policy");
+    run(0x80000000U, 1U, 0xFFFFFFFF80000000ULL, 0U,
+        "DIVU word result is sign-extended when its quotient has bit 31 set");
+}
+
 void testCpuLoadLinkedStoreConditional() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -4358,6 +4392,7 @@ int main() {
     testCpuHiLoMultiplyDivideAndTransfers();
     testCpuDoublewordMultiplyDivide();
     testCpuDoublewordMultiplyDivideEdgeCases();
+    testCpuWordDivideBoundaryCases();
     testCpuLoadLinkedStoreConditional();
     testCpuLoadLinkedStoreConditionalIgnoresUnrelatedBusWrites();
     testCpuLoadLinkedStoreConditionalDetectsWritesInSameGranule();
