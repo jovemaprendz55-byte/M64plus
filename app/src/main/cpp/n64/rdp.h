@@ -197,6 +197,9 @@ public:
     // The result remains signed 16.16 for reuse by coverage and rasterization.
     static std::int64_t majorEdgeX(const RdpTriangleEdgeState& edge,
                                    std::int32_t subpixelY) noexcept;
+    // Evaluates the active minor edge at the same quarter-pixel Y position.
+    static std::int64_t minorEdgeX(const RdpTriangleEdgeState& edge,
+                                   std::int32_t subpixelY) noexcept;
     static std::uint8_t computeMask(
         const std::array<std::int32_t, 4>& leftS3,
         const std::array<std::int32_t, 4>& rightS3,
