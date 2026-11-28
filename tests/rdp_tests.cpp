@@ -4252,9 +4252,26 @@ void testUnsupportedRdpCommandIsReported() {
 
 void testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists() {
     using namespace m64plus::n64;
-    for (std::uint8_t flags = 0U; flags < 8U; ++flags) {
+    for (std::uint8_t flags = 1U; flags < 8U; ++flags) {
         Bus bus;
         RdpSyncState state{};
+        constexpr std::uint32_t framebuffer = 0x700U;
+        constexpr std::uint32_t sentinel = 0xC0DEC0DEU;
+        for (std::uint32_t pixel = 0U; pixel < 16U; ++pixel)
+            require(bus.write32(framebuffer + pixel * 4U, sentinel),
+                    "seed unsupported triangle framebuffer sentinel");
+        // Give every optional triangle type otherwise-valid flat-fill state.
+        // The processor must still reject shaded, textured and Z variants
+        // without touching the framebuffer.
+        state.colorImage = {0U, 3U, 4U, framebuffer};
+        state.hasColorImage = true;
+        state.fillColor = 0xAABBCCDDU;
+        state.hasFillColor = true;
+        state.hasOtherModes = true;
+        state.otherModes.cycleType = 3U;
+        state.hasScissor = true;
+        state.scissor = {0U, 0U, 16U, 16U, false, false};
+
         const std::uint32_t start = 0xA80U;
         const std::uint8_t opcode = static_cast<std::uint8_t>(0x08U + flags);
         const std::uint8_t words = RdpCommandDecoder::decode(header(opcode)).lengthWords;
@@ -4271,7 +4288,7 @@ void testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists() {
                 "publish complete triangle command");
 
         require(RdpCommandProcessor::processNext(bus, state) == RdpProcessResult::Unsupported,
-                "triangle command remains explicitly unsupported before rasterization");
+                "shaded, textured and Z triangle variants remain explicitly unsupported");
         require(state.hasTriangle &&
                 state.lastTriangle.layout.wordCount == words &&
                 state.lastTriangle.edge.yLow == 0U,
@@ -4280,6 +4297,11 @@ void testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists() {
         require(bus.read32(Bus::kDpCurrent, current) &&
                 current == start + static_cast<std::uint32_t>(words) * 8U,
                 "unsupported triangle consumes its entire framed packet");
+        for (std::uint32_t pixel = 0U; pixel < 16U; ++pixel) {
+            std::uint32_t value = 0U;
+            require(bus.read32(framebuffer + pixel * 4U, value) && value == sentinel,
+                    "unsupported triangle variant leaves framebuffer unchanged");
+        }
     }
 }
 
