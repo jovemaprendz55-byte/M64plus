@@ -477,6 +477,28 @@ void testRdpMajorEdgeUsesSharedFixedPointSubscanlineSetup() {
             "major-edge origin is based on Y rounded down to the containing pixel row");
 }
 
+void testRdpMinorEdgeSharesMiddleAndLowerEdgeSetup() {
+    using namespace m64plus::n64;
+    RdpTriangleEdgeState edge{};
+    edge.yHigh = 0U;
+    edge.yMiddle = 4U;
+    edge.yLow = 8U;
+    edge.xMiddle = 2 << 16;
+    edge.dxMiddleDy = 1 << 14;
+    edge.xLeft = 5 << 16;
+    edge.dxLeftDy = -(1 << 14);
+    require(RdpCoverage::minorEdgeX(edge, 3) == (11LL << 14U),
+            "minor edge follows the upper segment before middle Y");
+    require(RdpCoverage::minorEdgeX(edge, 4) == (5LL << 16U),
+            "minor edge switches to the lower segment exactly at middle Y");
+    require(RdpCoverage::minorEdgeX(edge, 6) == (9LL << 15U),
+            "lower minor edge applies its signed slope from middle Y");
+
+    edge.yMiddle = 0x3FFFU;
+    require(RdpCoverage::minorEdgeX(edge, 7) == (5LL << 16U) - (3LL << 14U),
+            "minor edge clamps middle Y to low Y before selecting the lower segment");
+}
+
 void testRdpCoverageBuildsPerSubpixelEdgesFromTriangle() {
     using namespace m64plus::n64;
     RdpTriangleEdgeState edge{};
@@ -7077,6 +7099,7 @@ int main() {
     testRdpCoverageQuantizesWithStickyFractionBit();
     testRdpCoverageComputesEightDiamondSamples();
     testRdpMajorEdgeUsesSharedFixedPointSubscanlineSetup();
+    testRdpMinorEdgeSharesMiddleAndLowerEdgeSetup();
     testRdpCoverageBuildsPerSubpixelEdgesFromTriangle();
     testRdpShadeInterpolatorUsesEdgeAndPixelGradients();
     testRdpShadeInterpolatorUsesFloorForNegativeMajorEdge();
