@@ -332,15 +332,17 @@ void testCpuMips3MultiplyDivideModeRestrictions() {
         cpu.setRegister(8U, test.lhs);
         cpu.setRegister(9U, test.rhs);
         require(machine.stepCpu(), "Supervisor SX mode executes 64-bit operation");
-        require(!cpu.hasLastException(),
-                "Supervisor SX mode does not raise an exception");
+        require(machine.stepCpu(), "Supervisor SX mode reads result with MFLO");
+        require(!cpu.hasLastException() && cpu.reg(12U) == test.expectedLo,
+                "Supervisor SX mode produces the expected LO result");
 
         cpu.reset(0xFFFFFFFF80000000ULL);
         cpu.setRegister(8U, test.lhs);
         cpu.setRegister(9U, test.rhs);
         require(machine.stepCpu(), "Kernel mode executes 64-bit operation with KX clear");
-        require(!cpu.hasLastException(),
-                "Kernel mode permits 64-bit operation even when KX is clear");
+        require(machine.stepCpu(), "Kernel mode reads result with MFLO");
+        require(!cpu.hasLastException() && cpu.reg(12U) == test.expectedLo,
+                "Kernel mode permits operation and produces expected LO when KX is clear");
     }
 }
 
