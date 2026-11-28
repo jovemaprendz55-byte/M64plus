@@ -184,7 +184,7 @@ std::int32_t signExtend14(std::uint16_t value) noexcept {
     return (bits & 0x2000) != 0 ? bits - 0x4000 : bits;
 }
 
-std::array<std::uint8_t, 4> RdpShadeInterpolator::interpolate(
+std::array<std::uint8_t, 4> interpolateShadeImpl(
     const RdpTriangleShadeCoefficients& shade, std::int64_t majorX,
     std::int32_t y, std::int32_t yBase, std::int32_t x) noexcept {
     // Port of ParaLLEl-RDP's full-coverage interpolate_rgba path. The low
@@ -684,6 +684,12 @@ bool loadTlutEntries(Bus& bus, RdpSyncState& state,
     return true;
 }
 } // namespace
+
+std::array<std::uint8_t, 4> RdpShadeInterpolator::interpolate(
+    const RdpTriangleShadeCoefficients& shade, std::int64_t majorX,
+    std::int32_t y, std::int32_t yBase, std::int32_t x) noexcept {
+    return interpolateShadeImpl(shade, majorX, y, yBase, x);
+}
 
 
 void RdpTextureMemory::reset() noexcept {
