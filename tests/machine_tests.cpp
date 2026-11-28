@@ -237,6 +237,41 @@ void testCpuMips3InstructionModeRestrictions() {
 }
 
 
+void testCpuMips3MultiplyModeRestrictions() {
+    N64Machine machine;
+    Bus& bus = machine.bus();
+    auto& cpu = machine.cpu();
+    constexpr std::uint32_t program[] = {
+        0x0109001CU, // DMULT t0,t1
+        0x00006012U  // MFLO t4
+    };
+    for (unsigned i = 0; i < 2U; ++i)
+        require(bus.write32(i * 4U, program[i]),
+                "write DMULT mode-restriction program");
+
+    cpu.reset(0U);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus, 2ULL << 3U),
+            "select 32-bit User mode for DMULT restriction");
+    cpu.setRegister(8U, 0x100000002ULL);
+    cpu.setRegister(9U, 3U);
+    require(machine.stepCpu(), "User-mode DMULT without UX is handled as Reserved Instruction");
+    require(cpu.hasLastException() && cpu.lastExceptionCode() == 10U,
+            "DMULT raises Reserved Instruction when User UX is disabled");
+    require(cpu.reg(12U) == 0U,
+            "rejected User-mode DMULT does not expose a product in MFLO destination");
+
+    cpu.reset(0U);
+    require(cpu.setCp0Register(m64plus::n64::Cp0::kStatus,
+                               (2ULL << 3U) | m64plus::n64::Cp0::kStatusUx),
+            "enable UX for User-mode DMULT");
+    cpu.setRegister(8U, 0x100000002ULL);
+    cpu.setRegister(9U, 3U);
+    require(machine.stepCpu(), "64-bit User mode executes DMULT");
+    require(machine.stepCpu(), "64-bit User mode reads DMULT result with MFLO");
+    require(!cpu.hasLastException() && cpu.reg(12U) == 0x300000006ULL,
+            "DMULT executes and produces the correct 64-bit product when UX is enabled");
+}
+
 void testCpuCop0DoublewordTransfers() {
     N64Machine machine;
     Bus& bus = machine.bus();
@@ -4395,6 +4430,7 @@ void testEventSchedulerOrdersCancelsAndAdvancesDeterministically() {
 int main() {
     testCp0EffectivePrivilegeControls64BitMode();
     testCpuMips3InstructionModeRestrictions();
+    testCpuMips3MultiplyModeRestrictions();
     testCpuCop0DoublewordTransfers();
     testN64ClockTimebaseUsesExactIntegerRatios();
     testMachineOwnsAndResetsEventScheduler();
