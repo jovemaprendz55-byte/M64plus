@@ -6736,6 +6736,22 @@ void testRdpCombinerInputsAreBuiltFromSyncState() {
             inputs.texel0.channel == std::array<std::uint16_t, 4>{{0U, 0U, 0U, 0U}} &&
             inputs.shade.channel == std::array<std::uint16_t, 4>{{0U, 0U, 0U, 0U}},
             "combiner builder leaves unavailable dynamic sources initialized");
+
+    RdpSyncState unsetState{};
+    unsetState.primColor = 0xFFFFFFFFU;
+    unsetState.envColor = 0xFFFFFFFFU;
+    unsetState.primLodFraction = 0xFFU;
+    unsetState.keyR = {0x0FFFU, 0xFFU, 0xFFU};
+    unsetState.keyGb = {0x0FFFU, 0x0FFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU};
+    unsetState.convert.coefficients = {{-1, -1, -1, -1, -1, -1}};
+    const RdpCombinerInputs unsetInputs = makeRdpCombinerInputs(unsetState);
+    require(unsetInputs.primitive.channel == std::array<std::uint16_t, 4>{{0U, 0U, 0U, 0U}} &&
+            unsetInputs.environment.channel == std::array<std::uint16_t, 4>{{0U, 0U, 0U, 0U}} &&
+            unsetInputs.primitiveLodFraction == 0U &&
+            unsetInputs.keyCenter.channel == std::array<std::uint16_t, 4>{{0U, 0U, 0U, 0U}} &&
+            unsetInputs.keyScale.channel == std::array<std::uint16_t, 4>{{0U, 0U, 0U, 0U}} &&
+            unsetInputs.k4 == 0U && unsetInputs.k5 == 0U,
+            "combiner builder ignores stale register values until their SET commands are seen");
 }
 
 int main() {
