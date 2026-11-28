@@ -926,6 +926,11 @@ std::uint8_t RdpCoverage::computeMask(
     constexpr std::array<std::array<std::int32_t, 2>, 4> sampleOffset{{
         {{0, 4}}, {{2, 6}}, {{0, 4}}, {{2, 6}}
     }};
+    // RDP coverage bits are not stored in scanline order. This mapping
+    // matches the hardware's alternating subrow masks (0xA/0x5).
+    constexpr std::array<std::array<std::uint8_t, 2>, 4> sampleBit{{
+        {{7, 5}}, {{6, 4}}, {{3, 1}}, {{2, 0}}
+    }};
     const std::int64_t pixelBase = static_cast<std::int64_t>(pixelX) * 8;
     std::uint8_t mask = 0U;
     for (std::size_t subY = 0; subY < sampleOffset.size(); ++subY) {
@@ -934,7 +939,7 @@ std::uint8_t RdpCoverage::computeMask(
             const std::int64_t x = pixelBase + sampleOffset[subY][sample];
             if (x >= leftS3[subY] && x < rightS3[subY])
                 mask = static_cast<std::uint8_t>(
-                    mask | (1U << (subY * 2U + sample)));
+                    mask | (1U << sampleBit[subY][sample]));
         }
     }
     return mask;
