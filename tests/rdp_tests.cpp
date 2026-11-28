@@ -487,6 +487,18 @@ void testRdpShadeInterpolatorSnapsDxAndClampsChannels() {
 }
 
 
+void testRdpShadeInterpolatorWrapsAtSignedSixteenBitStage() {
+    using namespace m64plus::n64;
+    RdpTriangleShadeCoefficients shade{};
+    // The interpolator's post-shift signed 16-bit stage wraps 0x7FFF
+    // through the same path as hardware instead of saturating early.
+    shade.rgbaFixed = {{32767 * 65536, 100 * 65536, 200 * 65536, 255 * 65536}};
+    const auto color = RdpShadeInterpolator::interpolate(shade, 0, 0, 0, 0);
+    require(color == std::array<std::uint8_t, 4>{{0U, 100U, 200U, 255U}},
+            "shade interpolation preserves signed-16-bit wrap before channel clamp");
+}
+
+
 void testTriangleShadeFixedPointSignExtension() {
     using namespace m64plus::n64;
     const auto packFour = [](std::uint16_t a, std::uint16_t b,
@@ -6818,6 +6830,7 @@ int main() {
     testRdpShadeInterpolatorUsesFloorForNegativeMajorEdge();
     testRdpShadeInterpolatorHandlesNegativeGradients();
     testRdpShadeInterpolatorSnapsDxAndClampsChannels();
+    testRdpShadeInterpolatorWrapsAtSignedSixteenBitStage();
     testTriangleShadeFixedPointSignExtension();
     testMaximumTriangleCommandWaitsForAllWords();
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
