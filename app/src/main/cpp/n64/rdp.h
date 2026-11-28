@@ -193,6 +193,10 @@ public:
 class RdpCoverage final {
 public:
     static std::int32_t quantizeX(std::int64_t x16_16) noexcept;
+    // Evaluates the unquantized major edge at a quarter-pixel Y subscanline.
+    // The result remains signed 16.16 for reuse by coverage and rasterization.
+    static std::int64_t majorEdgeX(const RdpTriangleEdgeState& edge,
+                                   std::int32_t subpixelY) noexcept;
     static std::uint8_t computeMask(
         const std::array<std::int32_t, 4>& leftS3,
         const std::array<std::int32_t, 4>& rightS3,
