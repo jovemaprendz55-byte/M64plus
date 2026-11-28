@@ -564,6 +564,53 @@ void testDecodedTriangleShadeFeedsInterpolator() {
 }
 
 
+void testDecodedTriangleShadeFeedsRdpCombiner() {
+    using namespace m64plus::n64;
+    const auto packFour = [](std::uint16_t a, std::uint16_t b,
+                             std::uint16_t c, std::uint16_t d) noexcept {
+        return (static_cast<std::uint64_t>(a) << 48U) |
+               (static_cast<std::uint64_t>(b) << 32U) |
+               (static_cast<std::uint64_t>(c) << 16U) |
+               static_cast<std::uint64_t>(d);
+    };
+
+    RdpCommandPacket packet{};
+    packet.info = RdpCommandDecoder::decode(header(0x0CU));
+    packet.words[0] = header(0x0CU);
+    packet.words[4] = packFour(100U, 120U, 200U, 255U);
+    packet.words[5] = packFour(10U, 0U, 0U, 0U);
+    packet.words[8] = packFour(0U, 10U, 0U, 0U);
+
+    RdpTriangleCommand triangle{};
+    require(RdpCommandDecoder::decodeTriangleCommand(packet, triangle) &&
+            triangle.layout.hasShade,
+            "decoded shaded triangle is available to the pixel pipeline");
+    const auto shade = RdpShadeInterpolator::interpolate(
+        triangle.shade, static_cast<std::int64_t>(2) << 16U, 3, 1, 4);
+
+    RdpCombinerInputs inputs{};
+    for (std::size_t channel = 0; channel < shade.size(); ++channel)
+        inputs.shade.channel[channel] = shade[channel];
+    inputs.lodFraction = 0x0FFU;
+
+    RdpCombineCycle cycle{};
+    cycle.colorA = 4U; // Shade
+    cycle.colorB = 0U;
+    cycle.colorC = 13U; // LOD fraction
+    cycle.colorD = 0U;
+    cycle.alphaA = 4U;
+    cycle.alphaB = 4U;
+    cycle.alphaC = 0U;
+    cycle.alphaD = 4U;
+
+    RdpCombinerColor output{};
+    require(RdpCombinerMath::evaluateCycle(inputs, cycle, output),
+            "decoded triangle shade reaches the RDP combiner");
+    require(output.channel == std::array<std::uint16_t, 4>{{120U, 139U, 199U, 255U}},
+            "decoded shade is interpolated and combined into final pixel color");
+}
+
+
 void testTriangleShadeFixedPointSignExtension() {
     using namespace m64plus::n64;
     const auto packFour = [](std::uint16_t a, std::uint16_t b,
@@ -6898,6 +6945,7 @@ int main() {
     testInterpolatedShadeFeedsRdpCombinerCycle();
     testRdpShadeInterpolatorWrapsAtSignedSixteenBitStage();
     testDecodedTriangleShadeFeedsInterpolator();
+    testDecodedTriangleShadeFeedsRdpCombiner();
     testTriangleShadeFixedPointSignExtension();
     testMaximumTriangleCommandWaitsForAllWords();
     testTriangleCommandsAreConsumedAsUnsupportedUntilRasterizationExists();
