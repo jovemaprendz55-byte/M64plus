@@ -281,11 +281,7 @@ bool fillTriangle(Bus& bus, const RdpSyncState& state,
             // Edge setup evaluates the major edge from the Y coordinate
             // rounded down to a pixel row. DO_OFFSET advances that origin by
             // three subpixel steps along dXh/dY before per-subscanline motion.
-            const std::int64_t offset = edge.doOffset
-                ? static_cast<std::int64_t>(edge.dxHighDy) * 3
-                : 0;
-            const std::int64_t major = static_cast<std::int64_t>(edge.xHigh) +
-                offset + static_cast<std::int64_t>(y - yhBase) * edge.dxHighDy;
+            const std::int64_t major = RdpCoverage::majorEdgeX(edge, y);
             const std::int64_t minor = y < middle
                 ? static_cast<std::int64_t>(edge.xMiddle) +
                     static_cast<std::int64_t>(y - yhBase) * edge.dxMiddleDy
@@ -902,6 +898,16 @@ std::int32_t RdpCoverage::quantizeX(std::int64_t x16_16) noexcept {
     return quantizeCoverageX(x16_16);
 }
 
+std::int64_t RdpCoverage::majorEdgeX(
+    const RdpTriangleEdgeState& edge, std::int32_t subpixelY) noexcept {
+    const std::int32_t yh = signExtend14(edge.yHigh);
+    const std::int32_t yhBase = static_cast<std::int32_t>(floorDivide(yh, 4) * 4);
+    const std::int64_t offset = edge.doOffset
+        ? static_cast<std::int64_t>(edge.dxHighDy) * 3 : 0;
+    return static_cast<std::int64_t>(edge.xHigh) + offset +
+        static_cast<std::int64_t>(subpixelY - yhBase) * edge.dxHighDy;
+}
+
 std::uint8_t RdpCoverage::computeMask(
     const std::array<std::int32_t, 4>& leftS3,
     const std::array<std::int32_t, 4>& rightS3,
@@ -943,10 +949,7 @@ bool RdpCoverage::computeTriangleRowEdges(
     for (std::int32_t sub = 0; sub < 4; ++sub) {
         const std::int32_t y = pixelRow * 4 + sub;
         if (y < yh || y >= yl) continue;
-        const std::int64_t offset = edge.doOffset
-            ? static_cast<std::int64_t>(edge.dxHighDy) * 3 : 0;
-        const std::int64_t major = static_cast<std::int64_t>(edge.xHigh) +
-            offset + static_cast<std::int64_t>(y - yhBase) * edge.dxHighDy;
+        const std::int64_t major = RdpCoverage::majorEdgeX(edge, y);
         const std::int64_t minor = y < middle
             ? static_cast<std::int64_t>(edge.xMiddle) +
                 static_cast<std::int64_t>(y - yhBase) * edge.dxMiddleDy
