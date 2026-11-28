@@ -503,8 +503,9 @@ void testInterpolatedShadeFeedsRdpCombinerCycle() {
     RdpCombineCycle cycle{};
     cycle.colorA = 4U; // Shade
     cycle.colorB = 0U;
-    cycle.colorC = 6U; // One
+    cycle.colorC = 13U; // LOD fraction, 0xFF
     cycle.colorD = 0U;
+    inputs.lodFraction = 0x0FFU;
     cycle.alphaA = 4U; // Shade alpha
     cycle.alphaB = 4U; // Cancel the multiplied term exactly
     cycle.alphaC = 0U;
@@ -513,8 +514,8 @@ void testInterpolatedShadeFeedsRdpCombinerCycle() {
     RdpCombinerColor output{};
     require(RdpCombinerMath::evaluateCycle(inputs, cycle, output),
             "combiner accepts interpolated triangle shade as its source");
-    require(output.channel == std::array<std::uint16_t, 4>{{120U, 140U, 200U, 255U}},
-            "shade interpolation reaches the combiner output without channel changes");
+    require(output.channel == std::array<std::uint16_t, 4>{{119U, 139U, 199U, 255U}},
+            "shade interpolation feeds RGB multiply and alpha add in the combiner");
 }
 
 
