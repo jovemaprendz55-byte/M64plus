@@ -311,10 +311,10 @@ void testTriangleShadeFixedPointSignExtension() {
     packet.words[5] = packFour(0xFFFFU, 0x8000U, 0x0001U, 0x7FFFU);
     packet.words[6] = packFour(0x8000U, 0xFFFFU, 0x0000U, 0x0001U);
     packet.words[7] = packFour(0xFFFFU, 0x0001U, 0x0000U, 0x0000U);
-    packet.words[8] = packFour(0x0001U, 0xFFFFU, 0x0000U, 0x0000U);
-    packet.words[9] = packFour(0x0000U, 0x0000U, 0x0000U, 0x0000U);
-    packet.words[10] = packFour(0x0000U, 0x0000U, 0x0000U, 0x0000U);
-    packet.words[11] = packFour(0x0000U, 0x0000U, 0x0000U, 0x0000U);
+    packet.words[8] = packFour(0x0001U, 0xFFFFU, 0x8000U, 0x7FFFU);
+    packet.words[9] = packFour(0x0000U, 0xFFFFU, 0x0001U, 0x8000U);
+    packet.words[10] = packFour(0xFFFFU, 0x8000U, 0x0001U, 0x7FFFU);
+    packet.words[11] = packFour(0x8000U, 0x0001U, 0xFFFFU, 0x7FFFU);
 
     RdpTriangleCommand command{};
     require(RdpCommandDecoder::decodeTriangleCommand(packet, command),
@@ -327,6 +327,16 @@ void testTriangleShadeFixedPointSignExtension() {
     require(command.shade.drgbaDxFixed[0] == -1 &&
             command.shade.drgbaDxFixed[1] == -2147483647,
             "shade X increments sign-extend signed 16-bit integer fields");
+    require(command.shade.drgbaDeFixed[0] == 65536 &&
+            command.shade.drgbaDeFixed[1] == -1 &&
+            command.shade.drgbaDeFixed[2] == -2147483647 &&
+            command.shade.drgbaDeFixed[3] == 2147450880,
+            "shade edge increments preserve signed integer and unsigned fraction");
+    require(command.shade.drgbaDyFixed[0] == -32768 &&
+            command.shade.drgbaDyFixed[1] == -2147483647 &&
+            command.shade.drgbaDyFixed[2] == 131071 &&
+            command.shade.drgbaDyFixed[3] == 2147450879,
+            "shade Y increments preserve signed integer and unsigned fraction");
     require(command.shade.rgba[0] == 511 &&
             command.shade.rgbaFraction[0] == static_cast<std::int16_t>(0x8000U) &&
             command.shadeCoefficients[0] == 511 &&
