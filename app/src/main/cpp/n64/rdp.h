@@ -86,6 +86,11 @@ struct RdpTriangleShadeCoefficients final {
     std::array<std::int16_t, 4> drgbaDy{};
     std::array<std::int16_t, 4> drgbaDeFraction{};
     std::array<std::int16_t, 4> drgbaDyFraction{};
+    // Combined signed fixed-point values: base uses s9.16; deltas use s15.16.
+    std::array<std::int32_t, 4> rgbaFixed{};
+    std::array<std::int32_t, 4> drgbaDxFixed{};
+    std::array<std::int32_t, 4> drgbaDeFixed{};
+    std::array<std::int32_t, 4> drgbaDyFixed{};
 };
 
 // Texture block order: STW, dSTW/dX, STW fraction, dSTW/dX fraction,

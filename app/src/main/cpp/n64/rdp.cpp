@@ -775,6 +775,24 @@ bool RdpCommandDecoder::decodeTriangleCommand(
         copyGroup(candidate.shade.drgbaDy, candidate.shadeCoefficients, 20U);
         copyGroup(candidate.shade.drgbaDeFraction, candidate.shadeCoefficients, 24U);
         copyGroup(candidate.shade.drgbaDyFraction, candidate.shadeCoefficients, 28U);
+        const auto fixedPoint = [](std::int32_t integer, std::uint16_t fraction) noexcept {
+            return integer * 65536 + static_cast<std::int32_t>(fraction);
+        };
+        for (std::size_t i = 0; i < 4U; ++i) {
+            const std::int32_t baseInteger = signExtend9(
+                static_cast<std::uint16_t>(candidate.shade.rgba[i]));
+            candidate.shade.rgbaFixed[i] = fixedPoint(
+                baseInteger, static_cast<std::uint16_t>(candidate.shade.rgbaFraction[i]));
+            candidate.shade.drgbaDxFixed[i] = fixedPoint(
+                candidate.shade.drgbaDx[i],
+                static_cast<std::uint16_t>(candidate.shade.drgbaDxFraction[i]));
+            candidate.shade.drgbaDeFixed[i] = fixedPoint(
+                candidate.shade.drgbaDe[i],
+                static_cast<std::uint16_t>(candidate.shade.drgbaDeFraction[i]));
+            candidate.shade.drgbaDyFixed[i] = fixedPoint(
+                candidate.shade.drgbaDy[i],
+                static_cast<std::uint16_t>(candidate.shade.drgbaDyFraction[i]));
+        }
     }
     if (candidate.layout.hasTexture) {
         copyGroup(candidate.texture.stw, candidate.textureCoefficients, 0U);

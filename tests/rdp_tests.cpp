@@ -195,6 +195,19 @@ void testTriangleCommandPacketDecoding() {
                 require(command.shadeCoefficients[i] == expected,
                         "all shade coefficient fields retain their signed order");
             }
+            require(command.shade.rgbaFixed[0] ==
+                        static_cast<std::int32_t>(static_cast<std::uint16_t>(command.shade.rgba[0]) & 0x01FFU) * 65536 +
+                            static_cast<std::uint16_t>(command.shade.rgbaFraction[0]) &&
+                    command.shade.drgbaDxFixed[0] ==
+                        static_cast<std::int32_t>(command.shade.drgbaDx[0]) * 65536 +
+                            static_cast<std::uint16_t>(command.shade.drgbaDxFraction[0]) &&
+                    command.shade.drgbaDeFixed[0] ==
+                        static_cast<std::int32_t>(command.shade.drgbaDe[0]) * 65536 +
+                            static_cast<std::uint16_t>(command.shade.drgbaDeFraction[0]) &&
+                    command.shade.drgbaDyFixed[0] ==
+                        static_cast<std::int32_t>(command.shade.drgbaDy[0]) * 65536 +
+                            static_cast<std::uint16_t>(command.shade.drgbaDyFraction[0]),
+                    "shade integer and fraction fields are assembled into fixed-point values");
             require(command.shade.rgba[0] == command.shadeCoefficients[0] &&
                     command.shade.drgbaDx[0] == command.shadeCoefficients[4] &&
                     command.shade.rgbaFraction[0] == command.shadeCoefficients[8] &&
