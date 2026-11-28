@@ -214,7 +214,10 @@ std::array<std::uint8_t, 4> interpolateShadeImpl(
                 static_cast<std::uint32_t>(x - baseX));
         // RDP snaps through a signed 16-bit intermediate before the 8-bit
         // color clamp. Explicit sign extension avoids host narrowing ambiguity.
-        const std::int32_t shifted = value >> 14U;
+        // C++17 leaves right-shifting a negative signed value implementation-defined.
+        // Use mathematical floor to preserve the RDP's arithmetic-shift behavior portably.
+        const std::int32_t shifted = static_cast<std::int32_t>(
+            floorDivide(value, 1 << 14U));
         const std::int32_t signed16 = ((shifted & 0xFFFF) >= 0x8000)
             ? (shifted & 0xFFFF) - 0x10000 : (shifted & 0xFFFF);
         const std::uint16_t shifted2Bits = static_cast<std::uint16_t>(
