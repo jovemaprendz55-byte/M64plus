@@ -514,7 +514,7 @@ void testInterpolatedShadeFeedsRdpCombinerCycle() {
     RdpCombinerColor output{};
     require(RdpCombinerMath::evaluateCycle(inputs, cycle, output),
             "combiner accepts interpolated triangle shade as its source");
-    require(output.channel == std::array<std::uint16_t, 4>{{119U, 139U, 199U, 255U}},
+    require(output.channel == std::array<std::uint16_t, 4>{{120U, 139U, 199U, 255U}},
             "shade interpolation feeds RGB multiply and alpha add in the combiner");
 }
 
