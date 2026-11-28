@@ -140,6 +140,18 @@ struct RdpTriangleCommand final {
     RdpTriangleZCoefficients depth{};
 };
 
+// Exact fixed-point arithmetic used by the RDP color combiner. Inputs are
+// 9-bit mux values; RGB keeps the 17-bit accumulator while alpha returns
+// the 9-bit result after the hardware's rounded 8-bit shift.
+class RdpCombinerMath final {
+public:
+    static std::int32_t evaluateColor(std::uint16_t a, std::uint16_t b,
+                                      std::uint16_t c, std::uint16_t d) noexcept;
+    static std::uint16_t evaluateAlpha(std::uint16_t a, std::uint16_t b,
+                                       std::uint16_t c, std::uint16_t d) noexcept;
+    static std::uint8_t clamp9(std::uint16_t value) noexcept;
+};
+
 class RdpShadeInterpolator final {
 public:
     // Full-coverage, native-resolution RDP shade interpolation. majorX is the
